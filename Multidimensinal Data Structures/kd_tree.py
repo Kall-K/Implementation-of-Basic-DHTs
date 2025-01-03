@@ -75,12 +75,14 @@ class KDTree:
         matching_points = np.array(matching_points)  # 2D array with cols=3
         matching_reviews = np.array(matching_reviews)  # 1D array
 
-        # Print results
-        print(f"\nFound {len(matching_points)} points within the specified range:")
-        for point, review in zip(matching_points, matching_reviews):
-            print(f"\nPoint: {point}, Review: {review}")
-
         return matching_points, matching_reviews
+
+    def print_search_results(self, matching_points, matching_reviews):
+        """Prints the search results."""
+        # Print results
+        print(f"\nFound {len(matching_points)} points within the specified ranges:")
+        for point, review in zip(matching_points, matching_reviews):
+            print(f"\nPoint: {point}\nReview: {review}")
 
     def visualize(self, points, reviews):
         """
@@ -114,31 +116,37 @@ class KDTree:
         plt.show()
 
 
-# Load CSV file
-csv_file = "Coffee Reviews Dataset/simplified_coffee.csv"  # Replace with your file path
-df = pd.read_csv(csv_file)
+# Example usage
+if __name__ == "__main__":
+    # Load CSV file
+    csv_file = (
+        "Coffee Reviews Dataset/simplified_coffee.csv"  # Replace with your file path
+    )
+    df = pd.read_csv(csv_file)
 
-# Keep only the date from the review_date column
-df["review_date"] = pd.to_datetime(df["review_date"], format="%B %Y").dt.year
+    # Keep only the date from the review_date column
+    df["review_date"] = pd.to_datetime(df["review_date"], format="%B %Y").dt.year
 
-# Extract the 3D data: review_date, rating, 100g_USD
-points = df[["review_date", "rating", "100g_USD"]].to_numpy()
+    # Extract the 3D data: review_date, rating, 100g_USD
+    points = df[["review_date", "rating", "100g_USD"]].to_numpy()
 
-# Extract the reviews
-reviews = df["review"].to_numpy()
+    # Extract the reviews
+    reviews = df["review"].to_numpy()
 
-# Build the KD-Tree
-kd_tree = KDTree(points, reviews)
+    # Build the KD-Tree
+    kd_tree = KDTree(points, reviews)
 
-# kd_tree.visualize(points, reviews)
+    # kd_tree.visualize(points, reviews)
 
-new_point = [2018, 94, 5.5]  # Example new point
-new_review = "A rich and vibrant coffee with hints of fruit and chocolate."
+    new_point = [2018, 94, 5.5]  # Example new point
+    new_review = "A rich and vibrant coffee with hints of fruit and chocolate."
 
-kd_tree.add_point(new_point, new_review)
+    kd_tree.add_point(new_point, new_review)
 
-# Search for points within a specific range
-lower_bounds = [2017, 90, 4.0]
-upper_bounds = [2018, 95, 5.5]
+    # Search for points within a specific range
+    lower_bounds = [2017, 90, 4.0]
+    upper_bounds = [2018, 95, 5.5]
 
-points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 88 points result
+    points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 88 points result
+
+    kd_tree.print_search_results(points, reviews)
