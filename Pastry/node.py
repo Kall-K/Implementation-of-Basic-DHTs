@@ -1,5 +1,5 @@
-from Multidimensinal_Data_Structures.kd_tree import KDTree
-from Multidimensinal_Data_Structures.lsh import LSH
+from Multidimensional_Data_Structures.kd_tree import KDTree
+from Multidimensional_Data_Structures.lsh import LSH
 
 
 class PastryNode:
