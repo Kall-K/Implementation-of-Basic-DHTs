@@ -32,11 +32,8 @@ class PastryNode:
         # Leaf Set
         self.Lmin = [None for x in range(L // 2)]
         self.Lmax = [None for x in range(L // 2)]
-        # self.Lmin = [None for x in range(pow(2, b - 1))]
-        # self.Lmax = [None for x in range(pow(2, b - 1))]
         # Nearby nodes
         self.neighborhood_set = [None for x in range(np.floor(np.sqrt(N)).astype(int))]
-        # self.neighborhood_set = [None for x in range(pow(2, b + 1))]  # Nearby nodes
         self.lock = threading.Lock()
 
         # Create a thread pool for handling requests to limit the number of concurrent threads
@@ -124,6 +121,8 @@ class PastryNode:
 
             if operation == "JOIN_NETWORK":
                 response = self._handle_join_request(request)
+
+            # Add more operations here as needed
 
             conn.sendall(pickle.dumps(response))  # Serialize and send the response
         except Exception as e:
@@ -363,6 +362,7 @@ class PastryNode:
         if self.routing_table[idx][int(key[idx], 16)] is None:
             self.routing_table[idx][int(key[idx], 16)] = key
 
+        """Giati to ekana auto!! na to psaksw an xreiazetai"""
         # If the entry in the routing table of the node corresponding to the key
         # is empty, update it with the current node's ID
         if (
