@@ -16,18 +16,22 @@ class PastryNetwork:
         # Add the node to the network
         self.nodes[node_id] = new_node
 
-        # Find the closest node to the new using its IP address
-        closest_node = self._find_topologically_closest_node(new_node)
-
-        if not closest_node:
+        if len(self.nodes) == 1:
             print("The network is empty. The new node is the first node.")
             return
 
-        # Update the new nodes Neighborhood Set
-        new_node.update_neighborhood_set(closest_node)
+        # Find the closest node to the new using its IP address
+        closest_node = self._find_topologically_closest_node(new_node)
+
+        # Update the new nodes Neighborhood Set of the new node
+        new_node.initialize_neighborhood_set(closest_node.node_id)
 
         # Forward the join message to the topologically closest node
-        join_request = {"operation": "JOIN_NETWORK", "joining_node": new_node}
+        join_request = {
+            "operation": "JOIN_NETWORK",
+            "joining_node_id": new_node.node_id,
+            "visited_nodes": set(),
+        }
         new_node.send_request(closest_node, join_request)
 
         # Broadcast the new node's arrival to the network
@@ -40,6 +44,10 @@ class PastryNetwork:
         closest_node = None
         min_distance = float("inf")
         for existing_node in self.nodes.values():
+            # Skip the new node
+            if existing_node == new_node:
+                continue
+
             distance = topological_distance(
                 new_node.address[0], existing_node.address[0]
             )

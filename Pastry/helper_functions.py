@@ -28,16 +28,21 @@ def common_prefix_length(id1, id2):
 
 def hex_distance(id1, id2):
     """
-    Compute the absolute distance between two hexadecimal number strings.
+    Calculate the distance between two hexadecimal IDs.
     """
-    # Convert the hexadecimal strings to integers
-    int1 = int(id1, 16)
-    int2 = int(id2, 16)
+    # Iterate through each character in the IDs
+    for i in range(len(id1)):
+        # Check if the characters at the current position are different
+        if id1[i] != id2[i]:
+            # Return the index of the first differing character and the absolute difference between the two IDs
+            return i, abs(int(id1[i:], 16) - int(id2[i:], 16))
+    # If the IDs are identical, return the length of the IDs and 0
+    return -1, 0
 
-    # Calculate the absolute distance
-    distance = abs(int1 - int2)
 
-    return distance
+"""def hex_distance(id1, id2):
+    #Calculate the absolute distance between two hexadecimal IDs.
+    return abs(int(id1, 16) - int(id2, 16))"""
 
 
 def hex_compare(id1, id2, equality=True):
