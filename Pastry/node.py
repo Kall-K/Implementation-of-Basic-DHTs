@@ -5,10 +5,20 @@ import pickle
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 
+import sys
+import os
+
+# Add the parent directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+
 from constants import *
 from helper_functions import *
 
-# from Multidimensional_Data_Structures.kd_tree import KDTree
+
+from Multidimensional_Data_Structures.kd_tree import KDTree
+
+
 # from Multidimensional_Data_Structures.lsh import LSH
 from sklearn.feature_extraction.text import TfidfVectorizer
 
@@ -24,7 +34,8 @@ class PastryNode:
             node_id if node_id is not None else self._generate_id(self.address)
         )
         self.network = network  # Reference to the DHT network
-        # self.kd_tree = None  # Centralized KD-Tree
+
+        self.kd_tree = None  # Centralized KD-Tree
         # 2D Routing Table
         self.routing_table = [
             [None for j in range(pow(2, b))] for i in range(HASH_HEX_DIGITS)
@@ -121,6 +132,8 @@ class PastryNode:
 
             if operation == "JOIN_NETWORK":
                 response = self._handle_join_request(request)
+            elif operation == "INSERT_KEY":
+                response = self._handle_insert_key_request(request)
 
             # Add more operations here as needed
 
@@ -170,12 +183,79 @@ class PastryNode:
 
         # Return a success response
         return {"status": "success"}
+    
+    def _handle_insert_key_request(self, request):
+        """
+        Handle an INSERT_KEY operation.
+        """
+        key = request["key"]
+        point = request["point"]
+        review = request["review"]
+        hops = request.get("hops", [])  # Track hops
+
+        # Log the current node as part of the hops
+        hops.append(self.node_id)
+
+        # If the key belongs to this node (based on leaf set), store it in the KDTree
+        if self._in_leaf_set(key):
+            if not self.kd_tree:
+                # Initialize KDTree with the first point
+                self.kd_tree = KDTree(points=np.array([point]), reviews=np.array([review]))
+            else:
+                # Add point to the existing KDTree
+                self.kd_tree.add_point(point, review)
+
+            # Print the point and review directly after adding
+            print(f"Inserted Key: {key}")
+            print(f"Point: {point}")
+            print(f"Review: {review}")
+            print(f"Stored at Node ID: {self.node_id}")
+            print(f"Hops: {hops}")
+            print("")
+            return {"status": "success", "message": f"Key {key} stored at {self.node_id}"}
+
+        # Otherwise, route the request to the next node
+        next_hop_id = self._find_next_hop(key)
+        if next_hop_id == self.node_id:
+            if not self.kd_tree:
+                self.kd_tree = KDTree(points=np.array([point]), reviews=np.array([review]))
+            else:
+                self.kd_tree.add_point(point, review)
+            print(f"Inserted Key: {key}")
+            print(f"Point: {point}")
+            print(f"Review: {review}")
+            print(f"Routed and stored at Node ID: {self.node_id}")
+            print(f"Hops: {hops}")
+            print("")
+            return {"status": "success", "message": f"Key {key} stored at {self.node_id}"}
+
+        # Forward the request to the next hop
+        next_hop_node = self.network.nodes[next_hop_id]
+        request["hops"] = hops  # Include hops in the forwarded request
+        return next_hop_node._handle_insert_key_request(request)
+
+
+    
+    def insert_key(self, key, point, review):
+        """
+        Initiate the INSERT_KEY operation for a given key, point, and review.
+        """
+        request = {
+            "operation": "INSERT_KEY",
+            "key": key,
+            "point": point,
+            "review": review,
+            "hops": []  # Initialize hops tracking
+        }
+        self._handle_insert_key_request(request)
+
 
     def _forward_request(self, request):
         """
         Forward a request to the next node in the route.
         """
         operation = request["operation"]
+
         if operation == "JOIN_NETWORK":
             new_node_id = request["joining_node_id"]
             new_node = self.network.nodes[new_node_id]
@@ -197,6 +277,20 @@ class PastryNode:
                 return
 
             # Else forward the request to the next hop
+            next_hop_node = self.network.nodes[next_hop_id]
+            self.send_request(next_hop_node, request)
+
+        elif operation == "INSERT_KEY":
+            # Forward the INSERT_KEY request to the next hop
+            key = request["key"]
+            next_hop_id = self._find_next_hop(key)
+
+            if next_hop_id == self.node_id:
+                # If the next hop is the current node, handle the insert here
+                self._handle_insert_key_request(request)
+                return
+
+            # Otherwise, forward the request to the next hop
             next_hop_node = self.network.nodes[next_hop_id]
             self.send_request(next_hop_node, request)
 

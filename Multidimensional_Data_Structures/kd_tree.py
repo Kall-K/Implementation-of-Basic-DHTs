@@ -36,7 +36,7 @@ class KDTree:
         # Rebuild the KD-Tree with the updated points
         self.build(self.points)
 
-        print(f"\nAdded new point: {new_point} with review: {new_review}")
+        #print(f"\nAdded new point: {new_point} with review: {new_review}")
 
     def search(self, lower_bounds, upper_bounds):
         """
@@ -82,7 +82,7 @@ class KDTree:
         # Print results
         print(f"\nFound {len(matching_points)} points within the specified ranges:")
         for point, review in zip(matching_points, matching_reviews):
-            print(f"\nPoint: {point}\nReview: {review}")
+            print(f"\nPointZ: {point}\nReview: {review}")
 
     def visualize(self, points, reviews):
         """
@@ -149,4 +149,4 @@ if __name__ == "__main__":
 
     points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 88 points result
 
-    kd_tree.print_search_results(points, reviews)
+    #kd_tree.print_search_results(points, reviews)
