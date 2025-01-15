@@ -194,9 +194,6 @@ class PastryNode:
                 "status": "success",
             }
 
-        if next_hop_id in hops:
-            return
-
         # Else forward the request to the next hop
         next_hop_node = self.network.nodes[next_hop_id]
         self.send_request(next_hop_node, request)
