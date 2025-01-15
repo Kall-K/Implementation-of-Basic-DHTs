@@ -173,7 +173,6 @@ class PastryNode:
         """
         new_node_id = request["joining_node_id"]
         new_node = self.network.nodes[new_node_id]
-        hops = request.get("hops", [])
 
         # Determine the routing table row to update
         i = common_prefix_length(self.node_id, new_node.node_id)
