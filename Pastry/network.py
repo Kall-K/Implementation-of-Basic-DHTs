@@ -30,7 +30,7 @@ class PastryNetwork:
         join_request = {
             "operation": "JOIN_NETWORK",
             "joining_node_id": new_node.node_id,
-            "visited_nodes": set(),
+            "hops": [],
         }
         new_node.send_request(closest_node, join_request)
 

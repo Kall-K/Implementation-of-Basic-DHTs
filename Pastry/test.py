@@ -6,7 +6,7 @@ import sys
 import os
 
 # Add the parent directory to sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 from network import PastryNetwork
@@ -39,7 +39,7 @@ def main():
     # Extract reviews and other details
     reviews = df["review"].to_numpy()
     countries = df["loc_country"].to_numpy()
-    names = df["name"].to_numpy()  # Replace "name" with the correct column name if different
+    names = df["name"].to_numpy()
 
     # Stage 1: Node Joining
     print("Stage 1: Node Joining")
@@ -73,18 +73,12 @@ def main():
     #     print("")
     #     first_node.insert_key(key, point, review)
 
-    print("Stage 2: Key Insertion")
-    print("=======================")
-    print("\nInserting data into the network...")
-    first_node = list(network.nodes.values())[0]
-    for key, point, review, country, name in zip(keys, points, reviews, countries, names):
+    # Insert all entries
+    for key, point, review, country, name in zip(
+        keys, points, reviews, countries, names
+    ):
         print(f"\nInserting Key: {key}, Country: {country}, Name: {name}")
         first_node.insert_key(key, point, review)
-
-
-    # for key, point, review, country, name in zip(keys, points, reviews, countries, names):
-    #     print(f"\nInserting Key: {key}, Country: {country}, Name: {name}")
-    #     first_node.insert_key(key, point, review)
 
     # Inspect the state of each node
     print("\nInspecting the state of each node:")
@@ -95,9 +89,11 @@ def main():
         #     node.kd_tree.print_search_results(node.kd_tree.points, node.kd_tree.reviews)
 
     # Print the KDTree of the first node
-    if first_node.kd_tree and first_node.kd_tree.points.size > 0:
+    """if first_node.kd_tree and first_node.kd_tree.points.size > 0:
         print("\nKDTree for the first node (ID: {first_node.node_id}):")
-        first_node.kd_tree.print_search_results(first_node.kd_tree.points, first_node.kd_tree.reviews)
+        first_node.kd_tree.print_search_results(
+            first_node.kd_tree.points, first_node.kd_tree.reviews
+        )"""
 
 
 if __name__ == "__main__":
