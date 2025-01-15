@@ -70,6 +70,7 @@ def main():
     # for i in range(10):
     #     key, point, review, country, name = keys[i], points[i], reviews[i], countries[i], names[i]
     #     print(f"Inserting Key: {key}, Country: {country}, Name: {name}")
+    #     print("")
     #     first_node.insert_key(key, point, review)
 
     print("Stage 2: Key Insertion")

@@ -231,8 +231,7 @@ class PastryNode:
 
         # Forward the request to the next hop
         next_hop_node = self.network.nodes[next_hop_id]
-        request["hops"] = hops  # Include hops in the forwarded request
-        return next_hop_node._handle_insert_key_request(request)
+        self.send_request(next_hop_node, request)
 
 
     
