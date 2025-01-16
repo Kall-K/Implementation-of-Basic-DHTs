@@ -186,13 +186,13 @@ if __name__ == "__main__":
     lower_bounds = [2017, 90, 4.0]
     upper_bounds = [2018, 95, 5.5]
 
-    points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 88 points result
+    points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 80 points result
     kd_tree.print_search_results(points, reviews)
 
     # Delete points form the United States
     country_key = hashlib.sha1("United States".encode()).hexdigest()[-4:]
     kd_tree.delete_points(country_key)
 
-    points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 88 points result
+    points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 9 points result
 
     kd_tree.print_search_results(points, reviews)
