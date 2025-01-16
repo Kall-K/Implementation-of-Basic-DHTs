@@ -58,7 +58,7 @@ class LSH:
         # Compute similarities for unique pairs
         similarities = []
         for doc1, doc2 in pairs:
-            sim = cosine_similarity([self.documents[doc1]], [self.documents[doc2]])[0][0] 
+            sim = cosine_similarity([self.documents[doc1]], [self.documents[doc2]])[0][0]
             similarities.append((doc1, doc2, sim))
 
         # Sort by similarity score
@@ -80,7 +80,7 @@ class LSH:
 
         # Convert indices to document texts
         similar_docs_text = [original_docs_texts[idx] for idx in similar_docs_indices]
-        
+
         return similar_docs_text[:N]
 
 
@@ -104,7 +104,7 @@ if __name__ == "__main__":
         lsh.add_document(vector)
 
     # Find the top N most similar pairs
-    N=3
+    N = 3
     similar_pairs = lsh.find_similar_pairs(N)
 
     # Display a list of the top N similar documents

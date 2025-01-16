@@ -34,7 +34,7 @@ kd_tree = KDTree(points, reviews)
 
 # Optionally a new points can be added
 new_point = [2018, 94, 5.5]  # Example new point
-new_review = "Very delicate and sweet. Lemon verbena, dried persimmon, dogwood, baker’s chocolate in aroma and cup. Balanced, sweet-savory structure; velvety-smooth mouthfeel. The sweetly herb-toned finish centers on notes of lemon verbena and dried persimmon wrapped in baker’s chocolate."
+new_review = "Very delicate and sweet. Lemon verbena, dried persimmon, dogwood, baker's chocolate in aroma and cup. Balanced, sweet-savory structure; velvety-smooth mouthfeel. The sweetly herb-toned finish centers on notes of lemon verbena and dried persimmon wrapped in baker's chocolate."
 
 kd_tree.add_point(new_point, new_review)
 
