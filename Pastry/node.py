@@ -1,6 +1,5 @@
 import threading
 import socket
-import hashlib
 import pickle
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
@@ -25,10 +24,15 @@ class PastryNode:
 
     def __init__(self, network, node_id=None):
         """
-        Initialize a new Pastry node with a unique ID, address, and empty data structures.
+        Initialize a new Pastry node with a unique ID, Port, Position, and empty data structures.
         """
-        self.address = self._generate_address()  # (IP, Port)
-        self.node_id = node_id if node_id is not None else self._generate_id(self.address)
+        # Set a fixed seed for reproducibility
+        self.node_id = node_id  # if node_id is not None else self._generate_id(self.port)
+        np.random.seed(int(self.node_id, 16))
+
+        self.port = self._generate_port()  # IP = (127.0.0.1, Port)
+        self.position = self._generate_position()  # Random float between 0 and 1
+
         self.network = network  # Reference to the DHT network
 
         self.kd_tree = None  # Centralized KD-Tree
@@ -46,33 +50,38 @@ class PastryNode:
 
     # Initialization Methods
 
-    def _generate_address(self, port=None):
+    def _generate_port(self, port=None):
         """
-        Generate a unique address (IP, Port) for the node.
+        Generate a unique address Port for the node.
         """
-        # Simulate unique IPs in a private network range (192.168.x.x)
-        ip = f"192.168.{np.random.randint(0, 256)}.{np.random.randint(1, 256)}"
         port = port or np.random.randint(1024, 65535)  # Random port if not provided
-        return (ip, port)
+        return port
 
-    def _generate_id(self, address):
+    def _generate_position(self):
         """
-        Generate a unique node ID by hashing the address.
+        Generate a random position for the node.
         """
-        address_str = f"{address[0]}:{address[1]}"
-        sha1_hash = hashlib.sha1(address_str.encode()).hexdigest()
-        node_id = sha1_hash[-HASH_HEX_DIGITS:]  # Take the last 128 bits
+        # Random float between 0 and 1
+        return np.random.uniform(0, 1)
+
+    def _generate_id(self, port):
+        """
+        Generate a unique node ID by hashing the port.
+        """
+        port_str = f"{port}"
+        node_id = hash_key(port_str)
         return node_id
 
     # State Inspection
 
     def print_state(self):
         """
-        Print the state of the node (ID, Address, Data Structures).
+        Print the state of the node (ID, Port, Position, Data Structures).
         """
         print("\n" + "-" * 100)
         print(f"Node ID: {self.node_id}")
-        print(f"Address: {self.address}")
+        print(f"Port: {self.port}")
+        print(f"Position: {self.position}")
         print("\nRouting Table:")
         for row in self.routing_table:
             print(row)
@@ -97,7 +106,7 @@ class PastryNode:
         """
         # Use loopback for actual binding
         bind_ip = "127.0.0.1"  # Bind to localhost for real communication
-        bind_address = (bind_ip, self.address[1])
+        bind_address = (bind_ip, self.port)
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -108,7 +117,7 @@ class PastryNode:
                 return
 
             s.listen()
-            print(f"\nNode {self.node_id} listening on {self.address} (bound to {bind_address})")
+            print(f"\nNode {self.node_id} listening on {bind_address})")
             while True:
                 conn, addr = s.accept()  # Accept incoming connection
                 # Submit the connection to the thread pool for handling
@@ -145,7 +154,7 @@ class PastryNode:
         Send a request to a node and wait for its response.
         """
         # Use loopback IP for actual connection
-        connect_address = ("127.0.0.1", node.address[1])
+        connect_address = ("127.0.0.1", node.port)
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             # s.settimeout(10)  # Set a timeout for both connect and recv
@@ -414,7 +423,9 @@ class PastryNode:
         max_dist = -1
         idx = -1
         for i in range(len(self.neighborhood_set)):
-            dist = topological_distance(self.address[0], close_node.address[0])
+            dist = topological_distance(
+                self.position, self.network.nodes[self.neighborhood_set[i]].position
+            )
             if dist > max_dist:
                 max_dist = dist
                 idx = i
@@ -436,16 +447,16 @@ class PastryNode:
 
         # Find the farthest node from the current node in the neighborhood set
         for i, neighbor_id in enumerate(self.neighborhood_set):
-            dist = topological_distance(self.network.nodes[neighbor_id].address[0], self.address[0])
+            dist = topological_distance(self.network.nodes[neighbor_id].position, self.position)
             if dist > max_dist:
                 max_dist, replace_idx = dist, i
 
         # Check if the new node is closer than the farthest node
-        key_farthest_dist = topological_distance(
-            self.network.nodes[self.neighborhood_set[replace_idx]].address[0],
-            self.network.nodes[key].address[0],
+        key_curr_node_dist = topological_distance(
+            self.position,
+            self.network.nodes[key].position,
         )
-        if key_farthest_dist < max_dist:
+        if key_curr_node_dist < max_dist:
             # Replace the farthest node with the new node
             self.neighborhood_set[replace_idx] = key
 
@@ -545,31 +556,31 @@ class PastryNode:
         """
         Scan all the nodes in the network to find the closest node to the given node ID.
         """
-        i = common_prefix_length(self.node_id, key)
+        l = common_prefix_length(self.node_id, key)
 
         # Check Lmin
         for idx in range(len(self.Lmin)):
             if self.Lmin[idx] is not None:
-                if self._is_closer_node(self.Lmin[idx], key, idx, self.node_id):
+                if self._is_closer_node(self.Lmin[idx], key, l, self.node_id):
                     return self.Lmin[idx]
 
         # Check Lmax
         for idx in range(len(self.Lmax)):
             if self.Lmax[idx] is not None:
-                if self._is_closer_node(self.Lmax[idx], key, idx, self.node_id):
+                if self._is_closer_node(self.Lmax[idx], key, l, self.node_id):
                     return self.Lmax[idx]
 
         # Check neighborhood set (M)
         for idx in range(len(self.neighborhood_set)):
             if self.neighborhood_set[idx] is not None:
-                if self._is_closer_node(self.neighborhood_set[idx], key, idx, self.node_id):
+                if self._is_closer_node(self.neighborhood_set[idx], key, l, self.node_id):
                     return self.neighborhood_set[idx]
 
         # Check routing table (R)
         for row in range(len(self.routing_table)):
             for col in range(len(self.routing_table[0])):
                 if self.routing_table[row][col] is not None:
-                    if self._is_closer_node(self.routing_table[row][col], key, row, self.node_id):
+                    if self._is_closer_node(self.routing_table[row][col], key, l, self.node_id):
                         return self.routing_table[row][col]
 
         # If no node is found, return the current node ID

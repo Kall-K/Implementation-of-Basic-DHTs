@@ -46,8 +46,8 @@ def main():
         "19bd",
         "37de",
         "3722",
-        "cafe",
         "ca12",
+        "cafe",
         "fb32",
         "20bc",
         "20bd",
@@ -61,12 +61,12 @@ def main():
         node.start_server()
         time.sleep(0.5)  # Allow the server to start
         network.node_join(node)
-        print(f"Node Added: ID = {node.node_id}, Address = {node.address}")
+        print(f"Node Added: ID = {node.node_id}, Position = {node.position}")
     print("\nAll nodes have successfully joined the network.\n")
 
-    # Stage 2: Key Insertion
+    # Stage 2: Key Insertions
 
-    print("Stage 2: Key Insertion")
+    print("Stage 2: Key Insertions")
     print("=======================")
     print("\nInserting data into the network...")
     first_node = list(network.nodes.values())[0]
@@ -81,7 +81,7 @@ def main():
 
     # For similarity search testing later insert a custom entry in the USA
     country = "United States"
-    name = "Gregs Coffee"
+    name = "Sioutas' Coffee"
     key = hash_key(country)
     point = [2018, 94, 5.5]
     review = "Very delicate and sweet. Lemon verbena, dried persimmon, dogwood, baker's chocolate in aroma and cup. Balanced, sweet-savory structure; velvety-smooth mouthfeel. The sweetly herb-toned finish centers on notes of lemon verbena and dried persimmon wrapped in baker's chocolate."
@@ -111,6 +111,7 @@ def main():
         )"""
 
     # Stage 3: Key Lookup
+
     print("\nStage 3: Key Lookup")
     print("=======================")
     lookup_key = hash_key("United States")  # Hash the country name

@@ -1,4 +1,3 @@
-from ipaddress import ip_address
 from helper_functions import *
 
 
@@ -20,10 +19,10 @@ class PastryNetwork:
             print("The network is empty. The new node is the first node.")
             return
 
-        # Find the closest node to the new using its IP address
+        # Find the closest node to the new using its position
         closest_node = self._find_topologically_closest_node(new_node)
 
-        # Update the new nodes Neighborhood Set of the new node
+        # Initialize the new nodes Neighborhood Set of the new node
         new_node.initialize_neighborhood_set(closest_node.node_id)
 
         # Forward the join message to the topologically closest node
@@ -49,7 +48,7 @@ class PastryNetwork:
             if existing_node == new_node:
                 continue
 
-            distance = topological_distance(new_node.address[0], existing_node.address[0])
+            distance = topological_distance(new_node.position, existing_node.position)
             if distance < min_distance:
                 closest_node = existing_node
                 min_distance = distance

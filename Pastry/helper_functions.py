@@ -1,4 +1,3 @@
-from ipaddress import ip_address
 import hashlib
 
 from constants import *
@@ -14,15 +13,11 @@ def hash_key(value):
     return sha1_hash[-4:]
 
 
-def topological_distance(ip1, ip2):
+def topological_distance(pos1, pos2):
     """
-    Calculate the topological distance between two nodes based on their ip addresses.
+    Calculate the topological distance between two nodes based on their position (float between 0 and 1).
     """
-    # Convert IP addresses to their integer representation
-    ip1_numeric = int(ip_address(ip1))
-    ip2_numeric = int(ip_address(ip2))
-    # Calculate the absolute distance
-    return abs(ip1_numeric - ip2_numeric)
+    return abs(pos1 - pos2)
 
 
 def common_prefix_length(id1, id2):
@@ -47,11 +42,6 @@ def hex_distance(id1, id2):
             return i, abs(int(id1[i:], 16) - int(id2[i:], 16))
     # If the IDs are identical, return the length of the IDs and 0
     return -1, 0
-
-
-"""def hex_distance(id1, id2):
-    #Calculate the absolute distance between two hexadecimal IDs.
-    return abs(int(id1, 16) - int(id2, 16))"""
 
 
 def hex_compare(id1, id2, equality=True):
