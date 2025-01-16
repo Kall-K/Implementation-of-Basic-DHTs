@@ -1,6 +1,5 @@
 import time
 import pandas as pd
-import hashlib
 
 import sys
 import os
@@ -12,14 +11,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from network import PastryNetwork
 from node import PastryNode
 from constants import *
-
-
-def hash_key(value):
-    """
-    Hash the input value and return the least 4 hex digits.
-    """
-    sha1_hash = hashlib.sha1(value.encode()).hexdigest()
-    return sha1_hash[-4:]
+from helper_functions import hash_key
 
 
 def main():
@@ -47,19 +39,33 @@ def main():
     print("Creating the Pastry network...")
     network = PastryNetwork()
 
-    # Predefined node IDs
-    predefined_ids = ["4b12", "fa35", "19bd", "37de", "3722", "cafe"]
+    # 12 Predefined node IDs. As many as the countries in the dataset
+    predefined_ids = [
+        "4b12",
+        "fa35",
+        "19bd",
+        "37de",
+        "3722",
+        "cafe",
+        "ca12",
+        "fb32",
+        "20bc",
+        "20bd",
+        "3745",
+        "d3ad",
+    ]
 
     print(f"Adding {len(predefined_ids)} nodes to the network...")
     for node_id in predefined_ids:
         node = PastryNode(network, node_id=node_id)
         node.start_server()
-        time.sleep(1)  # Allow the server to start
+        time.sleep(0.5)  # Allow the server to start
         network.node_join(node)
         print(f"Node Added: ID = {node.node_id}, Address = {node.address}")
     print("\nAll nodes have successfully joined the network.\n")
 
     # Stage 2: Key Insertion
+
     print("Stage 2: Key Insertion")
     print("=======================")
     print("\nInserting data into the network...")
@@ -73,12 +79,21 @@ def main():
     #     print("")
     #     first_node.insert_key(key, point, review)
 
+    # For similarity search testing later insert a custom entry in the USA
+    country = "United States"
+    name = "Gregs Coffee"
+    key = hash_key(country)
+    point = [2018, 94, 5.5]
+    review = "Very delicate and sweet. Lemon verbena, dried persimmon, dogwood, baker's chocolate in aroma and cup. Balanced, sweet-savory structure; velvety-smooth mouthfeel. The sweetly herb-toned finish centers on notes of lemon verbena and dried persimmon wrapped in baker's chocolate."
+    print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
+    response = first_node.insert_key(key, point, review)
+    print(response)
+
     # Insert all entries
-    for key, point, review, country, name in zip(
-        keys, points, reviews, countries, names
-    ):
-        print(f"\nInserting Key: {key}, Country: {country}, Name: {name}")
-        first_node.insert_key(key, point, review)
+    for key, point, review, country, name in zip(keys, points, reviews, countries, names):
+        print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
+        response = first_node.insert_key(key, point, review)
+        print(response)
 
     # Inspect the state of each node
     print("\nInspecting the state of each node:")
@@ -94,6 +109,17 @@ def main():
         first_node.kd_tree.print_search_results(
             first_node.kd_tree.points, first_node.kd_tree.reviews
         )"""
+
+    # Stage 3: Key Lookup
+    print("\nStage 3: Key Lookup")
+    print("=======================")
+    lookup_key = hash_key("United States")  # Hash the country name
+    lower_bounds = [2017, 90, 4.0]
+    upper_bounds = [2018, 95, 5.5]
+
+    print(f"\nLooking up Key: {lookup_key}")
+    response = first_node.lookup(lookup_key, lower_bounds, upper_bounds, N=5)
+    print(response)
 
 
 if __name__ == "__main__":

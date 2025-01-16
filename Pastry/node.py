@@ -17,9 +17,7 @@ from helper_functions import *
 
 
 from Multidimensional_Data_Structures.kd_tree import KDTree
-
-
-# from Multidimensional_Data_Structures.lsh import LSH
+from Multidimensional_Data_Structures.lsh import LSH
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 
@@ -30,16 +28,12 @@ class PastryNode:
         Initialize a new Pastry node with a unique ID, address, and empty data structures.
         """
         self.address = self._generate_address()  # (IP, Port)
-        self.node_id = (
-            node_id if node_id is not None else self._generate_id(self.address)
-        )
+        self.node_id = node_id if node_id is not None else self._generate_id(self.address)
         self.network = network  # Reference to the DHT network
 
         self.kd_tree = None  # Centralized KD-Tree
         # 2D Routing Table
-        self.routing_table = [
-            [None for j in range(pow(2, b))] for i in range(HASH_HEX_DIGITS)
-        ]
+        self.routing_table = [[None for j in range(pow(2, b))] for i in range(HASH_HEX_DIGITS)]
         # Leaf Set
         self.Lmin = [None for x in range(L // 2)]
         self.Lmax = [None for x in range(L // 2)]
@@ -114,9 +108,7 @@ class PastryNode:
                 return
 
             s.listen()
-            print(
-                f"\nNode {self.node_id} listening on {self.address} (bound to {bind_address})"
-            )
+            print(f"\nNode {self.node_id} listening on {self.address} (bound to {bind_address})")
             while True:
                 conn, addr = s.accept()  # Accept incoming connection
                 # Submit the connection to the thread pool for handling
@@ -137,6 +129,8 @@ class PastryNode:
                 response = self._handle_join_request(request)
             elif operation == "INSERT_KEY":
                 response = self._handle_insert_key_request(request)
+            elif operation == "LOOKUP":
+                response = self._handle_lookup_request(request)
 
             # Add more operations here as needed
 
@@ -178,24 +172,21 @@ class PastryNode:
         i = common_prefix_length(self.node_id, new_node.node_id)
 
         # Update the new node's Routing Table row
-        self.network.nodes[new_node.node_id].update_routing_table(
-            i, self.routing_table[i]
-        )
+        self.network.nodes[new_node.node_id].update_routing_table(i, self.routing_table[i])
 
         next_hop_id = self._find_next_hop(new_node.node_id)
 
         if next_hop_id == self.node_id:
             # If the next hop is the current node, update the new node's Leaf Set
-            self.network.nodes[new_node.node_id].update_leaf_set(
-                self.Lmin, self.Lmax, self.node_id
-            )
+            self.network.nodes[new_node.node_id].update_leaf_set(self.Lmin, self.Lmax, self.node_id)
             return {
                 "status": "success",
             }
 
         # Else forward the request to the next hop
         next_hop_node = self.network.nodes[next_hop_id]
-        self.send_request(next_hop_node, request)
+        response = self.send_request(next_hop_node, request)
+        return response
 
     def _handle_insert_key_request(self, request):
         """
@@ -204,21 +195,19 @@ class PastryNode:
         key = request["key"]
         point = request["point"]
         review = request["review"]
-        hops = request.get("hops", [])  # Track hops
+        hops = request.get("hops", [])
 
         # If the key belongs to this node (based on leaf set), store it in the KDTree
         if self._in_leaf_set(key):
             if not self.kd_tree:
                 # Initialize KDTree with the first point
-                self.kd_tree = KDTree(
-                    points=np.array([point]), reviews=np.array([review])
-                )
+                self.kd_tree = KDTree(points=np.array([point]), reviews=np.array([review]))
             else:
                 # Add point to the existing KDTree
                 self.kd_tree.add_point(point, review)
 
             # Print the point and review directly after adding
-            print(f"Inserted Key: {key}")
+            print(f"\nInserted Key: {key}")
             print(f"Point: {point}")
             print(f"Review: {review}")
             print(f"Stored at Node ID: {self.node_id}")
@@ -233,12 +222,10 @@ class PastryNode:
         next_hop_id = self._find_next_hop(key)
         if next_hop_id == self.node_id:
             if not self.kd_tree:
-                self.kd_tree = KDTree(
-                    points=np.array([point]), reviews=np.array([review])
-                )
+                self.kd_tree = KDTree(points=np.array([point]), reviews=np.array([review]))
             else:
                 self.kd_tree.add_point(point, review)
-            print(f"Inserted Key: {key}")
+            print(f"\nInserted Key: {key}")
             print(f"Point: {point}")
             print(f"Review: {review}")
             print(f"Routed and stored at Node ID: {self.node_id}")
@@ -251,7 +238,56 @@ class PastryNode:
 
         # Forward the request to the next hop
         next_hop_node = self.network.nodes[next_hop_id]
-        self.send_request(next_hop_node, request)
+        response = self.send_request(next_hop_node, request)
+        return response
+
+    def _handle_lookup_request(self, request):
+        """
+        Handle a LOOKUP operation.
+        """
+        key = request["key"]
+        lower_bounds = request["lower_bounds"]
+        upper_bounds = request["upper_bounds"]
+        N = request["N"]
+
+        # If this key is found in the leaf set or the next hop is the current node the lookup is successful
+        next_hop_id = self._find_next_hop(key)
+        if self._in_leaf_set(key) or next_hop_id == self.node_id:
+            print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
+
+            if not self.kd_tree:
+                print(f"Node {self.node_id}: No data for key {key}.")
+                return {"status": "failure", "message": f"No data for key {key}."}
+
+            # KDTree Range Search
+            points, reviews = self.kd_tree.search(lower_bounds, upper_bounds)
+            print(f"Node {self.node_id}: Found {len(points)} matching points.")
+
+            # LSH Similarity Search
+            vectorizer = TfidfVectorizer()
+            doc_vectors = vectorizer.fit_transform(reviews).toarray()
+
+            lsh = LSH(num_bands=4, num_rows=5)
+            for vector in doc_vectors:
+                lsh.add_document(vector)
+
+            similar_pairs = lsh.find_similar_pairs(N)
+            similar_docs = lsh.find_similar_docs(similar_pairs, reviews, N)
+
+            print(f"\nThe {N} Most Similar Reviews:\n")
+            for i, doc in enumerate(similar_docs, 1):
+                print(f"{i}. {doc}\n")
+
+            return {
+                "status": "success",
+                "message": f"Found {len(points)} matching points.",
+            }
+
+        # If the key is not found in the leaf set and the next hop is not the current node
+        # forward the request to the next hop
+        next_hop_node = self.network.nodes[next_hop_id]
+        response = self.send_request(next_hop_node, request)
+        return response
 
     def insert_key(self, key, point, review):
         """
@@ -264,7 +300,27 @@ class PastryNode:
             "review": review,
             "hops": [],  # Initialize hops tracking
         }
-        self._handle_insert_key_request(request)
+        print(f"Node {self.node_id}: Handling Request: {request}")
+
+        response = self._handle_insert_key_request(request)
+        return response
+
+    def lookup(self, key, lower_bounds, upper_bounds, N=5):
+        """
+        Lookup operation for a given key with KDTree range search and LSH similarity check.
+        """
+        request = {
+            "operation": "LOOKUP",
+            "key": key,
+            "lower_bounds": lower_bounds,
+            "upper_bounds": upper_bounds,
+            "N": N,
+            "hops": [],
+        }
+        print(f"Node {self.node_id}: Handling Request: {request}")
+
+        response = self._handle_lookup_request(request)
+        return response
 
     def _find_next_hop(self, key):
         """
@@ -304,9 +360,7 @@ class PastryNode:
         for i in range(len(self.routing_table)):
             for j in range(len(self.routing_table[0])):
                 if self.routing_table[i][j] is not None:
-                    self.network.nodes[self.routing_table[i][j]]._update_presence(
-                        node_id
-                    )
+                    self.network.nodes[self.routing_table[i][j]]._update_presence(node_id)
 
         # Update the Leaf Set (L) Nodes
 
@@ -382,9 +436,7 @@ class PastryNode:
 
         # Find the farthest node from the current node in the neighborhood set
         for i, neighbor_id in enumerate(self.neighborhood_set):
-            dist = topological_distance(
-                self.network.nodes[neighbor_id].address[0], self.address[0]
-            )
+            dist = topological_distance(self.network.nodes[neighbor_id].address[0], self.address[0])
             if dist > max_dist:
                 max_dist, replace_idx = dist, i
 
@@ -431,13 +483,8 @@ class PastryNode:
         """Giati to ekana auto!! na to psaksw an xreiazetai"""
         # If the entry in the routing table of the node corresponding to the key
         # is empty, update it with the current node's ID
-        if (
-            self.network.nodes[key].routing_table[idx][int(self.node_id[idx], 16)]
-            is None
-        ):
-            self.network.nodes[key].routing_table[idx][
-                int(self.node_id[idx], 16)
-            ] = self.node_id
+        if self.network.nodes[key].routing_table[idx][int(self.node_id[idx], 16)] is None:
+            self.network.nodes[key].routing_table[idx][int(self.node_id[idx], 16)] = self.node_id
 
         # Leaf Set (Lmin, Lmax)
         # If key >= this node's ID, update Lmax
@@ -473,8 +520,7 @@ class PastryNode:
                 # Update if the different digit index is grater
                 # or if its the same but this node is numerically closer
                 if (key_leaf_diff_dig_idx > closest_diff_dig_idx) or (
-                    key_leaf_diff_dig_idx == closest_diff_dig_idx
-                    and key_leaf_dist < closest_dist
+                    key_leaf_diff_dig_idx == closest_diff_dig_idx and key_leaf_dist < closest_dist
                 ):
                     closest_leaf_id = leaf
                     closest_diff_dig_idx = key_leaf_diff_dig_idx
@@ -487,8 +533,7 @@ class PastryNode:
 
                 # Apply the same update logic
                 if (key_leaf_diff_dig_idx > closest_diff_dig_idx) or (
-                    key_leaf_diff_dig_idx == closest_diff_dig_idx
-                    and key_leaf_dist < closest_dist
+                    key_leaf_diff_dig_idx == closest_diff_dig_idx and key_leaf_dist < closest_dist
                 ):
                     closest_leaf_id = leaf
                     closest_diff_dig_idx = key_leaf_diff_dig_idx
@@ -517,18 +562,14 @@ class PastryNode:
         # Check neighborhood set (M)
         for idx in range(len(self.neighborhood_set)):
             if self.neighborhood_set[idx] is not None:
-                if self._is_closer_node(
-                    self.neighborhood_set[idx], key, idx, self.node_id
-                ):
+                if self._is_closer_node(self.neighborhood_set[idx], key, idx, self.node_id):
                     return self.neighborhood_set[idx]
 
         # Check routing table (R)
         for row in range(len(self.routing_table)):
             for col in range(len(self.routing_table[0])):
                 if self.routing_table[row][col] is not None:
-                    if self._is_closer_node(
-                        self.routing_table[row][col], key, row, self.node_id
-                    ):
+                    if self._is_closer_node(self.routing_table[row][col], key, row, self.node_id):
                         return self.routing_table[row][col]
 
         # If no node is found, return the current node ID
@@ -546,9 +587,7 @@ class PastryNode:
         target_key_diff_dig_idx, target_key_num_dist = hex_distance(target_node_id, key)
 
         # Do the same for the current node and the key
-        curr_node_key_diff_dig_idx, curr_node_key_num_dist = hex_distance(
-            curr_node_id, key
-        )
+        curr_node_key_diff_dig_idx, curr_node_key_num_dist = hex_distance(curr_node_id, key)
 
         # Determine if the target node is a better candidate than the current node
         if (i >= l) and (

@@ -5,7 +5,7 @@ HASH_HEX_DIGITS = 4
 b = 4
 
 # Total Number of Nodes in the Network
-N = 6
+N = 12
 
 # Replication Factor
 r = 2

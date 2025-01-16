@@ -2,6 +2,11 @@ import pandas as pd
 import numpy as np
 from sklearn.neighbors import KDTree as sk_KDTree
 import matplotlib.pyplot as plt
+import sys
+import os
+
+# Add the parent directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 class KDTree:
@@ -36,7 +41,7 @@ class KDTree:
         # Rebuild the KD-Tree with the updated points
         self.build(self.points)
 
-        #print(f"\nAdded new point: {new_point} with review: {new_review}")
+        # print(f"\nAdded new point: {new_point} with review: {new_review}")
 
     def search(self, lower_bounds, upper_bounds):
         """
@@ -50,9 +55,7 @@ class KDTree:
             list: Points and their associated reviews within the specified range.
         """
         if len(lower_bounds) != 3 or len(upper_bounds) != 3:
-            raise ValueError(
-                "Bounds must have exactly three values for the three axes."
-            )
+            raise ValueError("Bounds must have exactly three values for the three axes.")
 
         # Compute the midpoint and radius for the search
         center = [(low + high) / 2 for low, high in zip(lower_bounds, upper_bounds)]
@@ -82,7 +85,7 @@ class KDTree:
         # Print results
         print(f"\nFound {len(matching_points)} points within the specified ranges:")
         for point, review in zip(matching_points, matching_reviews):
-            print(f"\nPointZ: {point}\nReview: {review}")
+            print(f"\nPoint: {point}\nReview: {review}")
 
     def visualize(self, points, reviews):
         """
@@ -92,9 +95,7 @@ class KDTree:
         ax = fig.add_subplot(111, projection="3d")
 
         # Scatter plot the points
-        ax.scatter(
-            points[:, 0], points[:, 1], points[:, 2], c="blue", marker="o", picker=True
-        )
+        ax.scatter(points[:, 0], points[:, 1], points[:, 2], c="blue", marker="o", picker=True)
 
         # Label axes
         ax.set_xlabel("Review Date (Year)")
@@ -119,9 +120,7 @@ class KDTree:
 # Example usage
 if __name__ == "__main__":
     # Load CSV file
-    csv_file = (
-        "Coffee Reviews Dataset/simplified_coffee.csv"  # Replace with your file path
-    )
+    csv_file = "../Coffee_Reviews_Dataset/simplified_coffee.csv"
     df = pd.read_csv(csv_file)
 
     # Keep only the date from the review_date column
@@ -149,4 +148,4 @@ if __name__ == "__main__":
 
     points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 88 points result
 
-    #kd_tree.print_search_results(points, reviews)
+    # kd_tree.print_search_results(points, reviews)

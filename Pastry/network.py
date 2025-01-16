@@ -32,7 +32,8 @@ class PastryNetwork:
             "joining_node_id": new_node.node_id,
             "hops": [],
         }
-        new_node.send_request(closest_node, join_request)
+        response = new_node.send_request(closest_node, join_request)
+        print(response)
 
         # Broadcast the new node's arrival to the network
         new_node.transmit_state()
@@ -48,9 +49,7 @@ class PastryNetwork:
             if existing_node == new_node:
                 continue
 
-            distance = topological_distance(
-                new_node.address[0], existing_node.address[0]
-            )
+            distance = topological_distance(new_node.address[0], existing_node.address[0])
             if distance < min_distance:
                 closest_node = existing_node
                 min_distance = distance
