@@ -4,16 +4,18 @@ from sklearn.neighbors import KDTree as sk_KDTree
 import matplotlib.pyplot as plt
 import sys
 import os
+import hashlib
 
 # Add the parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 class KDTree:
-    def __init__(self, points, reviews):
+    def __init__(self, points, reviews, country_keys):
         self.tree = None
         self.points = points
         self.reviews = reviews  # Store reviews for reference
+        self.country_keys = country_keys  # 4 digit hex hash of the country
         self.build(points)
 
     def build(self, points):
@@ -23,13 +25,14 @@ class KDTree:
         """
         self.tree = sk_KDTree(points)
 
-    def add_point(self, new_point, new_review):
+    def add_point(self, new_point, new_review, new_country):
         """
-        Add a new point and review to the KD-Tree.
+        Add a new point, review and country to the KD-Tree.
 
         Args:
             new_point (list or array-like): The new point to add [review_date, rating, price].
             new_review (str): The associated review for the new point.
+            new_country (str): The country of origin for the new point.
 
         Returns:
             None: The KD-Tree is rebuilt with the updated data.
@@ -38,10 +41,40 @@ class KDTree:
         self.points = np.vstack([self.points, new_point])
         self.reviews = np.append(self.reviews, new_review)
 
+        # Hash the country
+        new_country_key = hashlib.sha1(new_country.encode()).hexdigest()[-4:]
+        self.country_keys = np.append(self.country_keys, new_country_key)
+
         # Rebuild the KD-Tree with the updated points
         self.build(self.points)
 
         # print(f"\nAdded new point: {new_point} with review: {new_review}")
+
+    def delete_points(self, country_key):
+        """
+        Delete points from the KD-Tree based on their country key.
+
+        Args:
+            country_key (str): Hashed country.
+
+        Returns:
+            None: The KD-Tree is rebuilt with the updated data.
+        """
+        # Find the indices of the points to delete
+        indices_to_delete = []
+        for idx, key in enumerate(self.country_keys):
+            if key == country_key:
+                indices_to_delete.append(idx)
+
+        # Remove the points and reviews
+        self.points = np.delete(self.points, indices_to_delete, axis=0)
+        self.reviews = np.delete(self.reviews, indices_to_delete)
+        self.country_keys = np.delete(self.country_keys, indices_to_delete)
+
+        # Rebuild the KD-Tree with the updated points
+        self.build(self.points)
+
+        print(f"\nDeleted {len(indices_to_delete)} points with country key: {country_key}")
 
     def search(self, lower_bounds, upper_bounds):
         """
@@ -132,20 +165,34 @@ if __name__ == "__main__":
     # Extract the reviews
     reviews = df["review"].to_numpy()
 
+    # Extract the countries
+    countries = df["loc_country"].to_numpy()
+
+    # Hash the countries
+    country_keys = [hashlib.sha1(country.encode()).hexdigest()[-4:] for country in countries]
+
     # Build the KD-Tree
-    kd_tree = KDTree(points, reviews)
+    kd_tree = KDTree(points, reviews, country_keys)
 
     # kd_tree.visualize(points, reviews)
 
     new_point = [2018, 94, 5.5]  # Example new point
     new_review = "A rich and vibrant coffee with hints of fruit and chocolate."
+    new_country = "United States"
 
-    kd_tree.add_point(new_point, new_review)
+    kd_tree.add_point(new_point, new_review, new_country)
 
     # Search for points within a specific range
     lower_bounds = [2017, 90, 4.0]
     upper_bounds = [2018, 95, 5.5]
 
     points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 88 points result
+    kd_tree.print_search_results(points, reviews)
 
-    # kd_tree.print_search_results(points, reviews)
+    # Delete points form the United States
+    country_key = hashlib.sha1("United States".encode()).hexdigest()[-4:]
+    kd_tree.delete_points(country_key)
+
+    points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 88 points result
+
+    kd_tree.print_search_results(points, reviews)

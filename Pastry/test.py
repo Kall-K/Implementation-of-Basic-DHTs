@@ -86,13 +86,13 @@ def main():
     point = [2018, 94, 5.5]
     review = "Very delicate and sweet. Lemon verbena, dried persimmon, dogwood, baker's chocolate in aroma and cup. Balanced, sweet-savory structure; velvety-smooth mouthfeel. The sweetly herb-toned finish centers on notes of lemon verbena and dried persimmon wrapped in baker's chocolate."
     print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
-    response = first_node.insert_key(key, point, review)
+    response = first_node.insert_key(key, point, review, country)
     print(response)
 
     # Insert all entries
     for key, point, review, country, name in zip(keys, points, reviews, countries, names):
         print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
-        response = first_node.insert_key(key, point, review)
+        response = first_node.insert_key(key, point, review, country)
         print(response)
 
     # Inspect the state of each node
