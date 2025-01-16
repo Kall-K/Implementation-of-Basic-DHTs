@@ -204,16 +204,22 @@ class PastryNode:
         key = request["key"]
         point = request["point"]
         review = request["review"]
+        country = request["country"]
+        country_key = hash_key(country)
         hops = request.get("hops", [])
 
         # If the key belongs to this node (based on leaf set), store it in the KDTree
         if self._in_leaf_set(key):
             if not self.kd_tree:
                 # Initialize KDTree with the first point
-                self.kd_tree = KDTree(points=np.array([point]), reviews=np.array([review]))
+                self.kd_tree = KDTree(
+                    points=np.array([point]),
+                    reviews=np.array([review]),
+                    country_keys=np.array([country_key]),
+                )
             else:
                 # Add point to the existing KDTree
-                self.kd_tree.add_point(point, review)
+                self.kd_tree.add_point(point, review, country)
 
             # Print the point and review directly after adding
             print(f"\nInserted Key: {key}")
@@ -231,9 +237,13 @@ class PastryNode:
         next_hop_id = self._find_next_hop(key)
         if next_hop_id == self.node_id:
             if not self.kd_tree:
-                self.kd_tree = KDTree(points=np.array([point]), reviews=np.array([review]))
+                self.kd_tree = KDTree(
+                    points=np.array([point]),
+                    reviews=np.array([review]),
+                    country_keys=np.array([country_key]),
+                )
             else:
-                self.kd_tree.add_point(point, review)
+                self.kd_tree.add_point(point, review, country)
             print(f"\nInserted Key: {key}")
             print(f"Point: {point}")
             print(f"Review: {review}")
@@ -298,13 +308,14 @@ class PastryNode:
         response = self.send_request(next_hop_node, request)
         return response
 
-    def insert_key(self, key, point, review):
+    def insert_key(self, key, point, review, country):
         """
         Initiate the INSERT_KEY operation for a given key, point, and review.
         """
         request = {
             "operation": "INSERT_KEY",
             "key": key,
+            "country": country,
             "point": point,
             "review": review,
             "hops": [],  # Initialize hops tracking
