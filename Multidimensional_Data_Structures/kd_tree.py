@@ -72,9 +72,12 @@ class KDTree:
         self.country_keys = np.delete(self.country_keys, indices_to_delete)
 
         # Rebuild the KD-Tree with the updated points
-        self.build(self.points)
+        if self.points.size > 0:
+            self.build(self.points)
+        else:
+            self.tree = None
 
-        print(f"\nDeleted {len(indices_to_delete)} points with country key: {country_key}")
+        print(f"Deleted {len(indices_to_delete)} points with country key: {country_key}\n")
 
     def search(self, lower_bounds, upper_bounds):
         """
@@ -186,13 +189,13 @@ if __name__ == "__main__":
     lower_bounds = [2017, 90, 4.0]
     upper_bounds = [2018, 95, 5.5]
 
-    points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 88 points result
+    points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 80 points result
     kd_tree.print_search_results(points, reviews)
 
     # Delete points form the United States
     country_key = hashlib.sha1("United States".encode()).hexdigest()[-4:]
     kd_tree.delete_points(country_key)
 
-    points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 88 points result
+    points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 9 points result
 
     kd_tree.print_search_results(points, reviews)
