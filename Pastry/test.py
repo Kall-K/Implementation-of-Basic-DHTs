@@ -99,16 +99,6 @@ def main():
     print("\nInspecting the state of each node:")
     for node in network.nodes.values():
         node.print_state()
-        # if node.kd_tree and node.kd_tree.points.size > 0:
-        #     print(f"KDTree for Node {node.node_id}:")
-        #     node.kd_tree.print_search_results(node.kd_tree.points, node.kd_tree.reviews)
-
-    # Print the KDTree of the first node
-    """if first_node.kd_tree and first_node.kd_tree.points.size > 0:
-        print("\nKDTree for the first node (ID: {first_node.node_id}):")
-        first_node.kd_tree.print_search_results(
-            first_node.kd_tree.points, first_node.kd_tree.reviews
-        )"""
 
     # Stage 3: Key Lookup
 
@@ -121,6 +111,23 @@ def main():
     print(f"\nLooking up Key: {lookup_key}")
     response = first_node.lookup(lookup_key, lower_bounds, upper_bounds, N=5)
     print(response)
+
+    # Stage 4: Key Deletion
+
+    print("\nStage 4: Key Deletion")
+    print("=======================")
+    first_node.delete_key("372b")  # Delete the key for "United States"
+    first_node.delete_key("6073")
+    first_node.delete_key("4ca4")
+    first_node.delete_key("aaaa")
+
+    # Looup the United States key again to see if it was deleted
+    # first_node.lookup(lookup_key, lower_bounds, upper_bounds, N=5)
+
+    # Inspect the state of each node
+    """print("\nInspecting the state of each node:")
+    for node in network.nodes.values():
+        node.print_state()"""
 
 
 if __name__ == "__main__":

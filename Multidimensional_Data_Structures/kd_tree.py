@@ -72,9 +72,12 @@ class KDTree:
         self.country_keys = np.delete(self.country_keys, indices_to_delete)
 
         # Rebuild the KD-Tree with the updated points
-        self.build(self.points)
+        if self.points.size > 0:
+            self.build(self.points)
+        else:
+            self.tree = None
 
-        print(f"\nDeleted {len(indices_to_delete)} points with country key: {country_key}")
+        print(f"Deleted {len(indices_to_delete)} points with country key: {country_key}\n")
 
     def search(self, lower_bounds, upper_bounds):
         """
