@@ -35,7 +35,8 @@ class PastryNode:
 
         self.network = network  # Reference to the DHT network
 
-        self.kd_tree = None  # Centralized KD-Tree
+        # Centralized KD-Tree
+        self.kd_tree = None
         # 2D Routing Table
         self.routing_table = [[None for j in range(pow(2, b))] for i in range(HASH_HEX_DIGITS)]
         # Leaf Set
@@ -90,6 +91,12 @@ class PastryNode:
         print(f"Lmax: {self.Lmax}")
         print("\nNeighborhood Set:")
         print(self.neighborhood_set)
+        print("\nKD Tree Coutry Keys:")
+        if self.kd_tree:
+            # Print the unique country keys in the KD-Tree
+            print(np.unique(self.kd_tree.country_keys))
+        else:
+            print([])
 
     # Network Communication
 
@@ -138,6 +145,8 @@ class PastryNode:
                 response = self._handle_join_request(request)
             elif operation == "INSERT_KEY":
                 response = self._handle_insert_key_request(request)
+            elif operation == "DELETE_KEY":
+                response = self._handle_delete_key_request(request)
             elif operation == "LOOKUP":
                 response = self._handle_lookup_request(request)
 
@@ -208,6 +217,48 @@ class PastryNode:
         country_key = hash_key(country)
         hops = request.get("hops", [])
 
+        next_hop_id = self._find_next_hop(key)
+
+        # Determine if this node should store the key or forward it
+        if self._in_leaf_set(key) or next_hop_id == self.node_id:
+            if not self.kd_tree:
+                # Initialize KDTree with the first point
+                self.kd_tree = KDTree(
+                    points=np.array([point]),
+                    reviews=np.array([review]),
+                    country_keys=np.array([country_key]),
+                )
+            else:
+                # Add point to the existing KDTree
+                self.kd_tree.add_point(point, review, country)
+
+            # Print the point and review directly after adding
+            print(f"\nInserted Key: {key}")
+            print(f"Point: {point}")
+            print(f"Review: {review}")
+            print(f"Routed and stored at Node ID: {self.node_id}")
+            print(f"Hops: {hops}")
+            print("")
+            return {
+                "status": "success",
+                "message": f"Key {key} stored at {self.node_id}",
+            }
+
+        # Forward request to the next hop
+        next_hop_node = self.network.nodes[self._find_next_hop(key)]
+        return self.send_request(next_hop_node, request)
+
+    '''def _handle_insert_key_request(self, request):
+        """
+        Handle an INSERT_KEY operation.
+        """
+        key = request["key"]
+        point = request["point"]
+        review = request["review"]
+        country = request["country"]
+        country_key = hash_key(country)
+        hops = request.get("hops", [])
+
         # If the key belongs to this node (based on leaf set), store it in the KDTree
         if self._in_leaf_set(key):
             if not self.kd_tree:
@@ -258,6 +309,35 @@ class PastryNode:
         # Forward the request to the next hop
         next_hop_node = self.network.nodes[next_hop_id]
         response = self.send_request(next_hop_node, request)
+        return response'''
+
+    def _handle_delete_key_request(self, request):
+        """
+        Handle a DELETE_KEY operation.
+        """
+        key = request["key"]
+
+        next_hop_id = self._find_next_hop(key)
+
+        # If the key belongs to this node (based on leaf set), delete it from the KDTree
+        if self._in_leaf_set(key) or next_hop_id == self.node_id:
+            if not self.kd_tree:
+                print(f"\nNode {self.node_id}: No data for key {key}.")
+                return {"status": "failure", "message": f"No data for key {key}.\n"}
+
+            # Delete the key from the KDTree if it exists
+            if key in self.kd_tree.country_keys:
+                print(f"\nNode {self.node_id}: Deleted Key {key}.")
+                self.kd_tree.delete_points(key)
+            else:
+                print(f"\nNode {self.node_id}: No data for key {key}.\n")
+                return {"status": "failure", "message": f"No data for key {key}."}
+
+            return {"status": "success", "message": f"Deleted Key {key}."}
+
+        # Otherwise, forward the request to the next node
+        next_hop_node = self.network.nodes[next_hop_id]
+        response = self.send_request(next_hop_node, request)
         return response
 
     def _handle_lookup_request(self, request):
@@ -274,7 +354,8 @@ class PastryNode:
         if self._in_leaf_set(key) or next_hop_id == self.node_id:
             print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
 
-            if not self.kd_tree:
+            # If the KDTree is not initialized or has no data, return a failure message
+            if not self.kd_tree or self.kd_tree.points.size == 0:
                 print(f"Node {self.node_id}: No data for key {key}.")
                 return {"status": "failure", "message": f"No data for key {key}."}
 
@@ -323,6 +404,19 @@ class PastryNode:
         print(f"Node {self.node_id}: Handling Request: {request}")
 
         response = self._handle_insert_key_request(request)
+        return response
+
+    def delete_key(self, key):
+        """
+        Delete a key from the network.
+        """
+        request = {
+            "operation": "DELETE_KEY",
+            "key": key,
+            "hops": [],
+        }
+        print(f"Node {self.node_id}: Handling Request: {request}")
+        response = self._handle_delete_key_request(request)
         return response
 
     def lookup(self, key, lower_bounds, upper_bounds, N=5):
