@@ -47,6 +47,8 @@ def main():
 
     network.visualize_network()
 
+    network.visualize_topology()
+
 
 if __name__ == "__main__":
     main()

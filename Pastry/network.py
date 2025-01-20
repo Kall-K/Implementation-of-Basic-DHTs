@@ -119,3 +119,39 @@ class PastryNetwork:
         ax.set_title("Pastry Network Visualization")
 
         plt.show()
+
+    def visualize_topology(self):
+        """
+        Visualizes the Pastry network by placing nodes as points on a horizontal line [0,1]
+        based on the nodes' position attribute (which is a float in [0,1]).
+        """
+        if not self.nodes:
+            print("No nodes in the network to visualize.")
+            return
+
+        fig, ax = plt.subplots(figsize=(10, 2))  # Wide aspect ratio for clarity
+        ax.set_xlim(0, 1)
+        ax.set_ylim(-0.1, 0.1)  # Small height since it's a 1D layout
+
+        # Sort nodes by position for a structured layout
+        sorted_nodes = sorted(self.nodes.values(), key=lambda node: node.position)
+
+        # Plot each node at its position on the horizontal line
+        for node in sorted_nodes:
+            x = node.position
+            ax.plot(x, 0, "o", color="lightblue", markersize=10)  # Node as a point
+            ax.text(
+                x, 0.025, node.node_id, fontsize=12, ha="center", va="center", color="black"
+            )  # Label above
+
+        # Draw a horizontal line to represent the topology
+        ax.plot([0, 1], [0, 0], color="gray", linestyle="--")
+
+        # Remove y-axis ticks and labels since it's a 1D layout
+        ax.set_yticks([])
+        ax.set_xticks(np.linspace(0, 1, 11))  # Tick marks at [0, 0.1, ..., 1]
+        ax.set_xlabel("Node Position in Pastry Network")
+
+        ax.set_title("Pastry Network Topology")
+
+        plt.show()
