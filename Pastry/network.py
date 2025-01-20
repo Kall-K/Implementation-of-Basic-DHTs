@@ -60,10 +60,10 @@ class PastryNetwork:
     def visualize_network(self, threshold=0.05):
         """
         Visualizes the Pastry network by placing nodes on a circular ring
-        based on their 4-digit hex ID. Lower values are at the top (12 o’clock),
-        and values increase clockwise, with FFFF also at the top.
+        based on their 4-digit hex ID. Lower values are at the top (12 o'clock),
+        and values increase clockwise.
 
-        Nodes that are too close together will be moved outward slightly.
+        Nodes that are too close together will be moved slightly.
         """
         if not self.nodes:
             print("No nodes in the network to visualize.")
@@ -81,33 +81,41 @@ class PastryNetwork:
         circle = plt.Circle((0, 0), radius, color="lightgray", fill=False)
         ax.add_patch(circle)
 
-        placed_positions = []  # Store positions for overlap checking
+        placed_positions = {}  # Store positions for overlap checking
 
         # Arrange nodes based on their numerical value
         for node_id in sorted_nodes:
-            angle = 2 * np.pi * (int(node_id, 16) / 0xFFFF)  # Map ID to [0, 2π]
+            angle = 2 * np.pi * (int(node_id, 16) / 0xFFFF)
             base_x, base_y = radius * np.sin(angle), radius * np.cos(angle)
 
             # Check for overlap within the threshold distance
-            shift = 0.03  # Base shift distance
-            while any(
-                np.linalg.norm([base_x - px, base_y - py]) < threshold
-                for px, py in placed_positions
-            ):
-                base_x += shift * np.cos(angle)  # Move outward slightly
-                base_y += shift * np.sin(angle)
-                shift += 0.02  # Gradually increase shift distance
+            shift_angle = np.radians(10)  # Base shift distance
+            for close_node_id in placed_positions.keys():
+                """if hex_compare(close_node_id, node_id):
+                break"""
 
-            placed_positions.append((base_x, base_y))  # Store final position
+                dist = np.linalg.norm(
+                    [
+                        base_x - placed_positions[close_node_id][0],
+                        base_y - placed_positions[close_node_id][1],
+                    ]
+                )
+                if dist < threshold:
+                    # Move to the right clockwise slightly
+                    angle += shift_angle
+                    base_x = radius * np.sin(angle)
+                    base_y = radius * np.cos(angle)
+
+            placed_positions[node_id] = (base_x, base_y)
 
             ax.plot(base_x, base_y, "bo", markersize=10)  # Blue nodes
-            ax.text(base_x, base_y, node_id, fontsize=10, ha="center", va="center", color="black")
+            ax.text(base_x, base_y, node_id, fontsize=15, ha="center", va="center", color="black")
 
         # Remove axis ticks and labels
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_xticklabels([])
         ax.set_yticklabels([])
-        ax.set_title("Pastry Network Visualization (Nodes on a Ring)")
+        ax.set_title("Pastry Network Visualization")
 
         plt.show()
