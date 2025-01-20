@@ -40,7 +40,7 @@ def main():
     for node_id in predefined_ids:
         node = PastryNode(network, node_id=node_id)
         node.start_server()
-        time.sleep(0.5)  # Allow the server to start
+        time.sleep(0.1)  # Allow the server to start
         network.node_join(node)
         print(f"Node Added: ID = {node.node_id}, Position = {node.position}")
     print("\nAll nodes have successfully joined the network.\n")
