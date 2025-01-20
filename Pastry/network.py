@@ -57,7 +57,7 @@ class PastryNetwork:
                 min_distance = distance
         return closest_node
 
-    def visualize_network(self, threshold=0.05):
+    def visualize_network(self, threshold=0.2):
         """
         Visualizes the Pastry network by placing nodes on a circular ring
         based on their 4-digit hex ID. Lower values are at the top (12 o'clock),
@@ -89,10 +89,8 @@ class PastryNetwork:
             base_x, base_y = radius * np.sin(angle), radius * np.cos(angle)
 
             # Check for overlap within the threshold distance
-            shift_angle = np.radians(10)  # Base shift distance
+            shift_angle = np.radians(6)  # Base shift distance
             for close_node_id in placed_positions.keys():
-                """if hex_compare(close_node_id, node_id):
-                break"""
 
                 dist = np.linalg.norm(
                     [
@@ -108,8 +106,10 @@ class PastryNetwork:
 
             placed_positions[node_id] = (base_x, base_y)
 
-            ax.plot(base_x, base_y, "bo", markersize=10)  # Blue nodes
-            ax.text(base_x, base_y, node_id, fontsize=15, ha="center", va="center", color="black")
+            ax.plot(base_x, base_y, "o", color="lightblue", markersize=10)  # Blue nodes
+            text_x = (radius + 0.1) * np.sin(angle)
+            text_y = (radius + 0.1) * np.cos(angle)
+            ax.text(text_x, text_y, node_id, fontsize=12, ha="center", va="center", color="black")
 
         # Remove axis ticks and labels
         ax.set_xticks([])
