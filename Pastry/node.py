@@ -149,14 +149,22 @@ class PastryNode:
                 response = self._handle_delete_key_request(request)
             elif operation == "LOOKUP":
                 response = self._handle_lookup_request(request)
-
-            # Add more operations here as needed
+            elif operation == "NODE_LEAVE":
+                response = self._handle_leave_request(request)
+            elif operation == "GET_LEAF_SET":
+                response = {
+                    "status": "success",
+                    "leaf_set": {"Lmin": self.Lmin, "Lmax": self.Lmax},
+                }
+            else:
+                response = {"status": "failure", "message": "Unknown operation"}
 
             conn.sendall(pickle.dumps(response))  # Serialize and send the response
         except Exception as e:
             print(f"Error handling request: {e}")
         finally:
             conn.close()
+
 
     def send_request(self, node, request):
         """
@@ -388,6 +396,135 @@ class PastryNode:
         next_hop_node = self.network.nodes[next_hop_id]
         response = self.send_request(next_hop_node, request)
         return response
+    
+    def _repair_leaf_set(self):
+        for leaf in self.Lmin + self.Lmax:
+            if leaf and leaf != self.node_id:
+                try:
+                    request = {"operation": "GET_LEAF_SET"}
+                    response = self.send_request(self.network.nodes[leaf], request)
+                    if response["status"] == "success":
+                        for new_leaf in response["leaf_set"]["Lmin"] + response["leaf_set"]["Lmax"]:
+                            if new_leaf and new_leaf != self.node_id and new_leaf not in self.Lmin + self.Lmax:
+                                self._update_leaf_list(self.Lmin, new_leaf)
+                                self._update_leaf_list(self.Lmax, new_leaf)
+                except Exception as e:
+                    print(f"Error repairing leaf set with node {leaf}: {e}")
+                    
+    def _handle_leave_request(self, request):
+        leaving_node_id = request["leaving_node_id"]
+        print(f"Node {self.node_id}: Handling NODE_LEAVE for {leaving_node_id}.")
+
+        # Remove the leaving node from the network
+        with self.lock:
+            if leaving_node_id in self.network.nodes:
+                del self.network.nodes[leaving_node_id]
+
+        # Identify all nodes that are affected by the departure
+        affected_nodes = []
+        for node_id, node in self.network.nodes.items():
+            if (
+                leaving_node_id in node.Lmin
+                or leaving_node_id in node.Lmax
+                or leaving_node_id in node.neighborhood_set
+                or any(
+                    leaving_node_id == entry
+                    for row in node.routing_table
+                    for entry in row if entry is not None
+                )
+            ):
+                affected_nodes.append(node_id)
+
+        # Rebuild the state for all affected nodes
+        for node_id in affected_nodes:
+            node = self.network.nodes[node_id]
+            node._rebuild_node_state()
+
+        print(f"Node {self.node_id}: Updated network after {leaving_node_id} left.")
+        return {"status": "success", "message": f"Processed NODE_LEAVE for {leaving_node_id}."}
+
+
+    def _rebuild_node_state(self):
+        """
+        Rebuild the Lmin, Lmax, neighborhood_set, and routing_table of this node.
+        """
+        print(f"Node {self.node_id}: Rebuilding state.")
+
+        # Get all available nodes in the network except self
+        available_nodes = [node_id for node_id in self.network.nodes if node_id != self.node_id]
+
+        # Rebuild Lmin and Lmax
+        self.Lmin = self._find_closest_lower_nodes(available_nodes)
+        self.Lmax = self._find_closest_higher_nodes(available_nodes)
+
+        # Rebuild neighborhood_set
+        self.neighborhood_set = self._update_closest_neighbors()
+
+        # Rebuild routing_table
+        self.routing_table = [[None for _ in range(pow(2, b))] for _ in range(HASH_HEX_DIGITS)]
+        for node_id in available_nodes:
+            common_prefix = common_prefix_length(self.node_id, node_id)
+            col = int(node_id[common_prefix], 16)
+            if self.routing_table[common_prefix][col] is None:
+                self.routing_table[common_prefix][col] = node_id
+
+        print(f"Node {self.node_id}: Rebuilding complete.")
+
+
+
+    def _find_closest_lower_nodes(self, available_nodes):
+        """
+        Find the closest numerically smaller nodes to populate Lmin.
+        """
+        # Filter nodes that are numerically smaller than the current node
+        lower_nodes = [n for n in available_nodes if n < self.node_id]
+        
+        # Compute distances for debugging
+        distances = {n: int(self.node_id, 16) - int(n, 16) for n in lower_nodes}
+   
+        # Sort nodes by distance
+        lower_nodes.sort(key=lambda n: distances[n])
+
+        # Ensure Lmin has exactly L // 2 nodes (fill with None if not enough nodes)
+        result = lower_nodes[:L // 2] + [None] * (L // 2 - len(lower_nodes))
+        
+        return result
+
+
+    def _find_closest_higher_nodes(self, available_nodes):
+        """
+        Find the closest numerically higher nodes to populate Lmax.
+        """
+        print(f"\nNode {self.node_id}: Finding closest numerically higher nodes.")
+        print(f"Available nodes: {available_nodes}")
+
+        # Filter nodes that are numerically higher than the current node
+        higher_nodes = [n for n in available_nodes if n > self.node_id]
+
+        # Compute distances for debugging
+        distances = {n: int(n, 16) - int(self.node_id, 16) for n in higher_nodes}
+
+        # Sort nodes by distance
+        higher_nodes.sort(key=lambda n: distances[n])
+
+        # Ensure Lmax has exactly L // 2 nodes (fill with None if not enough nodes)
+        result = higher_nodes[:L // 2] + [None] * (L // 2 - len(higher_nodes))
+        return result
+
+
+
+
+    def _update_closest_neighbors(self):
+        """
+        Update the neighborhood set with the closest nodes by position.
+        """
+        available_nodes = [n for n in self.network.nodes if n != self.node_id]
+        available_nodes.sort(key=lambda n: abs(self.position - self.network.nodes[n].position))
+
+        # Return the 3 closest nodes
+        return available_nodes[:3]
+
+
 
     def insert_key(self, key, point, review, country):
         """
@@ -435,6 +572,41 @@ class PastryNode:
 
         response = self._handle_lookup_request(request)
         return response
+    
+    def leave(self):
+        print(f"Node {self.node_id} is leaving the network...")
+
+        # Identify affected nodes
+        affected_nodes = set(self.Lmin + self.Lmax + self.neighborhood_set)
+        for row in self.routing_table:
+            affected_nodes.update(filter(None, row))
+
+        # Notify affected nodes
+        for node_id in affected_nodes:
+            if node_id and node_id != self.node_id:
+                leave_request = {
+                    "operation": "NODE_LEAVE",
+                    "leaving_node_id": self.node_id,
+                }
+                target_node = self.network.nodes.get(node_id)
+                if target_node:
+                    self.send_request(target_node, leave_request)
+
+        # Safely remove the node from the network
+        with self.lock:
+            if self.node_id in self.network.nodes:
+                del self.network.nodes[self.node_id]
+                print(f"Node {self.node_id} has been removed from the network.")
+            else:
+                print(f"Node {self.node_id} is not found in the network.")
+
+        # Rebuild state for affected nodes
+        for node_id in affected_nodes:
+            if node_id in self.network.nodes:
+                self.network.nodes[node_id]._rebuild_node_state()
+
+        print(f"Node {self.node_id} has successfully left the network.")
+
 
     def _find_next_hop(self, key):
         """
@@ -719,25 +891,27 @@ class PastryNode:
 
     def _update_leaf_list(self, leaf_list, key):
         """
-        Update the specified leaf list (Lmin or Lmax) with the given key.
+        Update the specified leaf list (Lmin or Lmax) with the given key, ensuring no duplicates.
         """
-        # Iterate through the leaf list to find an empty slot
+        # Ensure the key is not already in the combined leaf set
+        if key in self.Lmin + self.Lmax:
+            return
+
+        # Find an empty slot in the leaf list
         for i in range(len(leaf_list)):
             if leaf_list[i] is None:
                 leaf_list[i] = key
                 return
 
-        # If there are no empty slots, find the farthest node
+        # If no empty slot, find the farthest node and replace it if the key is closer
         far_diff_dig_idx = HASH_HEX_DIGITS
         max_num_dist = -1
         replace_index = -1
 
-        # Iterate through the Lmax list to find the numerically farthest node
         for i in range(len(leaf_list)):
             diff_dig_idx, num_dist = hex_distance(leaf_list[i], self.node_id)
 
-            # Update the max_dist and replace_index if a smaller different digit index
-            # or a larger distance is found
+            # Replace the farthest node (numerical distance or digit index)
             if (diff_dig_idx < far_diff_dig_idx) or (
                 diff_dig_idx == far_diff_dig_idx and num_dist > max_num_dist
             ):
@@ -748,8 +922,9 @@ class PastryNode:
         # Calculate the numerical distance for the new key
         diff_dig_idx, num_dist = hex_distance(key, self.node_id)
 
-        # If the new key is closer than the current farthest node, replace it
+        # Replace if the key is closer than the farthest node
         if (diff_dig_idx > far_diff_dig_idx) or (
             diff_dig_idx == far_diff_dig_idx and num_dist < max_num_dist
         ):
             leaf_list[replace_index] = key
+
