@@ -121,13 +121,17 @@ def main():
     first_node.delete_key("4ca4")
     first_node.delete_key("aaaa")
 
-    # Looup the United States key again to see if it was deleted
+    # Lookup the United States key again to see if it was deleted
     # first_node.lookup(lookup_key, lower_bounds, upper_bounds, N=5)
     
-    print("\nStage 5: Node Leave")
+    print("\nStage 5:Key Update")
+    print("=======================")
+    
+    
+    print("\nStage 6: Node Leave")
     print("=======================")
     # Trigger a node leave operation
-    leaving_node = network.nodes["4b12"]  # Replace with an actual node ID
+    leaving_node = network.nodes["3722"]  # Replace with an actual node ID
     leaving_node.leave()
 
     # Verify the state of the network

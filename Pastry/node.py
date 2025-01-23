@@ -156,6 +156,8 @@ class PastryNode:
                     "status": "success",
                     "leaf_set": {"Lmin": self.Lmin, "Lmax": self.Lmax},
                 }
+            elif operation == "UPDATE_KEY":
+                response = self._handle_update_key_request(request)
             else:
                 response = {"status": "failure", "message": "Unknown operation"}
 
@@ -397,6 +399,36 @@ class PastryNode:
         response = self.send_request(next_hop_node, request)
         return response
     
+    def _handle_update_key_request(self, request):
+        """
+        Handle an UPDATE_KEY operation.
+        """
+        key = request["key"]
+        new_data = request["data"]  # Updated data to associate with the key
+        hops = request.get("hops", [])
+
+        # Add current node to hops
+        hops.append(self.node_id)
+
+        # Find the next hop or check if this node is responsible for the key
+        next_hop_id = self._find_next_hop(key)
+
+        if self._in_leaf_set(key) or next_hop_id == self.node_id:
+            # Check if the key exists in this node's data structure
+            if self.kd_tree and key in self.kd_tree.country_keys:
+                # Update the data in the KDTree
+                self.kd_tree.update_point(key, new_data)
+                print(f"Node {self.node_id}: Key {key} updated successfully.")
+                return {"status": "success", "message": f"Key {key} updated successfully.", "hops": hops}
+            else:
+                return {"status": "failure", "message": f"Key {key} not found.", "hops": hops}
+
+        # Forward the request to the next hop if not responsible for the key
+        next_hop_node = self.network.nodes[next_hop_id]
+        return self.send_request(next_hop_node, request)
+
+
+    
     def _repair_leaf_set(self):
         for leaf in self.Lmin + self.Lmax:
             if leaf and leaf != self.node_id:
@@ -572,6 +604,21 @@ class PastryNode:
 
         response = self._handle_lookup_request(request)
         return response
+    
+    def update_key(self, key, updated_data):
+        """
+        Initiate the UPDATE_KEY operation for a given key and updated data.
+        """
+        request = {
+            "operation": "UPDATE_KEY",
+            "key": key,
+            "data": updated_data,
+            "hops": [],  # Initialize hops tracking
+        }
+        print(f"Node {self.node_id}: Handling Update Request: {request}")
+        response = self._handle_update_key_request(request)
+        return response
+
     
     def leave(self):
         print(f"Node {self.node_id} is leaving the network...")
