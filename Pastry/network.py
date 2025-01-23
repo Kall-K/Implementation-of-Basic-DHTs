@@ -109,7 +109,15 @@ class PastryNetwork:
             ax.plot(base_x, base_y, "o", color="lightblue", markersize=10)  # Blue nodes
             text_x = (radius + 0.1) * np.sin(angle)
             text_y = (radius + 0.1) * np.cos(angle)
-            ax.text(text_x, text_y, node_id, fontsize=12, ha="center", va="center", color="black")
+            ax.text(
+                text_x,
+                text_y,
+                node_id,
+                fontsize=12,
+                ha="center",
+                va="center",
+                color="black",
+            )
 
         # Remove axis ticks and labels
         ax.set_xticks([])
@@ -117,6 +125,9 @@ class PastryNetwork:
         ax.set_xticklabels([])
         ax.set_yticklabels([])
         ax.set_title("Pastry Network Visualization")
+
+        # Save the plot
+        plt.savefig("Plots/pastry_network_visualization.png")
 
         plt.show()
 
@@ -141,7 +152,13 @@ class PastryNetwork:
             x = node.position
             ax.plot(x, 0, "o", color="lightblue", markersize=10)  # Node as a point
             ax.text(
-                x, 0.025, node.node_id, fontsize=12, ha="center", va="center", color="black"
+                x,
+                0.025,
+                node.node_id,
+                fontsize=10,
+                ha="center",
+                va="center",
+                color="black",
             )  # Label above
 
         # Draw a horizontal line to represent the topology
@@ -153,5 +170,8 @@ class PastryNetwork:
         ax.set_xlabel("Node Position in Pastry Network")
 
         ax.set_title("Pastry Network Topology")
+
+        # Save the plot
+        plt.savefig("Plots/pastry_network_topology.png")
 
         plt.show()
