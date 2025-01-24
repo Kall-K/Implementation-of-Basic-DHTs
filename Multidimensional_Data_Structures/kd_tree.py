@@ -78,11 +78,11 @@ class KDTree:
             self.tree = None
 
         print(f"Deleted {len(indices_to_delete)} points with country key: {country_key}\n")
-   
+
     def update_points(self, country_key=None, criteria=None, update_fields=None):
         """
         Update points or reviews in the KD-Tree with flexible criteria.
-        
+
         Args:
             country_key (str, optional): The hashed key of the country. If None, updates all countries.
             criteria (dict, optional): Additional filters for specific attributes.
@@ -90,7 +90,7 @@ class KDTree:
             update_fields (dict): Dictionary specifying what to update. For example:
                 {"point": [new_review_date, new_rating, new_price], "review": "New review text",
                 "attributes": {"rating": 95}}
-            
+
         Returns:
             int: Number of updates applied.
         """
@@ -104,10 +104,12 @@ class KDTree:
             # Match country key if provided
             if country_key and country_key_entry != country_key:
                 continue
-            
+
             # Match additional criteria if provided
             if criteria:
-                match = all(point[CRITERIA_MAPPING[key]] == value for key, value in criteria.items())
+                match = all(
+                    point[CRITERIA_MAPPING[key]] == value for key, value in criteria.items()
+                )
                 if not match:
                     continue
 
@@ -151,8 +153,6 @@ class KDTree:
             print(f"Applied {updates_applied} updates.")
 
         return updates_applied
-
-
 
     def search(self, lower_bounds, upper_bounds):
         """
@@ -200,12 +200,17 @@ class KDTree:
             # Retrieve the country key and reverse lookup to get the country name
             country_key = self.country_keys[index]
             country = next(
-                (country for country, key in zip(countries, [hashlib.sha1(country.encode()).hexdigest()[-4:] for country in countries]) if key == country_key),
-                "Unknown"
+                (
+                    country
+                    for country, key in zip(
+                        countries,
+                        [hashlib.sha1(country.encode()).hexdigest()[-4:] for country in countries],
+                    )
+                    if key == country_key
+                ),
+                "Unknown",
             )
             print(f"\nPoint: {point}\nReview: {review}\nCountry: {country}")
-
-
 
     def visualize(self, points, reviews):
         """
@@ -235,7 +240,8 @@ class KDTree:
         fig.canvas.mpl_connect("pick_event", on_pick)
 
         plt.show()
-        
+
+
 # Map criteria keys to point array indices
 CRITERIA_MAPPING = {"review_date": 0, "rating": 1, "price": 2}
 
@@ -290,13 +296,17 @@ if __name__ == "__main__":
 
     # Update all points for Taiwan
     print("\nUpdating all points for Taiwan:\n")
-    kd_tree.update_points(country_key=taiwan_country_key, update_fields={"attributes": {"price": 29.0}})
+    kd_tree.update_points(
+        country_key=taiwan_country_key, update_fields={"attributes": {"price": 29.0}}
+    )
 
     # Update a specific point for Taiwan
     print("\nUpdating a specific point for Taiwan:\n")
     criteria = {"review_date": 2019, "rating": 94, "price": 29.0}
     update_fields = {"attributes": {"price": 30.0}}
-    kd_tree.update_points(country_key=taiwan_country_key, criteria=criteria, update_fields=update_fields)
+    kd_tree.update_points(
+        country_key=taiwan_country_key, criteria=criteria, update_fields=update_fields
+    )
 
     # Update only the review for Taiwan
     print("\nUpdating only the review for Taiwan:\n")
@@ -307,7 +317,9 @@ if __name__ == "__main__":
     print("\nUpdating specific attributes for Taiwan:\n")
     criteria = {"review_date": 2019, "rating": 94}
     update_fields = {"attributes": {"price": 28.0}}
-    kd_tree.update_points(country_key=taiwan_country_key, criteria=criteria, update_fields=update_fields)
+    kd_tree.update_points(
+        country_key=taiwan_country_key, criteria=criteria, update_fields=update_fields
+    )
 
     # Verify all updates by searching again
     lower_bounds = [2019, 90, 26.0]

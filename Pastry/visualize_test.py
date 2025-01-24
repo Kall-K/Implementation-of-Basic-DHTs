@@ -11,7 +11,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from network import PastryNetwork
 from node import PastryNode
 from constants import *
-from helper_functions import hash_key
 
 
 def main():
@@ -37,13 +36,20 @@ def main():
     ]
 
     print(f"Adding {len(predefined_ids)} nodes to the network...")
+    print("\n" + "-" * 100)
     for node_id in predefined_ids:
         node = PastryNode(network, node_id=node_id)
+        print(f"Adding Node: ID = {node.node_id}")
         node.start_server()
         time.sleep(0.1)  # Allow the server to start
         network.node_join(node)
-        print(f"Node Added: ID = {node.node_id}, Position = {node.position}")
+        print(f"\nNode Added: ID = {node.node_id}, Position = {node.position}")
+        print("\n" + "-" * 100)
     print("\nAll nodes have successfully joined the network.\n")
+
+    print("\nInspecting the state of each node:")
+    for node in network.nodes.values():
+        node.print_state()
 
     network.visualize_network()
 

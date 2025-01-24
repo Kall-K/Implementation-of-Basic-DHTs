@@ -81,7 +81,7 @@ def main():
 
     # For similarity search testing later insert a custom entry in the USA
     country = "United States"
-    name = "Sioutas' Coffee"
+    name = "Greg's Coffee"
     key = hash_key(country)
     point = [2018, 94, 5.5]
     review = "Very delicate and sweet. Lemon verbena, dried persimmon, dogwood, baker's chocolate in aroma and cup. Balanced, sweet-savory structure; velvety-smooth mouthfeel. The sweetly herb-toned finish centers on notes of lemon verbena and dried persimmon wrapped in baker's chocolate."
@@ -119,17 +119,17 @@ def main():
     first_node.delete_key("372b")  # Delete the key for "United States"
     first_node.delete_key("6073")
     first_node.delete_key("4ca4")
-    first_node.delete_key("aaaa")
+    first_node.delete_key("aaaa")  # Delete a key that does not exist
 
     # Lookup the United States key again to see if it was deleted
     # first_node.lookup(lookup_key, lower_bounds, upper_bounds, N=5)
-    
+
     print("\nStage 5:Key Update")
     print("=======================")
 
     taiwan_country_key = hash_key("Taiwan")
 
-        # Update all points for Taiwan
+    # Update all points for Taiwan
     print("\nUpdating all points for Taiwan:\n")
     update_fields = {"attributes": {"price": 35.0}}
     first_node.update_key(key=taiwan_country_key, updated_data=update_fields)
@@ -142,7 +142,9 @@ def main():
 
     # Update only the review for Taiwan
     print("\nUpdating only the review for Taiwan:\n")
-    update_fields = {"review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."}
+    update_fields = {
+        "review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."
+    }
     first_node.update_key(key=taiwan_country_key, updated_data=update_fields)
 
     # Update based on specific attributes and modify multiple fields
@@ -151,15 +153,13 @@ def main():
     update_fields = {"attributes": {"price": 37.0, "rating": 95}}
     first_node.update_key(key=taiwan_country_key, updated_data=update_fields, criteria=criteria)
 
-
     # Verify all updates
     lower_bounds = [2018, 90, 30.0]
     upper_bounds = [2019, 95, 40.0]
     print("\nVerifying updates through lookup:\n")
     response = first_node.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
     print(response)
-    
-    
+
     print("\nStage 6: Node Leave")
     print("=======================")
     # Trigger a node leave operation
@@ -169,12 +169,6 @@ def main():
     # Verify the state of the network
     for node in network.nodes.values():
         node.print_state()
-
-
-    # Inspect the state of each node
-    """print("\nInspecting the state of each node:")
-    for node in network.nodes.values():
-        node.print_state()"""
 
 
 if __name__ == "__main__":

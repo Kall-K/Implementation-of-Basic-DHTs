@@ -2,60 +2,87 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from helper_functions import *
+from constants import N
+
+positions = positions = np.linspace(0, 1, N, endpoint=False)  # Generates evenly spaced points
 
 
 class PastryNetwork:
     def __init__(self):
         self.nodes = {}  # Dictionary. Keys are node IDs, values are Node objects
+        self.node_ports = {}  # Dictionary. Keys are node IDs, values are ports
+        self.used_ports = []
+        self.used_positions = list(positions)
 
     def node_join(self, new_node):
         """
         Handles a new node joining the Pastry network.
         """
-        # Determine the node ID
-        node_id = new_node.node_id
+        if self.used_positions:
+            new_node.position = self.used_positions.pop(0)
+        else:
+            new_node.position = np.random.uniform(0, 1)  # Fallback
 
-        # Add the node to the network
-        self.nodes[node_id] = new_node
+        # Determine the new node's ID
+        new_node_id = new_node.node_id
+
+        # Add the node object to the network
+        self.nodes[new_node_id] = new_node
+
+        # Add the node's port to the node_ports dictionary
+        self.node_ports[new_node_id] = new_node.port
 
         if len(self.nodes) == 1:
             print("The network is empty. The new node is the first node.")
             return
 
         # Find the closest node to the new using its position
-        closest_node = self._find_topologically_closest_node(new_node)
+        closest_node_id, closest_neighborhood_set = self._find_topologically_closest_node(new_node)
 
         # Initialize the new nodes Neighborhood Set of the new node
-        new_node.initialize_neighborhood_set(closest_node.node_id)
+        print(f"\nInitializing Neighborhood Set of the new node {new_node_id}...")
+        new_node.initialize_neighborhood_set(closest_node_id, closest_neighborhood_set)
 
         # Forward the join message to the topologically closest node
         join_request = {
-            "operation": "JOIN_NETWORK",
-            "joining_node_id": new_node.node_id,
+            "operation": "NODE_JOIN",
+            "joining_node_id": new_node_id,
             "hops": [],
         }
-        response = new_node.send_request(closest_node, join_request)
+        print(f"\nForwarding JOIN_NETWORK request to the closest node {closest_node_id}...")
+        response = new_node.send_request(self.node_ports[closest_node_id], join_request)
         print(response)
 
         # Broadcast the new node's arrival to the network
+        print(f"\nBroadcasting the new node's arrival to the network...")
         new_node.transmit_state()
 
     def _find_topologically_closest_node(self, new_node):
         """
         Find the topologically closest node in the network to the new node.
         """
-        closest_node = None
+        closest_node_id = None
+        closest_neighborhood_set = None
         min_distance = float("inf")
-        for existing_node in self.nodes.values():
+        for existing_node_id in self.node_ports.keys():
             # Skip the new node
-            if existing_node == new_node:
+            if existing_node_id == new_node.node_id:
                 continue
 
-            distance = topological_distance(new_node.position, existing_node.position)
+            dist_request = {
+                "operation": "DISTANCE",
+                "node_position": new_node.position,
+                "hops": [],
+            }
+            response = new_node.send_request(self.node_ports[existing_node_id], dist_request)
+
+            distance = response["distance"]
+            neighborhood_set = response["neighborhood_set"]
             if distance < min_distance:
-                closest_node = existing_node
+                closest_node_id = existing_node_id
+                closest_neighborhood_set = neighborhood_set
                 min_distance = distance
-        return closest_node
+        return closest_node_id, closest_neighborhood_set
 
     def visualize_network(self, threshold=0.2):
         """
