@@ -45,7 +45,7 @@ class PastryNetwork:
 
         # Forward the join message to the topologically closest node
         join_request = {
-            "operation": "JOIN_NETWORK",
+            "operation": "NODE_JOIN",
             "joining_node_id": new_node_id,
             "hops": [],
         }
