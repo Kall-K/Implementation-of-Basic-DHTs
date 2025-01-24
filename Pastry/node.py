@@ -370,9 +370,6 @@ class PastryNode:
         update_fields = request["data"]  # Update fields for the KDTree
         hops = request.get("hops", [])
 
-        # Add current node to hops
-        hops.append(self.node_id)
-
         # Find the next hop or check if this node is responsible for the key
         next_hop_id = self._find_next_hop(key)
 
@@ -607,10 +604,10 @@ class PastryNode:
                 leave_request = {
                     "operation": "NODE_LEAVE",
                     "leaving_node_id": self.node_id,
+                    "hops": [],
                 }
-                target_node = self.network.nodes.get(node_id)
-                if target_node:
-                    self.send_request(target_node, leave_request)
+                # target_node = self.network.nodes.get(node_id)
+                self.send_request(self.network.node_ports[node_id], leave_request)
 
         # Safely remove the node from the network
         with self.lock:
