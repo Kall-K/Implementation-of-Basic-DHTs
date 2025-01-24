@@ -121,7 +121,7 @@ class PastryNode:
                 return
 
             s.listen()
-            print(f"\nNode {self.node_id} listening on {bind_address})")
+            print(f"Node {self.node_id} listening on {bind_address})")
             while True:
                 conn, addr = s.accept()  # Accept incoming connection
                 # Submit the connection to the thread pool for handling
@@ -146,8 +146,18 @@ class PastryNode:
                 response = self._handle_delete_key_request(request)
             elif operation == "LOOKUP":
                 response = self._handle_lookup_request(request)
+
             elif operation == "UPDATE_PRESENCE":
                 response = self._handle_update_presence_request(request)
+            elif operation == "UPDATE_ROUTING_TABLE_ROW":
+                response = self.update_routing_table_row(request)
+            elif operation == "UPDATE_ROUTING_TABLE_ENTRY":
+                response = self.update_routing_table_entry(request)
+            elif operation == "UPDATE_LEAF_SET":
+                response = self.update_leaf_set(request)
+            elif operation == "DISTANCE":
+                distance = topological_distance(self.position, request["node_position"])
+                response = {"distance": distance}
 
             # Add more operations here as needed
 
@@ -157,12 +167,12 @@ class PastryNode:
         finally:
             conn.close()
 
-    def send_request(self, node, request):
+    def send_request(self, node_port, request):
         """
         Send a request to a node and wait for its response.
         """
         # Use loopback IP for actual connection
-        connect_address = ("127.0.0.1", node.port)
+        connect_address = ("127.0.0.1", node_port)
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             # s.settimeout(10)  # Set a timeout for both connect and recv
@@ -183,26 +193,44 @@ class PastryNode:
         Handle a request from a new node to join the network.
         """
         new_node_id = request["joining_node_id"]
-        new_node = self.network.nodes[new_node_id]
 
         # Determine the routing table row to update
-        i = common_prefix_length(self.node_id, new_node.node_id)
+        i = common_prefix_length(self.node_id, new_node_id)
 
         # Update the new node's Routing Table row
-        self.network.nodes[new_node.node_id].update_routing_table(i, self.routing_table[i])
+        update_R_request = {
+            "operation": "UPDATE_ROUTING_TABLE_ROW",
+            "row_idx": i,
+            "received_row": self.routing_table[i],
+            "hops": [],
+        }
+        print(
+            f"Node {self.node_id}: Updating the new node's Routing Table Row {i} with node's {self.node_id} row {i}..."
+        )
+        self.send_request(self.network.node_ports[new_node_id], update_R_request)
 
-        next_hop_id = self._find_next_hop(new_node.node_id)
+        next_hop_id = self._find_next_hop(new_node_id)
 
         if next_hop_id == self.node_id:
             # If the next hop is the current node, update the new node's Leaf Set
-            self.network.nodes[new_node.node_id].update_leaf_set(self.Lmin, self.Lmax, self.node_id)
+            print(
+                f"Node {self.node_id}: This node is the numerically closest node to the new node.\nUpdating the new node's Leaf Set..."
+            )
+            update_L_request = {
+                "operation": "UPDATE_LEAF_SET",
+                "Lmin": self.Lmin,
+                "Lmax": self.Lmax,
+                "key": self.node_id,
+                "hops": [],
+            }
+            self.send_request(self.network.node_ports[new_node_id], update_L_request)
+
             return {
                 "status": "success",
             }
 
         # Else forward the request to the next hop
-        next_hop_node = self.network.nodes[next_hop_id]
-        response = self.send_request(next_hop_node, request)
+        response = self.send_request(self.network.node_ports[next_hop_id], request)
         return response
 
     def _handle_insert_key_request(self, request):
@@ -243,9 +271,8 @@ class PastryNode:
                 "message": f"Key {key} stored at {self.node_id}",
             }
 
-        # Forward request to the next hop
-        next_hop_node = self.network.nodes[self._find_next_hop(key)]
-        return self.send_request(next_hop_node, request)
+        # If this node is not responsible for the key forward request to the next hop
+        return self.send_request(self.network.node_ports[next_hop_id], request)
 
     '''def _handle_insert_key_request(self, request):
         """
@@ -335,8 +362,7 @@ class PastryNode:
             return {"status": "success", "message": f"Deleted Key {key}."}
 
         # Otherwise, forward the request to the next node
-        next_hop_node = self.network.nodes[next_hop_id]
-        response = self.send_request(next_hop_node, request)
+        response = self.send_request(self.network.node_ports[next_hop_id], request)
         return response
 
     def _handle_lookup_request(self, request):
@@ -350,6 +376,7 @@ class PastryNode:
 
         # If this key is found in the leaf set or the next hop is the current node the lookup is successful
         next_hop_id = self._find_next_hop(key)
+
         if self._in_leaf_set(key) or next_hop_id == self.node_id:
             print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
 
@@ -384,8 +411,7 @@ class PastryNode:
 
         # If the key is not found in the leaf set and the next hop is not the current node
         # forward the request to the next hop
-        next_hop_node = self.network.nodes[next_hop_id]
-        response = self.send_request(next_hop_node, request)
+        response = self.send_request(self.network.node_ports[next_hop_id], request)
         return response
 
     def insert_key(self, key, point, review, country):
@@ -462,7 +488,6 @@ class PastryNode:
         """
         Broadcast the arrival of this node to the network, ensuring each node is updated only once.
         """
-        # node_id = self.node_id
         request = {
             "operation": "UPDATE_PRESENCE",
             "joining_node_id": self.node_id,
@@ -471,39 +496,37 @@ class PastryNode:
 
         nodes_updated = set()
 
-        def _update_presence(node_id):
+        def __update_presence(node_id):
             """Helper function to send request and track updates."""
             if node_id is not None and node_id not in nodes_updated:
-                self.send_request(self.network.nodes[node_id], request)
+                self.send_request(self.network.node_ports[node_id], request)
                 nodes_updated.add(node_id)
 
         # Update the Neighborhood Set (M) nodes
-        for i in range(len(self.neighborhood_set)):
-            _update_presence(self.neighborhood_set[i])
+        for node_id in self.neighborhood_set:
+            __update_presence(node_id)
 
         # Update the Routing Table (R) nodes
-        for i in range(len(self.routing_table)):
-            for j in range(len(self.routing_table[0])):
-                _update_presence(self.routing_table[i][j])
+        for row in self.routing_table:
+            for node_id in row:
+                __update_presence(node_id)
 
-        # Update the Leaf Set (L) Nodes
+        # Update the Leaf Set (L) nodes
+        for node_id in self.Lmin:
+            __update_presence(node_id)
 
-        # Iterate through the Lmin list
-        for i in range(len(self.Lmin)):
-            # Check if the current entry in the Lmin list is not None
-            _update_presence(self.Lmin[i])
-
-        # Iterate through the Lmax list
-        for i in range(len(self.Lmax)):
-            # Check if the current entry in the Lmax list is not None
-            _update_presence(self.Lmax[i])
+        for node_id in self.Lmax:
+            __update_presence(node_id)
 
     # Data Structure Updates
 
-    def update_routing_table(self, row_idx, received_row):
+    def update_routing_table_row(self, request):
         """
         Update the routing table of the current node with the received row.
         """
+        row_idx = request["row_idx"]
+        received_row = request["received_row"]
+
         for col_idx in range(len(received_row)):
             entry = received_row[col_idx]
             if entry is None:
@@ -516,27 +539,54 @@ class PastryNode:
             if self.routing_table[row_idx][col_idx] is None:
                 self.routing_table[row_idx][col_idx] = received_row[col_idx]
 
-    def initialize_neighborhood_set(self, close_node_id):
+    def update_routing_table_entry(self, request):
+        """
+        Update a single entry in the routing table of the current node.
+        """
+        idx = request["row_idx"]
+        node_id = request["node_id"]
+
+        # Update the routing table entry if it is empty
+        if self.routing_table[idx][int(node_id[idx], 16)] is None:
+            print(f"Node {self.node_id}: Updating Routing Table Entry for new node {node_id}...")
+            self.routing_table[idx][int(node_id[idx], 16)] = node_id
+
+    def initialize_neighborhood_set(self, close_node):
         """
         Initialize the neighborhood set of the current node using the close_node.
         """
-        close_node = self.network.nodes[close_node_id]
 
         self.neighborhood_set = close_node.neighborhood_set.copy()
+        print(
+            f"Node {self.node_id}: Copying neighborhood set from the closest node {close_node.node_id}..."
+        )
 
         # Insert the close node aswell if there is space
+        print(
+            f"Node {self.node_id}: Adding Node close node {close_node.node_id} to the neighborhood set aswell..."
+        )
         for i in range(len(self.neighborhood_set)):
             if self.neighborhood_set[i] is None:
                 self.neighborhood_set[i] = close_node.node_id
                 return
 
         # If there is no space, replace the farthest node id with the close node
+        print(
+            f"Node {self.node_id}: No space in the neighborhood set for the close node. Replacing the farthest node..."
+        )
         max_dist = -1
         idx = -1
         for i in range(len(self.neighborhood_set)):
-            dist = topological_distance(
-                self.position, self.network.nodes[self.neighborhood_set[i]].position
+            dist_request = {
+                "operation": "DISTANCE",
+                "node_position": self.position,
+                "hops": [],
+            }
+            response = self.send_request(
+                self.network.node_ports[self.neighborhood_set[i]], dist_request
             )
+            dist = response["distance"]
+
             if dist > max_dist:
                 max_dist = dist
                 idx = i
@@ -571,11 +621,15 @@ class PastryNode:
             # Replace the farthest node with the new node
             self.neighborhood_set[replace_idx] = key
 
-    def update_leaf_set(self, Lmin, Lmax, key):
+    def update_leaf_set(self, request):
         """
         Update the leaf set of the current node based on the provided Lmin, Lmax,
         and key of the node that triggered the update.
         """
+        Lmin = request["Lmin"]
+        Lmax = request["Lmax"]
+        key = request["key"]
+
         self.Lmin = Lmin.copy()
         self.Lmax = Lmax.copy()
 
@@ -601,14 +655,21 @@ class PastryNode:
         idx = common_prefix_length(key, self.node_id)
 
         # If the entry in the routing table is empty, update it with the key
+        print(f"Node {self.node_id}: Updating Routing Table Entry for new node {key}...")
         if self.routing_table[idx][int(key[idx], 16)] is None:
             self.routing_table[idx][int(key[idx], 16)] = key
 
         # Also update the new node's routing table with the current node's id
-        if self.network.nodes[key].routing_table[idx][int(self.node_id[idx], 16)] is None:
-            self.network.nodes[key].routing_table[idx][int(self.node_id[idx], 16)] = self.node_id
+        request = {
+            "operation": "UPDATE_ROUTING_TABLE_ENTRY",
+            "row_idx": idx,
+            "node_id": self.node_id,
+            "hops": [],
+        }
+        self.send_request(self.network.node_ports[key], request)
 
         # Leaf Set (Lmin, Lmax)
+        print(f"Node {self.node_id}: Updating Leaf Set for new node {key}...")
         # If key >= this node's ID, update Lmax
         if hex_compare(key, self.node_id):
             if key not in self.Lmax:

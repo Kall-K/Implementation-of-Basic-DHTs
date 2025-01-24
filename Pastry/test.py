@@ -81,7 +81,7 @@ def main():
 
     # For similarity search testing later insert a custom entry in the USA
     country = "United States"
-    name = "Sioutas' Coffee"
+    name = "Greg's Coffee"
     key = hash_key(country)
     point = [2018, 94, 5.5]
     review = "Very delicate and sweet. Lemon verbena, dried persimmon, dogwood, baker's chocolate in aroma and cup. Balanced, sweet-savory structure; velvety-smooth mouthfeel. The sweetly herb-toned finish centers on notes of lemon verbena and dried persimmon wrapped in baker's chocolate."
@@ -119,12 +119,12 @@ def main():
     first_node.delete_key("372b")  # Delete the key for "United States"
     first_node.delete_key("6073")
     first_node.delete_key("4ca4")
-    first_node.delete_key("aaaa")
+    first_node.delete_key("aaaa")  # Delete a key that does not exist
 
-    # Looup the United States key again to see if it was deleted
+    # Lookup the United States key again to see if it was deleted
     # first_node.lookup(lookup_key, lower_bounds, upper_bounds, N=5)
 
-    # Inspect the state of each node
+    # Inspect the state of each node after deleting keys
     """print("\nInspecting the state of each node:")
     for node in network.nodes.values():
         node.print_state()"""
