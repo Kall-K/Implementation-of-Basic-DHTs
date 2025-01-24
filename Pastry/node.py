@@ -771,17 +771,26 @@ class PastryNode:
         # Initialize variables to find the farthest node in the neighborhood set
         max_dist, replace_idx = -1, -1
 
-        # Find the farthest node from the current node in the neighborhood set
+        # Find the farthest node from the current node in its neighborhood set
         for i, neighbor_id in enumerate(self.neighborhood_set):
-            dist = topological_distance(self.network.nodes[neighbor_id].position, self.position)
+            dist_request = {
+                "operation": "DISTANCE",
+                "node_position": self.position,
+                "hops": [],
+            }
+            response = self.send_request(self.network.node_ports[neighbor_id], dist_request)
+            dist = response["distance"]
             if dist > max_dist:
                 max_dist, replace_idx = dist, i
 
         # Check if the new node is closer than the farthest node
-        key_curr_node_dist = topological_distance(
-            self.position,
-            self.network.nodes[key].position,
-        )
+        dist_request = {
+            "operation": "DISTANCE",
+            "node_position": self.position,
+            "hops": [],
+        }
+        response = self.send_request(self.network.node_ports[key], dist_request)
+        key_curr_node_dist = response["distance"]
         if key_curr_node_dist < max_dist:
             # Replace the farthest node with the new node
             self.neighborhood_set[replace_idx] = key
