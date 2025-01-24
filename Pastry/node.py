@@ -401,10 +401,11 @@ class PastryNode:
     
     def _handle_update_key_request(self, request):
         """
-        Handle an UPDATE_KEY operation.
+        Handle an UPDATE_KEY operation with criteria and update fields.
         """
         key = request["key"]
-        new_data = request["data"]  # Updated data to associate with the key
+        criteria = request.get("criteria", None)  # Optional criteria to filter
+        update_fields = request["data"]  # Update fields for the KDTree
         hops = request.get("hops", [])
 
         # Add current node to hops
@@ -417,7 +418,11 @@ class PastryNode:
             # Check if the key exists in this node's data structure
             if self.kd_tree and key in self.kd_tree.country_keys:
                 # Update the data in the KDTree
-                self.kd_tree.update_point(key, new_data)
+                self.kd_tree.update_points(
+                    country_key=key,
+                    criteria=criteria,
+                    update_fields=update_fields,
+                )
                 print(f"Node {self.node_id}: Key {key} updated successfully.")
                 return {"status": "success", "message": f"Key {key} updated successfully.", "hops": hops}
             else:
@@ -426,7 +431,6 @@ class PastryNode:
         # Forward the request to the next hop if not responsible for the key
         next_hop_node = self.network.nodes[next_hop_id]
         return self.send_request(next_hop_node, request)
-
 
     
     def _repair_leaf_set(self):
@@ -605,19 +609,30 @@ class PastryNode:
         response = self._handle_lookup_request(request)
         return response
     
-    def update_key(self, key, updated_data):
+    def update_key(self, key, updated_data, criteria=None):
         """
-        Initiate the UPDATE_KEY operation for a given key and updated data.
+        Initiate the UPDATE_KEY operation for a given key with optional criteria and updated data.
+
+        Args:
+            key (str): The key (hashed country) to be updated.
+            updated_data (dict): Fields to update. Example: {"attributes": {"price": 30.0}, "review": "Updated review"}.
+            criteria (dict, optional): Criteria for selecting points to update. 
+                                    Example: {"review_date": 2019, "rating": 94}.
+
+        Returns:
+            dict: Response from the update operation, indicating success or failure.
         """
         request = {
             "operation": "UPDATE_KEY",
             "key": key,
             "data": updated_data,
+            "criteria": criteria,  # Optional criteria for filtering
             "hops": [],  # Initialize hops tracking
         }
         print(f"Node {self.node_id}: Handling Update Request: {request}")
         response = self._handle_update_key_request(request)
         return response
+
 
     
     def leave(self):
