@@ -7,7 +7,7 @@ from constants import *
 
 def hash_key(value):
     """
-    Hash the input value and return the least 4 hex digits.
+    Hash the input value and return the last 4 hex digits.
     """
     sha1_hash = hashlib.sha1(value.encode()).hexdigest()
     return sha1_hash[-4:]

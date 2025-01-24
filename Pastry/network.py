@@ -2,16 +2,26 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from helper_functions import *
+from constants import N
+
+positions = positions = np.linspace(0, 1, N, endpoint=False)  # Generates evenly spaced points
 
 
 class PastryNetwork:
     def __init__(self):
         self.nodes = {}  # Dictionary. Keys are node IDs, values are Node objects
+        self.used_ports = []
+        self.used_positions = list(positions)
 
     def node_join(self, new_node):
         """
         Handles a new node joining the Pastry network.
         """
+        if self.used_positions:
+            new_node.position = self.used_positions.pop(0)
+        else:
+            new_node.position = np.random.uniform(0, 1)  # Fallback
+
         # Determine the node ID
         node_id = new_node.node_id
 
