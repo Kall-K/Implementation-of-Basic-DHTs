@@ -417,6 +417,7 @@ class PastryNode:
         print(f"Node {self.node_id}: Handling NODE_LEAVE for {leaving_node_id}.")
 
         # Remove the leaving node from the network
+        """!auto tha ginei to leave()!"""
         with self.lock:
             if leaving_node_id in self.network.nodes:
                 del self.network.nodes[leaving_node_id]
@@ -591,6 +592,8 @@ class PastryNode:
         return response
 
     def leave(self):
+        """!prepei na ginei method sto network class!"""
+
         print(f"Node {self.node_id} is leaving the network...")
 
         # Identify affected nodes
@@ -606,7 +609,6 @@ class PastryNode:
                     "leaving_node_id": self.node_id,
                     "hops": [],
                 }
-                # target_node = self.network.nodes.get(node_id)
                 self.send_request(self.network.node_ports[node_id], leave_request)
 
         # Safely remove the node from the network
