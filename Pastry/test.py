@@ -123,6 +123,53 @@ def main():
 
     # Lookup the United States key again to see if it was deleted
     # first_node.lookup(lookup_key, lower_bounds, upper_bounds, N=5)
+    
+    print("\nStage 5:Key Update")
+    print("=======================")
+
+    taiwan_country_key = hash_key("Taiwan")
+
+        # Update all points for Taiwan
+    print("\nUpdating all points for Taiwan:\n")
+    update_fields = {"attributes": {"price": 35.0}}
+    first_node.update_key(key=taiwan_country_key, updated_data=update_fields)
+
+    # Update a specific point for Taiwan
+    print("\nUpdating a specific point for Taiwan:\n")
+    criteria = {"review_date": 2019, "rating": 94, "price": 35.0}
+    update_fields = {"attributes": {"price": 36.0}}
+    first_node.update_key(key=taiwan_country_key, updated_data=update_fields, criteria=criteria)
+
+    # Update only the review for Taiwan
+    print("\nUpdating only the review for Taiwan:\n")
+    update_fields = {"review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."}
+    first_node.update_key(key=taiwan_country_key, updated_data=update_fields)
+
+    # Update based on specific attributes and modify multiple fields
+    print("\nUpdating specific attributes for Taiwan:\n")
+    criteria = {"review_date": 2019, "rating": 94}
+    update_fields = {"attributes": {"price": 37.0, "rating": 95}}
+    first_node.update_key(key=taiwan_country_key, updated_data=update_fields, criteria=criteria)
+
+
+    # Verify all updates
+    lower_bounds = [2018, 90, 30.0]
+    upper_bounds = [2019, 95, 40.0]
+    print("\nVerifying updates through lookup:\n")
+    response = first_node.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
+    print(response)
+    
+    
+    print("\nStage 6: Node Leave")
+    print("=======================")
+    # Trigger a node leave operation
+    leaving_node = network.nodes["3722"]  # Replace with an actual node ID
+    leaving_node.leave()
+
+    # Verify the state of the network
+    for node in network.nodes.values():
+        node.print_state()
+
 
     # Inspect the state of each node after deleting keys
     """print("\nInspecting the state of each node:")
