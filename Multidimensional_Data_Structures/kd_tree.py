@@ -78,6 +78,81 @@ class KDTree:
             self.tree = None
 
         print(f"Deleted {len(indices_to_delete)} points with country key: {country_key}\n")
+   
+    def update_points(self, country_key=None, criteria=None, update_fields=None):
+        """
+        Update points or reviews in the KD-Tree with flexible criteria.
+        
+        Args:
+            country_key (str, optional): The hashed key of the country. If None, updates all countries.
+            criteria (dict, optional): Additional filters for specific attributes.
+                Example: {"review_date": 2017, "rating": 90}
+            update_fields (dict): Dictionary specifying what to update. For example:
+                {"point": [new_review_date, new_rating, new_price], "review": "New review text",
+                "attributes": {"rating": 95}}
+            
+        Returns:
+            int: Number of updates applied.
+        """
+        if update_fields is None:
+            print("No update fields provided. Aborting update.")
+            return 0
+
+        # Find indices of points to update based on the criteria
+        indices_to_update = []
+        for idx, (point, country_key_entry) in enumerate(zip(self.points, self.country_keys)):
+            # Match country key if provided
+            if country_key and country_key_entry != country_key:
+                continue
+            
+            # Match additional criteria if provided
+            if criteria:
+                match = all(point[CRITERIA_MAPPING[key]] == value for key, value in criteria.items())
+                if not match:
+                    continue
+
+            indices_to_update.append(idx)
+
+        updates_applied = 0
+
+        for idx in indices_to_update:
+            # Update the point if specified
+            if "point" in update_fields:
+                print(f"Updating point at index {idx}:")
+                print(f"Old Point: {self.points[idx]}")
+                self.points[idx] = update_fields["point"]
+                print(f"New Point: {self.points[idx]}")
+
+            # Update specific attributes of the point
+            if "attributes" in update_fields:
+                print(f"Updating attributes of point at index {idx}:")
+                for attr_key, attr_value in update_fields["attributes"].items():
+                    point_idx = CRITERIA_MAPPING[attr_key]
+                    print(f" - Old {attr_key}: {self.points[idx][point_idx]}")
+                    self.points[idx][point_idx] = attr_value
+                    print(f" - New {attr_key}: {self.points[idx][point_idx]}")
+
+            # Update the review if specified
+            if "review" in update_fields:
+                print(f"Updating review at index {idx}:")
+                print(f"Old Review: {self.reviews[idx]}")
+                self.reviews[idx] = update_fields["review"]
+                print(f"New Review: {self.reviews[idx]}")
+
+            updates_applied += 1
+
+        # Rebuild the KD-Tree if any points were updated
+        if updates_applied > 0 and ("point" in update_fields or "attributes" in update_fields):
+            self.build(self.points)
+
+        if updates_applied == 0:
+            print("No matching points found for the update criteria.")
+        else:
+            print(f"Applied {updates_applied} updates.")
+
+        return updates_applied
+
+
 
     def search(self, lower_bounds, upper_bounds):
         """
@@ -117,11 +192,20 @@ class KDTree:
         return matching_points, matching_reviews
 
     def print_search_results(self, matching_points, matching_reviews):
-        """Prints the search results."""
-        # Print results
+        """Prints the search results, including the associated country."""
         print(f"\nFound {len(matching_points)} points within the specified ranges:")
         for point, review in zip(matching_points, matching_reviews):
-            print(f"\nPoint: {point}\nReview: {review}")
+            # Find the index of the matching point
+            index = np.where((self.points == point).all(axis=1))[0][0]
+            # Retrieve the country key and reverse lookup to get the country name
+            country_key = self.country_keys[index]
+            country = next(
+                (country for country, key in zip(countries, [hashlib.sha1(country.encode()).hexdigest()[-4:] for country in countries]) if key == country_key),
+                "Unknown"
+            )
+            print(f"\nPoint: {point}\nReview: {review}\nCountry: {country}")
+
+
 
     def visualize(self, points, reviews):
         """
@@ -151,7 +235,9 @@ class KDTree:
         fig.canvas.mpl_connect("pick_event", on_pick)
 
         plt.show()
-
+        
+# Map criteria keys to point array indices
+CRITERIA_MAPPING = {"review_date": 0, "rating": 1, "price": 2}
 
 # Example usage
 if __name__ == "__main__":
@@ -197,5 +283,34 @@ if __name__ == "__main__":
     kd_tree.delete_points(country_key)
 
     points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 9 points result
+    kd_tree.print_search_results(points, reviews)
 
+    # Update specific point and review for Taiwan
+    taiwan_country_key = hashlib.sha1("Taiwan".encode()).hexdigest()[-4:]
+
+    # Update all points for Taiwan
+    print("\nUpdating all points for Taiwan:\n")
+    kd_tree.update_points(country_key=taiwan_country_key, update_fields={"attributes": {"price": 29.0}})
+
+    # Update a specific point for Taiwan
+    print("\nUpdating a specific point for Taiwan:\n")
+    criteria = {"review_date": 2019, "rating": 94, "price": 29.0}
+    update_fields = {"attributes": {"price": 30.0}}
+    kd_tree.update_points(country_key=taiwan_country_key, criteria=criteria, update_fields=update_fields)
+
+    # Update only the review for Taiwan
+    print("\nUpdating only the review for Taiwan:\n")
+    update_fields = {"review": "An updated review for Taiwan's coffee."}
+    kd_tree.update_points(country_key=taiwan_country_key, update_fields=update_fields)
+
+    # Update based on specific attributes (e.g., review_date and rating) and modify the price
+    print("\nUpdating specific attributes for Taiwan:\n")
+    criteria = {"review_date": 2019, "rating": 94}
+    update_fields = {"attributes": {"price": 28.0}}
+    kd_tree.update_points(country_key=taiwan_country_key, criteria=criteria, update_fields=update_fields)
+
+    # Verify all updates by searching again
+    lower_bounds = [2019, 90, 26.0]
+    upper_bounds = [2020, 95, 29.0]
+    points, reviews = kd_tree.search(lower_bounds, upper_bounds)
     kd_tree.print_search_results(points, reviews)
