@@ -19,15 +19,18 @@ def main():
         # Create a ChordNode with a specific ID
         node = ChordNode(network, node_id=node_id)
         node.start_server()
-        time.sleep(1)  # Sleep for a second to allow the server to start
+        time.sleep(1)  # Allow the server to start
         network.node_join(node)
         print(f"Node Added: ID = {node.node_id}, Address = {node.address}")
-
+    print("\nAll nodes have successfully joined the network.\n")
     # # Print the state of each node
     # print("\nInspecting the state of each node:")
     # for node in network.nodes.values():
     #     node.print_state()
 
+    # time.sleep(5)  # Allow the server to start
+    # for thread in network.nodes:
+    #     thread.join()
 
 if __name__ == "__main__":
     main()

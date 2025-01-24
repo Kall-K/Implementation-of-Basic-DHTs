@@ -59,18 +59,18 @@ class ChordNode:
     
     # Find successor
 
-    def find_successor(self, key):
-        """Find the successor node for a given key."""
-        if self.successor and (self.node_id < key <= self.successor.node_id or 
-                               (self.successor.node_id < self.node_id <= key) or 
-                               (key <= self.successor.node_id < self.node_id)):
-            return self.successor
-        else:
-            return self.closest_preceding_node(key).find_successor(key)
+    # def find_successor(self, key):
+    #     """Find the successor node for a given key."""
+    #     if self.successor and (self.node_id < key <= self.successor.node_id or 
+    #                            (self.successor.node_id < self.node_id <= key) or 
+    #                            (key <= self.successor.node_id < self.node_id)):
+    #         return self.successor
+    #     else:
+    #         return self.get_closest_preceding_node(key).find_successor(key)
 
     # Closest preceding node
 
-    def closest_preceding_node(self, key):
+    def get_closest_preceding_node(self, key):
         """Find the closest preceding node for a given key."""
         for i in range(M - 1, -1, -1):
             if self.finger_table[i] and self.node_id < self.finger_table[i].node_id < key:
@@ -79,20 +79,29 @@ class ChordNode:
     
 
     # Βάζει τον κόμβο στο δίκτυο
-    def join(self, node):
-        suc = node.find_successor(self.node_id)
+    def join(self, successor):
+        suc = successor
         pre = suc.predecessor
         
         self.find_node_place(pre, suc)
-        self.update_fingers_table()
+        # self.update_fingers_table()
 
-        # Παίρνει τα keys από το successor
-        self.data = {key: self.successor.data[key] for key in sorted(
-            self.successor.data.keys()) if key <= self.node_id}
+        # # Παίρνει τα keys από το successor
+        # self.data = {key: self.successor.data[key] for key in sorted(
+        #     self.successor.data.keys()) if key <= self.node_id}
 
-        for key in sorted(self.data.keys()):
-            if key in self.successor.data:
-                del self.successor.data[key]
+        # for key in sorted(self.data.keys()):
+        #     if key in self.successor.data:
+        #         del self.successor.data[key]
+
+# Βρίσκει τη θέση του κόμβου
+    def find_node_place(self, pre, suc):
+        pre.fingers_table[0] = self
+        pre.successor = self
+        suc.predecessor = self
+        self.fingers_table[0] = suc
+        self.successor = suc
+        self.predecessor = pre
 
     # Stop running
 
@@ -160,8 +169,8 @@ class ChordNode:
             print(f"Node {self.node_id}: Handling Request: {request}")
             response = None
 
-            if operation == "JOIN_NETWORK":
-                response = self._handle_join_request(request)
+            if operation == "FIND_SUCCESSOR":
+                response = self._handle_find_successor(request)
 
             # Add more operations here as needed
 
@@ -190,42 +199,23 @@ class ChordNode:
 
         return pickle.loads(response)  # Deserialize the response
 
-    # Node Joining and Routing
+    def _handle_find_successor(self, request):
+        node = request["node"]
 
-    def transmit_state(self):
-        """
-        Broadcast the arrival of this node to the network.
-        """
-        node_id = self.node_id
+        key = node.node_id
+        """Find the successor node for a given key."""
+        if self.successor and (self.node_id < key <= self.successor.node_id or 
+                               (self.successor.node_id < self.node_id <= key) or 
+                               (key <= self.successor.node_id < self.node_id)):
+            return self.successor
+        else:
+            closest_preceding_node = self.get_closest_preceding_node(key)
+            successor_request = {
+                "operation": "FIND_SUCCESSOR",
+                "node": node,
+            }
+            return self.send_request(closest_preceding_node, successor_request)
 
-        # Update the Neighborhood Set (M) nodes
-        for i in range(len(self.neighborhood_set)):
-            if self.neighborhood_set[i] is not None:
-                self.network.nodes[self.neighborhood_set[i]]._update_presence(node_id)
-
-        # Update the Routing Table (R) nodes
-        for i in range(len(self.routing_table)):
-            for j in range(len(self.routing_table[0])):
-                if self.routing_table[i][j] is not None:
-                    self.network.nodes[self.routing_table[i][j]]._update_presence(
-                        node_id
-                    )
-
-        # Update the Leaf Set (L) Nodes
-
-        # Iterate through the Lmin list
-        for i in range(len(self.Lmin)):
-            # Check if the current entry in the Lmin list is not None
-            if self.Lmin[i] is not None:
-                # Update the presence of the node in the network
-                self.network.nodes[self.Lmin[i]]._update_presence(node_id)
-
-        # Iterate through the Lmax list
-        for i in range(len(self.Lmax)):
-            # Check if the current entry in the Lmax list is not None
-            if self.Lmax[i] is not None:
-                # Update the presence of the node in the network
-                self.network.nodes[self.Lmax[i]]._update_presence(node_id)
 
     # Data Structure Updates
 
