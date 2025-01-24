@@ -157,7 +157,7 @@ class PastryNode:
                 response = self.update_leaf_set(request)
             elif operation == "DISTANCE":
                 distance = topological_distance(self.position, request["node_position"])
-                response = {"distance": distance}
+                response = {"distance": distance, "neighborhood_set": self.neighborhood_set}
 
             # Add more operations here as needed
 
@@ -551,23 +551,23 @@ class PastryNode:
             print(f"Node {self.node_id}: Updating Routing Table Entry for new node {node_id}...")
             self.routing_table[idx][int(node_id[idx], 16)] = node_id
 
-    def initialize_neighborhood_set(self, close_node):
+    def initialize_neighborhood_set(self, close_node_id, close_node_neighborhood_set):
         """
         Initialize the neighborhood set of the current node using the close_node.
         """
 
-        self.neighborhood_set = close_node.neighborhood_set.copy()
+        self.neighborhood_set = close_node_neighborhood_set
         print(
-            f"Node {self.node_id}: Copying neighborhood set from the closest node {close_node.node_id}..."
+            f"Node {self.node_id}: Copying neighborhood set from the closest node {close_node_id}..."
         )
 
         # Insert the close node aswell if there is space
         print(
-            f"Node {self.node_id}: Adding Node close node {close_node.node_id} to the neighborhood set aswell..."
+            f"Node {self.node_id}: Adding Node close node {close_node_id} to the neighborhood set aswell..."
         )
         for i in range(len(self.neighborhood_set)):
             if self.neighborhood_set[i] is None:
-                self.neighborhood_set[i] = close_node.node_id
+                self.neighborhood_set[i] = close_node_id
                 return
 
         # If there is no space, replace the farthest node id with the close node
@@ -590,7 +590,7 @@ class PastryNode:
             if dist > max_dist:
                 max_dist = dist
                 idx = i
-        self.neighborhood_set[idx] = close_node.node_id
+        self.neighborhood_set[idx] = close_node_id
 
     def _update_neighborhood_set(self, key):
         """
