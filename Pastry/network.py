@@ -57,6 +57,44 @@ class PastryNetwork:
         print(f"\nBroadcasting the new node's arrival to the network...")
         new_node.transmit_state()
 
+    def leave(self, leaving_node_id):
+        """
+        Handles the leave operation for a node in the network.
+        """
+        print(f"Network: Processing leave request for Node {leaving_node_id}.")
+
+        # Check if the node exists in the network
+        if leaving_node_id not in self.nodes:
+            print(f"Network: Node {leaving_node_id} does not exist.")
+            return {"status": "failure", "message": f"Node {leaving_node_id} not found."}
+
+        # Remove the leaving node from the network
+        print(f"Network: Removing Node {leaving_node_id} from the network.")
+        with self.nodes[leaving_node_id].lock:
+            del self.nodes[leaving_node_id]
+            del self.node_ports[leaving_node_id]
+
+        # Rebuild the available nodes after deletion
+        available_nodes = list(self.nodes.keys())
+        node_positions = {node_id: self.nodes[node_id].position for node_id in self.nodes}
+
+        # Notify affected nodes
+        print(f"Network: Notifying affected nodes about Node {leaving_node_id}'s departure.")
+        for node_id in available_nodes:
+            leave_request = {
+                "operation": "NODE_LEAVE",
+                "leaving_node_id": leaving_node_id,
+                "available_nodes": available_nodes,  # Updated after deletion
+                "node_positions": node_positions,   # Updated positions
+            }
+            self.nodes[node_id].send_request(self.node_ports[node_id], leave_request)
+
+        print(f"Network: Node {leaving_node_id} has successfully left the network.")
+        return {"status": "success", "message": f"Node {leaving_node_id} has left the network."}
+
+
+
+
     def _find_topologically_closest_node(self, new_node):
         """
         Find the topologically closest node in the network to the new node.
