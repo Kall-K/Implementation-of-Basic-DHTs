@@ -28,19 +28,20 @@ def main():
     node.start_server()
     time.sleep(1)  # Allow the server to start
     network.node_join(node)
-    print(f"Node Added: ID = {node.node_id}, Address = {node.address}")
+    node.print_state()
 
     node = ChordNode(network, predefined_ids[1])
     node.start_server()
     time.sleep(1)  # Allow the server to start
     network.node_join(node)
-    print(f"Node Added: ID = {node.node_id}, Address = {node.address}")
-
+    node.print_state()
+    
     node = ChordNode(network, predefined_ids[2])
     node.start_server()
     time.sleep(1)  # Allow the server to start
     network.node_join(node)
-    print(f"Node Added: ID = {node.node_id}, Address = {node.address}")
+    node.print_state()
+    
 
 if __name__ == "__main__":
     main()

@@ -5,6 +5,6 @@ HASH_HEX_DIGITS = 4
 N = 6
 
 
-M = 4  # Bit size for the hash space (e.g., 2^4 = 16 nodes)
+M = 16   # Bit size for the hash space (e.g. if M=4, 2^4 = 16 nodes)
 R = 2**M
 

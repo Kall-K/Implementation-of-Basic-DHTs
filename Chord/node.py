@@ -70,14 +70,12 @@ class ChordNode:
         print("\n" + "-" * 100)
         print(f"Node ID: {self.node_id}")
         print(f"Address: {self.address}")
-        print("\nRouting Table:")
-        for row in self.routing_table:
-            print(row)
-        print("\nLeaf Set:")
-        print(f"Lmin: {self.Lmin}")
-        print(f"Lmax: {self.Lmax}")
-        print("\nNeighborhood Set:")
-        print(self.neighborhood_set)
+        print(f"Predecessor: {self.predecessor}")
+        print("\nFinger Table:")
+        print(self.finger_table)
+        print("\n" + "-" * 100)
+        # for finger in self.finger_table:
+        #     print(finger)
 
     # Network Communication
 
@@ -159,14 +157,14 @@ class ChordNode:
     # Ανανεώνει τα fingers του κόμβου
     def update_finger_table(self, node_left = None, leave = False):
         for i in range(1, len(self.finger_table)):
-            temp_node = self.find_successor((self.node_id + 2 ** i) % R)
-            if leave:
-                if node_left != temp_node:
-                    self.finger_table[i] = temp_node
-                else: 
-                    self.finger_table[i] = self.find_successor((temp_node + 2 ** i) % R)
-            else:
-                self.finger_table[i] = temp_node
+            temp_node = self.find_successor((self.node_id + 2 ** i) % R, self)
+            # if leave:
+            #     if node_left != temp_node:
+            #         self.finger_table[i] = temp_node
+            #     else: 
+            #         self.finger_table[i] = self.find_successor((temp_node + 2 ** i) % R)
+            # else:
+            self.finger_table[i] = temp_node
 
     #############################
     ###### Find Successor #######
@@ -179,6 +177,7 @@ class ChordNode:
         }
         # Get the possition on the ring
         successor_id = self.send_request(node, get_successor_request)
+        print("successor from function: ", successor_id)
         return successor_id
 
     def _handle_find_successor(self, request):
@@ -210,7 +209,6 @@ class ChordNode:
     ######## Node Join ##########
     #############################
 
-    # Βάζει τον κόμβο στο δίκτυο
     def join(self, successor_node):
         suc_id = successor_node.node_id
         pre_id = successor_node.predecessor
@@ -233,9 +231,9 @@ class ChordNode:
         pre.finger_table[0] = self.node_id
         pre.successor = self.node_id
         suc.predecessor = self.node_id
-        self.finger_table[0] = suc
-        self.successor = suc
-        self.predecessor = pre
+        self.finger_table[0] = suc_id
+        self.successor = suc_id
+        self.predecessor = pre_id
 
 
     #############################
