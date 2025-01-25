@@ -163,7 +163,7 @@ def main():
     print("\nStage 6: Node Leave")
     print("=======================")
     # Trigger a node leave operation using the network
-    leaving_node_id = "37de"  # Replace with an actual node ID
+    leaving_node_id = "4b12"  # Replace with an actual node ID
     response = network.leave(leaving_node_id)
     print(response)
 

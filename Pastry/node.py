@@ -54,13 +54,12 @@ class PastryNode:
         """
         Generate a unique address Port for the node.
         """
-        port = port or np.random.randint(1024, 65535)  # Random port if not provided
+        while True:
+            port = port or np.random.randint(1024, 65535)  # Random port if not provided
 
-        # If the port is already in use, generate a new one
-        while port in self.network.used_ports:
-            port = np.random.randint(1024, 65535)
-        self.network.used_ports.append(port)
-        return port
+            if port not in self.network.used_ports:
+                self.network.used_ports.append(port)
+                return port
 
     def _generate_id(self, port):
         """
@@ -266,12 +265,17 @@ class PastryNode:
                     points=np.array([point]),
                     reviews=np.array([review]),
                     country_keys=np.array([country_key]),
+                    countries=np.array([country]),
                 )
             else:
+                # Check for duplicate key before insertion
+                if country_key in self.kd_tree.country_keys:
+                    print(f"Node {self.node_id}: Key {key} already exists. Skipping insertion.")
+                    return {"status": "duplicate", "message": f"Key {key} already exists."}
+
                 # Add point to the existing KDTree
                 self.kd_tree.add_point(point, review, country)
 
-            # Print the point and review directly after adding
             print(f"\nInserted Key: {key}")
             print(f"Point: {point}")
             print(f"Review: {review}")
@@ -283,8 +287,9 @@ class PastryNode:
                 "message": f"Key {key} stored at {self.node_id}",
             }
 
-        # If this node is not responsible for the key forward request to the next hop
+        # If this node is not responsible for the key, forward the request to the next hop
         return self.send_request(self.network.node_ports[next_hop_id], request)
+
 
     def _handle_delete_key_request(self, request):
         """
@@ -318,50 +323,66 @@ class PastryNode:
         """
         Handle a LOOKUP operation.
         """
-        key = request["key"]
-        lower_bounds = request["lower_bounds"]
-        upper_bounds = request["upper_bounds"]
-        N = request["N"]
+        try:
+            key = request["key"]
+            lower_bounds = request["lower_bounds"]
+            upper_bounds = request["upper_bounds"]
+            N = request["N"]
 
-        # If this key is found in the leaf set or the next hop is the current node the lookup is successful
-        next_hop_id = self._find_next_hop(key)
+            next_hop_id = self._find_next_hop(key)
 
-        if self._in_leaf_set(key) or next_hop_id == self.node_id:
-            print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
+            # If this key is found in the leaf set or the next hop is the current node, the lookup is successful
+            if self._in_leaf_set(key) or next_hop_id == self.node_id:
+                print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
 
-            # If the KDTree is not initialized or has no data, return a failure message
-            if not self.kd_tree or self.kd_tree.points.size == 0:
-                print(f"Node {self.node_id}: No data for key {key}.")
-                return {"status": "failure", "message": f"No data for key {key}."}
+                if not self.kd_tree or not self.kd_tree.points.size:
+                    print(f"Node {self.node_id}: No data for key {key}.")
+                    return {"status": "failure", "message": f"No data for key {key}."}
 
-            # KDTree Range Search
-            points, reviews = self.kd_tree.search(lower_bounds, upper_bounds)
-            print(f"Node {self.node_id}: Found {len(points)} matching points.")
+                # KD-Tree Range Search
+                points, reviews = self.kd_tree.search(lower_bounds, upper_bounds)
+                print(f"Node {self.node_id}: Found {len(points)} matching points.")
 
-            # LSH Similarity Search
-            vectorizer = TfidfVectorizer()
-            doc_vectors = vectorizer.fit_transform(reviews).toarray()
+                if len(reviews) == 0:
+                    print(f"Node {self.node_id}: No reviews found within the specified range.")
+                    return {"status": "success", "points": [], "reviews": []}
 
-            lsh = LSH(num_bands=4, num_rows=5)
-            for vector in doc_vectors:
-                lsh.add_document(vector)
+                # LSH Similarity Search
+                try:
+                    vectorizer = TfidfVectorizer()
+                    doc_vectors = vectorizer.fit_transform(reviews).toarray()
 
-            similar_pairs = lsh.find_similar_pairs(N)
-            similar_docs = lsh.find_similar_docs(similar_pairs, reviews, N)
+                    lsh = LSH(num_bands=4, num_rows=5)
+                    for vector in doc_vectors:
+                        lsh.add_document(vector)
 
-            print(f"\nThe {N} Most Similar Reviews:\n")
-            for i, doc in enumerate(similar_docs, 1):
-                print(f"{i}. {doc}\n")
+                    similar_pairs = lsh.find_similar_pairs(N)
+                    similar_docs = lsh.find_similar_docs(similar_pairs, reviews, N)
 
-            return {
-                "status": "success",
-                "message": f"Found {len(points)} matching points.",
-            }
+                    print(f"\nThe {N} Most Similar Reviews:\n")
+                    for i, doc in enumerate(similar_docs, 1):
+                        print(f"{i}. {doc}\n")
 
-        # If the key is not found in the leaf set and the next hop is not the current node
-        # forward the request to the next hop
-        response = self.send_request(self.network.node_ports[next_hop_id], request)
-        return response
+                    return {
+                        "status": "success",
+                        "points": points.tolist(),
+                        "reviews": reviews.tolist(),
+                        "similar_reviews": similar_docs,
+                    }
+                except ValueError as e:
+                    print(f"Node {self.node_id}: Error during LSH similarity search: {e}")
+                    return {
+                        "status": "failure",
+                        "message": f"Error during LSH similarity search: {e}",
+                    }
+
+            # If the key is not found in the leaf set, forward the request
+            return self.send_request(self.network.node_ports[next_hop_id], request)
+
+        except Exception as e:
+            print(f"Node {self.node_id}: Error handling LOOKUP request: {e}")
+            return {"status": "failure", "message": f"Error: {e}"}
+
 
     def _handle_update_key_request(self, request):
         """
@@ -583,9 +604,6 @@ class PastryNode:
         print(f"Updated neighborhood_set: {result}")
         return result
 
-
-
-
     def insert_key(self, key, point, review, country):
         """
         Initiate the INSERT_KEY operation for a given key, point, and review.
@@ -615,6 +633,7 @@ class PastryNode:
         print(f"Node {self.node_id}: Handling Request: {request}")
         response = self._handle_delete_key_request(request)
         return response
+
 
     def lookup(self, key, lower_bounds, upper_bounds, N=5):
         """

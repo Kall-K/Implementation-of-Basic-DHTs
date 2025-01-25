@@ -11,44 +11,51 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 class KDTree:
-    def __init__(self, points, reviews, country_keys):
+    def __init__(self, points, reviews, country_keys, countries=None):
+        """
+        Initialize the KDTree with points, reviews, country keys, and a list of original countries.
+
+        Args:
+            points (numpy array): Array of data points.
+            reviews (numpy array): Array of reviews.
+            country_keys (numpy array): Array of hashed country keys.
+            countries (list, optional): List of original country names. Defaults to an empty list.
+        """
         self.tree = None
         self.points = points
         self.reviews = reviews  # Store reviews for reference
-        self.country_keys = country_keys  # 4 digit hex hash of the country
+        self.country_keys = country_keys  # 4-digit hex hash of the country
+        self.countries = list(countries) if countries else []  # Store original country names
         self.build(points)
 
     def build(self, points):
         """
         Build the KD-Tree using sklearn.
-        "points" should be a 2D numpy array
         """
         self.tree = sk_KDTree(points)
 
     def add_point(self, new_point, new_review, new_country):
         """
-        Add a new point, review and country to the KD-Tree.
+        Add a new point, review, and country to the KD-Tree.
 
         Args:
             new_point (list or array-like): The new point to add [review_date, rating, price].
             new_review (str): The associated review for the new point.
             new_country (str): The country of origin for the new point.
-
-        Returns:
-            None: The KD-Tree is rebuilt with the updated data.
         """
         # Append the new point and review to the existing data
         self.points = np.vstack([self.points, new_point])
         self.reviews = np.append(self.reviews, new_review)
 
-        # Hash the country
+        # Hash the country and append to country_keys
         new_country_key = hashlib.sha1(new_country.encode()).hexdigest()[-4:]
         self.country_keys = np.append(self.country_keys, new_country_key)
 
+        # Append the original country to the countries list
+        self.countries.append(new_country)
+
         # Rebuild the KD-Tree with the updated points
         self.build(self.points)
-
-        # print(f"\nAdded new point: {new_point} with review: {new_review}")
 
     def delete_points(self, country_key):
         """
@@ -56,20 +63,21 @@ class KDTree:
 
         Args:
             country_key (str): Hashed country.
-
-        Returns:
-            None: The KD-Tree is rebuilt with the updated data.
         """
         # Find the indices of the points to delete
-        indices_to_delete = []
-        for idx, key in enumerate(self.country_keys):
-            if key == country_key:
-                indices_to_delete.append(idx)
+        indices_to_delete = [
+            idx for idx, key in enumerate(self.country_keys) if key == country_key
+        ]
 
-        # Remove the points and reviews
+        if not indices_to_delete:
+            print(f"No points found with country key: {country_key}")
+            return
+
+        # Remove the points, reviews, country_keys, and countries
         self.points = np.delete(self.points, indices_to_delete, axis=0)
         self.reviews = np.delete(self.reviews, indices_to_delete)
         self.country_keys = np.delete(self.country_keys, indices_to_delete)
+        self.countries = np.delete(self.countries, indices_to_delete)
 
         # Rebuild the KD-Tree with the updated points
         if self.points.size > 0:
@@ -77,7 +85,16 @@ class KDTree:
         else:
             self.tree = None
 
-        print(f"Deleted {len(indices_to_delete)} points with country key: {country_key}\n")
+        print(f"Deleted {len(indices_to_delete)} points with country key: {country_key}")
+
+
+
+    def print_countries(self):
+        """
+        Print the list of countries stored in the KDTree.
+        """
+        print("Countries in KDTree:", self.countries)
+
 
     def update_points(self, country_key=None, criteria=None, update_fields=None):
         """
@@ -326,3 +343,5 @@ if __name__ == "__main__":
     upper_bounds = [2020, 95, 29.0]
     points, reviews = kd_tree.search(lower_bounds, upper_bounds)
     kd_tree.print_search_results(points, reviews)
+    # Print all countries
+    kd_tree.print_countries()
