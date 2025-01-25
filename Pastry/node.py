@@ -3,6 +3,9 @@ import socket
 import pickle
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
+import subprocess  # for running netsh to get excluded ports on Windows
+import re
+import platform  # for system identification to get excluded ports
 
 import sys
 import os
@@ -50,17 +53,59 @@ class PastryNode:
 
     # Initialization Methods
 
-    def _generate_port(self, port=None):
+    def get_excluded_ports(self):
+        """
+        Retrieve the list of excluded ports from Windows (netsh) or Linux (/proc/sys/net/ipv4/ip_local_reserved_ports).
+        """
+        excluded_ports = []
+
+        if platform.system() == "Windows":
+            try:
+                # Run netsh command to get reserved ports
+                output = subprocess.check_output(["netsh", "int", "ipv4", "show", "excludedportrange", "protocol=tcp"], text=True, shell=True)
+
+                # Extract port ranges using regex
+                matches = re.findall(r"(\d+)\s+(\d+)", output)
+                for start, end in matches:
+                    excluded_ports.append((int(start), int(end)))
+
+            except subprocess.CalledProcessError as e:
+                print(f"Failed to retrieve excluded ports on Windows: {e}")
+
+        elif platform.system() == "Linux":
+            try:
+                # Read Linux reserved ports from /proc
+                with open("/proc/sys/net/ipv4/ip_local_reserved_ports", "r") as f:
+                    ports = f.read().strip()
+                    if ports:
+                        for part in ports.split(","):
+                            if "-" in part:
+                                start, end = map(int, part.split("-"))
+                                excluded_ports.append((start, end))
+                            else:
+                                p = int(part)
+                                excluded_ports.append((p, p))  # Single port treated as a range
+
+            except FileNotFoundError:
+                print("Warning: /proc/sys/net/ipv4/ip_local_reserved_ports not found. Assuming no reserved ports.")
+
+        return excluded_ports
+
+    def _generate_port(self):
         """
         Generate a unique address Port for the node.
         """
-        port = port or np.random.randint(1024, 65535)  # Random port if not provided
+        excluded_ranges = self.get_excluded_ports()
 
-        # If the port is already in use, generate a new one
-        while port in self.network.used_ports:
-            port = np.random.randint(1024, 65535)
-        self.network.used_ports.append(port)
-        return port
+        def is_excluded(port):
+            return any(start <= port <= end for start, end in excluded_ranges)
+
+        while True:
+            port = np.random.randint(1024, 65535)  # Random port if not provided
+
+            if port not in self.network.used_ports and not is_excluded(port):
+                self.network.used_ports.append(port)
+                return port
 
     def _generate_id(self, port):
         """
@@ -214,18 +259,14 @@ class PastryNode:
             "received_row": self.routing_table[i],
             "hops": [],
         }
-        print(
-            f"Node {self.node_id}: Updating the new node's Routing Table Row {i} with node's {self.node_id} row {i}..."
-        )
+        print(f"Node {self.node_id}: Updating the new node's Routing Table Row {i} with node's {self.node_id} row {i}...")
         self.send_request(self.network.node_ports[new_node_id], update_R_request)
 
         next_hop_id = self._find_next_hop(new_node_id)
 
         if next_hop_id == self.node_id:
             # If the next hop is the current node, update the new node's Leaf Set
-            print(
-                f"Node {self.node_id}: This node is the numerically closest node to the new node.\nUpdating the new node's Leaf Set..."
-            )
+            print(f"Node {self.node_id}: This node is the numerically closest node to the new node.\nUpdating the new node's Leaf Set...")
             update_L_request = {
                 "operation": "UPDATE_LEAF_SET",
                 "Lmin": self.Lmin,
@@ -294,6 +335,7 @@ class PastryNode:
 
         # If the key belongs to this node (based on leaf set), delete it from the KDTree
         if self._in_leaf_set(key) or next_hop_id == self.node_id:
+            # with self.lock:
             if not self.kd_tree:
                 print(f"\nNode {self.node_id}: No data for key {key}.")
                 return {"status": "failure", "message": f"No data for key {key}.\n"}
@@ -402,11 +444,7 @@ class PastryNode:
                     response = self.send_request(self.network.node_ports[leaf], request)
                     if response["status"] == "success":
                         for new_leaf in response["leaf_set"]["Lmin"] + response["leaf_set"]["Lmax"]:
-                            if (
-                                new_leaf
-                                and new_leaf != self.node_id
-                                and new_leaf not in self.Lmin + self.Lmax
-                            ):
+                            if new_leaf and new_leaf != self.node_id and new_leaf not in self.Lmin + self.Lmax:
                                 self._update_leaf_list(self.Lmin, new_leaf)
                                 self._update_leaf_list(self.Lmax, new_leaf)
                 except Exception as e:
@@ -429,12 +467,7 @@ class PastryNode:
                 leaving_node_id in node.Lmin
                 or leaving_node_id in node.Lmax
                 or leaving_node_id in node.neighborhood_set
-                or any(
-                    leaving_node_id == entry
-                    for row in node.routing_table
-                    for entry in row
-                    if entry is not None
-                )
+                or any(leaving_node_id == entry for row in node.routing_table for entry in row if entry is not None)
             ):
                 affected_nodes.append(node_id)
 
@@ -722,23 +755,17 @@ class PastryNode:
         """
 
         self.neighborhood_set = close_node_neighborhood_set
-        print(
-            f"Node {self.node_id}: Copying neighborhood set from the closest node {close_node_id}..."
-        )
+        print(f"Node {self.node_id}: Copying neighborhood set from the closest node {close_node_id}...")
 
         # Insert the close node aswell if there is space
-        print(
-            f"Node {self.node_id}: Adding Node close node {close_node_id} to the neighborhood set aswell..."
-        )
+        print(f"Node {self.node_id}: Adding Node close node {close_node_id} to the neighborhood set aswell...")
         for i in range(len(self.neighborhood_set)):
             if self.neighborhood_set[i] is None:
                 self.neighborhood_set[i] = close_node_id
                 return
 
         # If there is no space, replace the farthest node id with the close node
-        print(
-            f"Node {self.node_id}: No space in the neighborhood set for the close node. Replacing the farthest node..."
-        )
+        print(f"Node {self.node_id}: No space in the neighborhood set for the close node. Replacing the farthest node...")
         max_dist = -1
         idx = -1
         for i in range(len(self.neighborhood_set)):
@@ -747,9 +774,7 @@ class PastryNode:
                 "node_position": self.position,
                 "hops": [],
             }
-            response = self.send_request(
-                self.network.node_ports[self.neighborhood_set[i]], dist_request
-            )
+            response = self.send_request(self.network.node_ports[self.neighborhood_set[i]], dist_request)
             dist = response["distance"]
 
             if dist > max_dist:
@@ -876,9 +901,7 @@ class PastryNode:
 
                 # Update if the different digit index is grater
                 # or if its the same but this node is numerically closer
-                if (key_leaf_diff_dig_idx > closest_diff_dig_idx) or (
-                    key_leaf_diff_dig_idx == closest_diff_dig_idx and key_leaf_dist < closest_dist
-                ):
+                if (key_leaf_diff_dig_idx > closest_diff_dig_idx) or (key_leaf_diff_dig_idx == closest_diff_dig_idx and key_leaf_dist < closest_dist):
                     closest_leaf_id = leaf
                     closest_diff_dig_idx = key_leaf_diff_dig_idx
                     closest_dist = key_leaf_dist
@@ -889,9 +912,7 @@ class PastryNode:
                 key_leaf_diff_dig_idx, key_leaf_dist = hex_distance(leaf, key)
 
                 # Apply the same update logic
-                if (key_leaf_diff_dig_idx > closest_diff_dig_idx) or (
-                    key_leaf_diff_dig_idx == closest_diff_dig_idx and key_leaf_dist < closest_dist
-                ):
+                if (key_leaf_diff_dig_idx > closest_diff_dig_idx) or (key_leaf_diff_dig_idx == closest_diff_dig_idx and key_leaf_dist < closest_dist):
                     closest_leaf_id = leaf
                     closest_diff_dig_idx = key_leaf_diff_dig_idx
                     closest_dist = key_leaf_dist
@@ -947,13 +968,7 @@ class PastryNode:
         curr_node_key_diff_dig_idx, curr_node_key_num_dist = hex_distance(curr_node_id, key)
 
         # Determine if the target node is a better candidate than the current node
-        if (i >= l) and (
-            (target_key_diff_dig_idx > curr_node_key_diff_dig_idx)
-            or (
-                target_key_diff_dig_idx == curr_node_key_diff_dig_idx
-                and target_key_num_dist < curr_node_key_num_dist
-            )
-        ):
+        if (i >= l) and ((target_key_diff_dig_idx > curr_node_key_diff_dig_idx) or (target_key_diff_dig_idx == curr_node_key_diff_dig_idx and target_key_num_dist < curr_node_key_num_dist)):
             return True
         else:
             return False
@@ -981,9 +996,7 @@ class PastryNode:
             diff_dig_idx, num_dist = hex_distance(leaf_list[i], self.node_id)
 
             # Replace the farthest node (numerical distance or digit index)
-            if (diff_dig_idx < far_diff_dig_idx) or (
-                diff_dig_idx == far_diff_dig_idx and num_dist > max_num_dist
-            ):
+            if (diff_dig_idx < far_diff_dig_idx) or (diff_dig_idx == far_diff_dig_idx and num_dist > max_num_dist):
                 far_diff_dig_idx = diff_dig_idx
                 max_num_dist = num_dist
                 replace_index = i
@@ -992,7 +1005,5 @@ class PastryNode:
         diff_dig_idx, num_dist = hex_distance(key, self.node_id)
 
         # Replace if the key is closer than the farthest node
-        if (diff_dig_idx > far_diff_dig_idx) or (
-            diff_dig_idx == far_diff_dig_idx and num_dist < max_num_dist
-        ):
+        if (diff_dig_idx > far_diff_dig_idx) or (diff_dig_idx == far_diff_dig_idx and num_dist < max_num_dist):
             leaf_list[replace_index] = key
