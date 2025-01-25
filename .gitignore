@@ -3,3 +3,9 @@
 
 # Exclude Python cache files
 __pycache__/
+
+# Exclude Python virtual environment
+.venv/
+venv/
+.env/
+env/

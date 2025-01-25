@@ -74,20 +74,19 @@ class PastryNode:
 
         elif platform.system() == "Linux":
             try:
-                # Read Linux reserved ports from /proc
-                with open("/proc/sys/net/ipv4/ip_local_reserved_ports", "r") as f:
-                    ports = f.read().strip()
-                    if ports:
-                        for part in ports.split(","):
-                            if "-" in part:
-                                start, end = map(int, part.split("-"))
-                                excluded_ports.append((start, end))
-                            else:
-                                p = int(part)
-                                excluded_ports.append((p, p))  # Single port treated as a range
+                # Use 'ss' get occupied ports
+                output = subprocess.check_output(["ss", "-tan"], text=True)
+                
+                # Extract port numbers from the output
+                matches = re.findall(r":(\d+)", output)
+                occupied_ports = {int(port) for port in matches}
+                
+                # Convert occupied ports to (port, port) format for consistency with Windows
+                for port in occupied_ports:
+                    excluded_ports.append((port, port))
 
-            except FileNotFoundError:
-                print("Warning: /proc/sys/net/ipv4/ip_local_reserved_ports not found. Assuming no reserved ports.")
+            except subprocess.CalledProcessError as e:
+                print(f"Failed to retrieve occupied ports on Linux using 'ss': {e}")
 
         return excluded_ports
 
