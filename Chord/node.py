@@ -122,6 +122,8 @@ class ChordNode:
 
             if operation == "FIND_SUCCESSOR":
                 response = self._handle_find_successor(request)
+            if operation == "DELETE_SUCCESSOR_KEYS":
+                response = self._handle_delete_successor_keys(request)
 
             # Add more operations here as needed
 
@@ -152,6 +154,50 @@ class ChordNode:
         return pickle.loads(response)  # Deserialize the response
     
     #############################
+    ######### Requests ##########
+    #############################
+    
+    def find_successor(self, key, node):
+        get_successor_request = {
+            "operation": "FIND_SUCCESSOR",
+            "key": key,
+        }
+        # Get the possition on the ring
+        successor_id = self.send_request(node, get_successor_request)
+        return successor_id
+    
+    def delete_successor_keys(self, keys, successor_id):
+        node = self.network.nodes[successor_id]
+        delete_successor_keys = {
+            "operation": "DELETE_SUCCESSOR_KEYS",
+            "keys": keys,
+        }
+        # Get the possition on the ring
+        status = self.send_request(node, delete_successor_keys)
+        return status
+    
+
+    #############################
+    ######### Handlers ##########
+    #############################
+
+    def _handle_find_successor(self, request):
+        key = request["key"]
+        if self.node_id == key:
+            return self.node_id
+        if self.distance(self.node_id, key) <= self.distance(self.successor, key):
+            return self.successor
+        else:
+            closest_preceding_node_id = self.closest_preceding_node(self, key)
+            closest_preceding_node = self.network.nodes[closest_preceding_node_id]
+            return self.find_successor(key, closest_preceding_node)
+        
+    def _handle_delete_successor_keys(self, request):
+        keys = request["keys"]
+        for key in keys:
+            del self.data[key]
+    
+    #############################
     #### Update Finger Table ####
     #############################
     
@@ -170,26 +216,6 @@ class ChordNode:
     #############################
     ###### Find Successor #######
     #############################
-
-    def find_successor(self, key, node):
-        get_successor_request = {
-            "operation": "FIND_SUCCESSOR",
-            "key": key,
-        }
-        # Get the possition on the ring
-        successor_id = self.send_request(node, get_successor_request)
-        return successor_id
-
-    def _handle_find_successor(self, request):
-        key = request["key"]
-        if self.node_id == key:
-            return self.node_id
-        if self.distance(self.node_id, key) <= self.distance(self.successor, key):
-            return self.successor
-        else:
-            closest_preceding_node_id = self.closest_preceding_node(self, key)
-            closest_preceding_node = self.network.nodes[closest_preceding_node_id]
-            return self.find_successor(key, closest_preceding_node)
         
     # Βρίσκει τον κόμβο που είναι πιο κοντά στο key
     def closest_preceding_node(self, node, h_key):
@@ -203,7 +229,6 @@ class ChordNode:
         [n1, n2] = [int(str(hex1), 16), int(str(hex2), 16)]
         if n1 <= n2: return n2 - n1
         else: return R - n1 + n2
-    
 
     #############################
     ######## Node Join ##########
@@ -220,9 +245,15 @@ class ChordNode:
         self.data = {key: successor_node.data[key] for key in sorted(
             successor_node.data.keys()) if key <= self.node_id}
 
+        keys_to_delete_from_successor = []
         for key in sorted(self.data.keys()):
             if key in successor_node.data:
-                del successor_node.data[key]
+                keys_to_delete_from_successor.append(key)
+                # del successor_node.data[key]
+        
+        # Delete keys
+        self.delete_successor_keys(keys_to_delete_from_successor, suc_id)
+
 
     # Βρίσκει τη θέση του κόμβου
     def find_node_place(self, pre_id, suc_id):
