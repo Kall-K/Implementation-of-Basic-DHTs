@@ -124,6 +124,10 @@ class ChordNode:
                 response = self._handle_find_successor(request)
             if operation == "DELETE_SUCCESSOR_KEYS":
                 response = self._handle_delete_successor_keys(request)
+            if operation == "SET_SUCCESSOR":
+                response = self._handle_set_successor(request)
+            if operation == "SET_PREDECESSOR":
+                response = self._handle_set_predecessor(request)
 
             # Add more operations here as needed
 
@@ -172,10 +176,32 @@ class ChordNode:
             "operation": "DELETE_SUCCESSOR_KEYS",
             "keys": keys,
         }
-        # Get the possition on the ring
         status = self.send_request(node, delete_successor_keys)
         return status
+
+    def set_successor(self, successor_id, node_id):
+        """
+        Send a request to the node with node_id to set its successor to successor_id.
+        """
+        node = self.network.nodes[node_id]
+        set_successor = {
+            "operation": "SET_SUCCESSOR",
+            "successor": successor_id,
+        }
+        status = self.send_request(node, set_successor)
+        return status
     
+    def set_predecessor(self, predecessor_id, node_id):
+        """
+        Send a request to the node with node_id to set its successor to predecessor_id.
+        """
+        node = self.network.nodes[node_id]
+        set_predecessor = {
+            "operation": "SET_PREDECESSOR",
+            "predecessor": predecessor_id,
+        }
+        status = self.send_request(node, set_predecessor)
+        return status
 
     #############################
     ######### Handlers ##########
@@ -196,6 +222,17 @@ class ChordNode:
         keys = request["keys"]
         for key in keys:
             del self.data[key]
+        return 0
+
+    def _handle_set_successor(self, successor_id):
+        self.finger_table[0] = successor_id
+        self.successor = successor_id
+        return 0
+    
+    def _handle_set_predecessor(self, predecessor_id):
+        self.predecessor = predecessor_id
+        return 0
+
     
     #############################
     #### Update Finger Table ####
@@ -249,7 +286,6 @@ class ChordNode:
         for key in sorted(self.data.keys()):
             if key in successor_node.data:
                 keys_to_delete_from_successor.append(key)
-                # del successor_node.data[key]
         
         # Delete keys
         self.delete_successor_keys(keys_to_delete_from_successor, suc_id)
@@ -257,11 +293,8 @@ class ChordNode:
 
     # Βρίσκει τη θέση του κόμβου
     def find_node_place(self, pre_id, suc_id):
-        pre = self.network.nodes[pre_id] # replace with distributed
-        suc = self.network.nodes[suc_id] # replace
-        pre.finger_table[0] = self.node_id
-        pre.successor = self.node_id
-        suc.predecessor = self.node_id
+        self.set_successor(self.node_id, pre_id) # pre.finger_table[0] = self.node_id, pre.successor = self.node_id
+        self.set_predecessor(self.node_id, suc_id) #suc.predecessor = self.node_id
         self.finger_table[0] = suc_id
         self.successor = suc_id
         self.predecessor = pre_id
