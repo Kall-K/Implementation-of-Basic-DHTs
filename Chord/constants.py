@@ -6,5 +6,5 @@ N = 6
 
 
 M = 4  # Bit size for the hash space (e.g., 2^4 = 16 nodes)
-
+R = 2**M
 

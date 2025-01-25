@@ -26,13 +26,11 @@ class ChordNode:
         self.network = network  # Reference to the DHT network
         # self.kd_tree = None  # Centralized KD-Tree
         
-        self.successor = None
-        self.predecessor = None
-        self.finger_table = [None] * M
+        self.successor = self.node_id
+        self.predecessor = self.node_id
+        self.finger_table = [self.node_id] * M
         self.data_store = {}  # For storing key-value pairs
         self.running = True
-
-        self.lock = threading.Lock()
 
         # Create a thread pool for handling requests to limit the number of concurrent threads
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
@@ -56,52 +54,6 @@ class ChordNode:
         sha1_hash = hashlib.sha1(address_str.encode()).hexdigest()
         node_id = sha1_hash[-HASH_HEX_DIGITS:]  # Take the last 128 bits
         return node_id
-    
-    # Find successor
-
-    # def find_successor(self, key):
-    #     """Find the successor node for a given key."""
-    #     if self.successor and (self.node_id < key <= self.successor.node_id or 
-    #                            (self.successor.node_id < self.node_id <= key) or 
-    #                            (key <= self.successor.node_id < self.node_id)):
-    #         return self.successor
-    #     else:
-    #         return self.get_closest_preceding_node(key).find_successor(key)
-
-    # Closest preceding node
-
-    def get_closest_preceding_node(self, key):
-        """Find the closest preceding node for a given key."""
-        for i in range(M - 1, -1, -1):
-            if self.finger_table[i] and self.node_id < self.finger_table[i].node_id < key:
-                return self.finger_table[i]
-        return self
-    
-
-    # Βάζει τον κόμβο στο δίκτυο
-    def join(self, successor):
-        suc = successor
-        pre = suc.predecessor
-        
-        self.find_node_place(pre, suc)
-        # self.update_fingers_table()
-
-        # # Παίρνει τα keys από το successor
-        # self.data = {key: self.successor.data[key] for key in sorted(
-        #     self.successor.data.keys()) if key <= self.node_id}
-
-        # for key in sorted(self.data.keys()):
-        #     if key in self.successor.data:
-        #         del self.successor.data[key]
-
-# Βρίσκει τη θέση του κόμβου
-    def find_node_place(self, pre, suc):
-        pre.fingers_table[0] = self
-        pre.successor = self
-        suc.predecessor = self
-        self.fingers_table[0] = suc
-        self.successor = suc
-        self.predecessor = pre
 
     # Stop running
 
@@ -193,32 +145,104 @@ class ChordNode:
                 s.connect(connect_address)  # Connect using loopback
                 s.sendall(pickle.dumps(request))  # Serialize and send the request
                 response = s.recv(1024)  # Receive the response
+                print("response: " + pickle.loads(response))
             except Exception as e:
                 print(f"Error connecting to {connect_address}: {e}")
                 return None
 
         return pickle.loads(response)  # Deserialize the response
+    
+    #############################
+    #### Update Finger Table ####
+    #############################
+    
+    # Ανανεώνει τα fingers του κόμβου
+    def update_finger_table(self, node_left = None, leave = False):
+        for i in range(1, len(self.finger_table)):
+            temp_node = self.find_successor((self.node_id + 2 ** i) % R)
+            if leave:
+                if node_left != temp_node:
+                    self.finger_table[i] = temp_node
+                else: 
+                    self.finger_table[i] = self.find_successor((temp_node + 2 ** i) % R)
+            else:
+                self.finger_table[i] = temp_node
+
+    #############################
+    ###### Find Successor #######
+    #############################
+
+    def find_successor(self, key, node):
+        get_successor_request = {
+            "operation": "FIND_SUCCESSOR",
+            "key": key,
+        }
+        # Get the possition on the ring
+        successor_id = self.send_request(node, get_successor_request)
+        return successor_id
 
     def _handle_find_successor(self, request):
-        node = request["node"]
-
-        key = node.node_id
-        """Find the successor node for a given key."""
-        if self.successor and (self.node_id < key <= self.successor.node_id or 
-                               (self.successor.node_id < self.node_id <= key) or 
-                               (key <= self.successor.node_id < self.node_id)):
+        key = request["key"]
+        if self.node_id == key:
+            return self.node_id
+        if self.distance(self.node_id, key) <= self.distance(self.successor, key):
             return self.successor
         else:
-            closest_preceding_node = self.get_closest_preceding_node(key)
-            successor_request = {
-                "operation": "FIND_SUCCESSOR",
-                "node": node,
-            }
-            return self.send_request(closest_preceding_node, successor_request)
+            closest_preceding_node_id = self.closest_preceding_node(self, key)
+            closest_preceding_node = self.network.nodes[closest_preceding_node_id]
+            return self.find_successor(key, closest_preceding_node)
+        
+    # Βρίσκει τον κόμβο που είναι πιο κοντά στο key
+    def closest_preceding_node(self, node, h_key):
+        for i in range(len(node.finger_table)-1, 0, -1):
+            if self.distance(node.finger_table[i-1], h_key) < self.distance(node.finger_table[i], h_key):
+                return node.finger_table[i-1]
 
+        return node.finger_table[-1]
+        
+    def distance(self, hex1, hex2):
+        [n1, n2] = [int(str(hex1), 16), int(str(hex2), 16)]
+        if n1 <= n2: return n2 - n1
+        else: return R - n1 + n2
+    
+
+    #############################
+    ######## Node Join ##########
+    #############################
+
+    # Βάζει τον κόμβο στο δίκτυο
+    def join(self, successor_node):
+        suc_id = successor_node.node_id
+        pre_id = successor_node.predecessor
+        
+        self.find_node_place(pre_id, suc_id)
+        # self.update_finger_table()
+
+        # # Παίρνει τα keys από το successor
+        # self.data = {key: self.successor.data[key] for key in sorted(
+        #     self.successor.data.keys()) if key <= self.node_id}
+
+        # for key in sorted(self.data.keys()):
+        #     if key in self.successor.data:
+        #         del self.successor.data[key]
+
+    # Βρίσκει τη θέση του κόμβου
+    def find_node_place(self, pre_id, suc_id):
+        pre = self.network.nodes[pre_id] # replace with distributed
+        suc = self.network.nodes[suc_id] # replace
+        pre.finger_table[0] = self.node_id
+        pre.successor = self.node_id
+        suc.predecessor = self.node_id
+        self.finger_table[0] = suc
+        self.successor = suc
+        self.predecessor = pre
+
+
+    #############################
+    ########### DATA ############
+    #############################
 
     # Data Structure Updates
-
     def update_routing_table(self, row_idx, received_row):
         """
         Update the routing table of the current node with the received row.

@@ -24,13 +24,14 @@ class ChordNetwork:
             self.successor = self
             return
 
-        get_successor_request = {
-            "operation": "FIND_SUCCESSOR",
-            "node": new_node,
-        }
-        # Get the possition on the ring
-        successor = new_node.send_request(ChordNetwork.bootstrap_node, get_successor_request)
+        # get_successor_request = {
+        #     "operation": "FIND_SUCCESSOR",
+        #     "node_id": node_id,
+        # }
+        # # Get the possition on the ring
+        # successor_id = new_node.send_request(ChordNetwork.bootstrap_node, get_successor_request)
+        successor_id = new_node.find_successor(node_id, ChordNetwork.bootstrap_node)
         print("THIS IS THE SUCCESSOR")
-        print(successor)
+        print(successor_id)
         # new_node joins on successor
-        new_node.join(successor)
+        new_node.join(self.nodes[successor_id])
