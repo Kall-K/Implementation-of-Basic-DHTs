@@ -224,12 +224,14 @@ class ChordNode:
             del self.data[key]
         return 0
 
-    def _handle_set_successor(self, successor_id):
+    def _handle_set_successor(self, request):
+        successor_id = request["successor"]
         self.finger_table[0] = successor_id
         self.successor = successor_id
         return 0
     
-    def _handle_set_predecessor(self, predecessor_id):
+    def _handle_set_predecessor(self, request):
+        predecessor_id = request["predecessor"]
         self.predecessor = predecessor_id
         return 0
 
