@@ -161,7 +161,7 @@ class ChordNode:
     ######### Requests ##########
     #############################
     
-    def find_successor(self, key, node):
+    def request_find_successor(self, key, node):
         get_successor_request = {
             "operation": "FIND_SUCCESSOR",
             "key": key,
@@ -170,7 +170,7 @@ class ChordNode:
         successor_id = self.send_request(node, get_successor_request)
         return successor_id
     
-    def delete_successor_keys(self, keys, successor_id):
+    def request_delete_successor_keys(self, keys, successor_id):
         node = self.network.nodes[successor_id]
         delete_successor_keys = {
             "operation": "DELETE_SUCCESSOR_KEYS",
@@ -179,7 +179,7 @@ class ChordNode:
         status = self.send_request(node, delete_successor_keys)
         return status
 
-    def set_successor(self, successor_id, node_id):
+    def request_set_successor(self, successor_id, node_id):
         """
         Send a request to the node with node_id to set its successor to successor_id.
         """
@@ -191,7 +191,7 @@ class ChordNode:
         status = self.send_request(node, set_successor)
         return status
     
-    def set_predecessor(self, predecessor_id, node_id):
+    def request_set_predecessor(self, predecessor_id, node_id):
         """
         Send a request to the node with node_id to set its successor to predecessor_id.
         """
@@ -216,7 +216,7 @@ class ChordNode:
         else:
             closest_preceding_node_id = self.closest_preceding_node(self, key)
             closest_preceding_node = self.network.nodes[closest_preceding_node_id]
-            return self.find_successor(key, closest_preceding_node)
+            return self.request_find_successor(key, closest_preceding_node)
         
     def _handle_delete_successor_keys(self, request):
         keys = request["keys"]
@@ -243,12 +243,12 @@ class ChordNode:
     # Ανανεώνει τα fingers του κόμβου
     def update_finger_table(self, node_left = None, leave = False):
         for i in range(1, len(self.finger_table)):
-            temp_node = self.find_successor((int(self.node_id, 16) + 2 ** i) % R, self)
+            temp_node = self.request_find_successor((int(self.node_id, 16) + 2 ** i) % R, self)
             # if leave:
             #     if node_left != temp_node:
             #         self.finger_table[i] = temp_node
             #     else: 
-            #         self.finger_table[i] = self.find_successor((temp_node + 2 ** i) % R)
+            #         self.finger_table[i] = self.request_find_successor((temp_node + 2 ** i) % R)
             # else:
             self.finger_table[i] = temp_node
 
@@ -290,13 +290,13 @@ class ChordNode:
                 keys_to_delete_from_successor.append(key)
         
         # Delete keys
-        self.delete_successor_keys(keys_to_delete_from_successor, suc_id)
+        self.request_delete_successor_keys(keys_to_delete_from_successor, suc_id)
 
 
     # Βρίσκει τη θέση του κόμβου
     def find_node_place(self, pre_id, suc_id):
-        self.set_successor(self.node_id, pre_id) # pre.finger_table[0] = self.node_id, pre.successor = self.node_id
-        self.set_predecessor(self.node_id, suc_id) #suc.predecessor = self.node_id
+        self.request_set_successor(self.node_id, pre_id) # pre.finger_table[0] = self.node_id, pre.successor = self.node_id
+        self.request_set_predecessor(self.node_id, suc_id) #suc.predecessor = self.node_id
         self.finger_table[0] = suc_id
         self.successor = suc_id
         self.predecessor = pre_id
