@@ -157,7 +157,7 @@ class ChordNode:
     # Ανανεώνει τα fingers του κόμβου
     def update_finger_table(self, node_left = None, leave = False):
         for i in range(1, len(self.finger_table)):
-            temp_node = self.find_successor((self.node_id + 2 ** i) % R, self)
+            temp_node = self.find_successor((int(self.node_id, 16) + 2 ** i) % R, self)
             # if leave:
             #     if node_left != temp_node:
             #         self.finger_table[i] = temp_node
@@ -214,7 +214,7 @@ class ChordNode:
         pre_id = successor_node.predecessor
         
         self.find_node_place(pre_id, suc_id)
-        # self.update_finger_table()
+        self.update_finger_table()
 
         # # Παίρνει τα keys από το successor
         # self.data = {key: self.successor.data[key] for key in sorted(
