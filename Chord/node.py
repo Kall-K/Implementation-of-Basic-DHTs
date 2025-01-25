@@ -29,8 +29,9 @@ class ChordNode:
         self.successor = self.node_id
         self.predecessor = self.node_id
         self.finger_table = [self.node_id] * M
-        self.data_store = {}  # For storing key-value pairs
         self.running = True
+
+        self.data = {}  # For storing key-value pairs
 
         # Create a thread pool for handling requests to limit the number of concurrent threads
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
@@ -177,7 +178,6 @@ class ChordNode:
         }
         # Get the possition on the ring
         successor_id = self.send_request(node, get_successor_request)
-        print("successor from function: ", successor_id)
         return successor_id
 
     def _handle_find_successor(self, request):
@@ -216,13 +216,13 @@ class ChordNode:
         self.find_node_place(pre_id, suc_id)
         self.update_finger_table()
 
-        # # Παίρνει τα keys από το successor
-        # self.data = {key: self.successor.data[key] for key in sorted(
-        #     self.successor.data.keys()) if key <= self.node_id}
+        # Get keys from successor
+        self.data = {key: successor_node.data[key] for key in sorted(
+            successor_node.data.keys()) if key <= self.node_id}
 
-        # for key in sorted(self.data.keys()):
-        #     if key in self.successor.data:
-        #         del self.successor.data[key]
+        for key in sorted(self.data.keys()):
+            if key in successor_node.data:
+                del successor_node.data[key]
 
     # Βρίσκει τη θέση του κόμβου
     def find_node_place(self, pre_id, suc_id):
