@@ -166,7 +166,7 @@ class KDTree:
 
     def search(self, country_key, lower_bounds, upper_bounds):
         """
-        Search for points within the given bounds for all axes using the KD-Tree.
+        Search for points of a given country key within the given bounds for all axes using the KD-Tree.
 
         Args:
             country_key (str): Hashed country key.
