@@ -162,13 +162,16 @@ def main():
 
     print("\nStage 6: Node Leave")
     print("=======================")
-    # Trigger a node leave operation
-    leaving_node = network.nodes["3722"]  # Replace with an actual node ID
-    leaving_node.leave()
+    # Trigger a node leave operation using the network
+    leaving_node_id = "4b12"  # Replace with an actual node ID
+    response = network.leave(leaving_node_id)
+    print(response)
 
-    # Verify the state of the network
+    # Verify the state of the network after the node leaves
+    print("\nInspecting the state of the network after the node leaves:")
     for node in network.nodes.values():
         node.print_state()
+
 
 
 if __name__ == "__main__":

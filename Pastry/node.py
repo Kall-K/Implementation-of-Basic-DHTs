@@ -76,11 +76,11 @@ class PastryNode:
             try:
                 # Use 'ss' get occupied ports
                 output = subprocess.check_output(["ss", "-tan"], text=True)
-                
+
                 # Extract port numbers from the output
                 matches = re.findall(r":(\d+)", output)
                 occupied_ports = {int(port) for port in matches}
-                
+
                 # Convert occupied ports to (port, port) format for consistency with Windows
                 for port in occupied_ports:
                     excluded_ports.append((port, port))
@@ -202,6 +202,8 @@ class PastryNode:
                 response = self.update_routing_table_entry(request)
             elif operation == "UPDATE_LEAF_SET":
                 response = self.update_leaf_set(request)
+            elif operation == "REBUILD_NODE_STATE":
+                response = self._rebuild_node_state(request)
             elif operation == "DISTANCE":
                 distance = topological_distance(self.position, request["node_position"])
                 response = {"distance": distance, "neighborhood_set": self.neighborhood_set}
@@ -304,12 +306,17 @@ class PastryNode:
                     points=np.array([point]),
                     reviews=np.array([review]),
                     country_keys=np.array([country_key]),
+                    countries=np.array([country]),
                 )
             else:
+                # Check for duplicate key before insertion
+                if country_key in self.kd_tree.country_keys:
+                    print(f"Node {self.node_id}: Key {key} already exists. Skipping insertion.")
+                    return {"status": "duplicate", "message": f"Key {key} already exists."}
+
                 # Add point to the existing KDTree
                 self.kd_tree.add_point(point, review, country)
 
-            # Print the point and review directly after adding
             print(f"\nInserted Key: {key}")
             print(f"Point: {point}")
             print(f"Review: {review}")
@@ -321,7 +328,7 @@ class PastryNode:
                 "message": f"Key {key} stored at {self.node_id}",
             }
 
-        # If this node is not responsible for the key forward request to the next hop
+        # If this node is not responsible for the key, forward the request to the next hop
         return self.send_request(self.network.node_ports[next_hop_id], request)
 
     def _handle_delete_key_request(self, request):
@@ -357,50 +364,65 @@ class PastryNode:
         """
         Handle a LOOKUP operation.
         """
-        key = request["key"]
-        lower_bounds = request["lower_bounds"]
-        upper_bounds = request["upper_bounds"]
-        N = request["N"]
+        try:
+            key = request["key"]
+            lower_bounds = request["lower_bounds"]
+            upper_bounds = request["upper_bounds"]
+            N = request["N"]
 
-        # If this key is found in the leaf set or the next hop is the current node the lookup is successful
-        next_hop_id = self._find_next_hop(key)
+            next_hop_id = self._find_next_hop(key)
 
-        if self._in_leaf_set(key) or next_hop_id == self.node_id:
-            print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
+            # If this key is found in the leaf set or the next hop is the current node, the lookup is successful
+            if self._in_leaf_set(key) or next_hop_id == self.node_id:
+                print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
 
-            # If the KDTree is not initialized or has no data, return a failure message
-            if not self.kd_tree or self.kd_tree.points.size == 0:
-                print(f"Node {self.node_id}: No data for key {key}.")
-                return {"status": "failure", "message": f"No data for key {key}."}
+                if not self.kd_tree or not self.kd_tree.points.size:
+                    print(f"Node {self.node_id}: No data for key {key}.")
+                    return {"status": "failure", "message": f"No data for key {key}."}
 
-            # KDTree Range Search
-            points, reviews = self.kd_tree.search(lower_bounds, upper_bounds)
-            print(f"Node {self.node_id}: Found {len(points)} matching points.")
+                # KD-Tree Range Search
+                points, reviews = self.kd_tree.search(lower_bounds, upper_bounds)
+                print(f"Node {self.node_id}: Found {len(points)} matching points.")
 
-            # LSH Similarity Search
-            vectorizer = TfidfVectorizer()
-            doc_vectors = vectorizer.fit_transform(reviews).toarray()
+                if len(reviews) == 0:
+                    print(f"Node {self.node_id}: No reviews found within the specified range.")
+                    return {"status": "success", "points": [], "reviews": []}
 
-            lsh = LSH(num_bands=4, num_rows=5)
-            for vector in doc_vectors:
-                lsh.add_document(vector)
+                # LSH Similarity Search
+                try:
+                    vectorizer = TfidfVectorizer()
+                    doc_vectors = vectorizer.fit_transform(reviews).toarray()
 
-            similar_pairs = lsh.find_similar_pairs(N)
-            similar_docs = lsh.find_similar_docs(similar_pairs, reviews, N)
+                    lsh = LSH(num_bands=4, num_rows=5)
+                    for vector in doc_vectors:
+                        lsh.add_document(vector)
 
-            print(f"\nThe {N} Most Similar Reviews:\n")
-            for i, doc in enumerate(similar_docs, 1):
-                print(f"{i}. {doc}\n")
+                    similar_pairs = lsh.find_similar_pairs(N)
+                    similar_docs = lsh.find_similar_docs(similar_pairs, reviews, N)
 
-            return {
-                "status": "success",
-                "message": f"Found {len(points)} matching points.",
-            }
+                    print(f"\nThe {N} Most Similar Reviews:\n")
+                    for i, doc in enumerate(similar_docs, 1):
+                        print(f"{i}. {doc}\n")
 
-        # If the key is not found in the leaf set and the next hop is not the current node
-        # forward the request to the next hop
-        response = self.send_request(self.network.node_ports[next_hop_id], request)
-        return response
+                    return {
+                        "status": "success",
+                        "points": points.tolist(),
+                        "reviews": reviews.tolist(),
+                        "similar_reviews": similar_docs,
+                    }
+                except ValueError as e:
+                    print(f"Node {self.node_id}: Error during LSH similarity search: {e}")
+                    return {
+                        "status": "failure",
+                        "message": f"Error during LSH similarity search: {e}",
+                    }
+
+            # If the key is not found in the leaf set, forward the request
+            return self.send_request(self.network.node_ports[next_hop_id], request)
+
+        except Exception as e:
+            print(f"Node {self.node_id}: Error handling LOOKUP request: {e}")
+            return {"status": "failure", "message": f"Error: {e}"}
 
     def _handle_update_key_request(self, request):
         """
@@ -450,66 +472,114 @@ class PastryNode:
                     print(f"Error repairing leaf set with node {leaf}: {e}")
 
     def _handle_leave_request(self, request):
+        """
+        Handle a NODE_LEAVE operation to process the departure of a node.
+        """
         leaving_node_id = request["leaving_node_id"]
+        available_nodes = request.get("available_nodes", [])
+        node_positions = request.get("node_positions", {})
+
         print(f"Node {self.node_id}: Handling NODE_LEAVE for {leaving_node_id}.")
 
-        # Remove the leaving node from the network
-        """!auto tha ginei to leave()!"""
+        # Remove the leaving node from local data structures
         with self.lock:
-            if leaving_node_id in self.network.nodes:
-                del self.network.nodes[leaving_node_id]
+            self.Lmin = [node for node in self.Lmin if node != leaving_node_id]
+            self.Lmax = [node for node in self.Lmax if node != leaving_node_id]
+            self.neighborhood_set = [node for node in self.neighborhood_set if node != leaving_node_id]
 
-        # Identify all nodes that are affected by the departure
-        affected_nodes = []
-        for node_id, node in self.network.nodes.items():
-            if (
-                leaving_node_id in node.Lmin
-                or leaving_node_id in node.Lmax
-                or leaving_node_id in node.neighborhood_set
-                or any(leaving_node_id == entry for row in node.routing_table for entry in row if entry is not None)
-            ):
-                affected_nodes.append(node_id)
+        # Prepare rebuild request
+        rebuild_request = {
+            "operation": "REBUILD_NODE_STATE",
+            "Lmin": self.Lmin,
+            "Lmax": self.Lmax,
+            "routing_table": self.routing_table,
+            "neighborhood_set": self.neighborhood_set,
+            "leaving_node_id": leaving_node_id,
+            "available_nodes": available_nodes,
+            "node_positions": node_positions,
+            "hops": request.get("hops", []),
+        }
 
-        # Rebuild the state for all affected nodes
-        for node_id in affected_nodes:
-            node = self.network.nodes[node_id]
-            node._rebuild_node_state()
+        # Notify affected nodes
+        affected_nodes = set(self.Lmin + self.Lmax + self.neighborhood_set)
 
-        print(f"Node {self.node_id}: Updated network after {leaving_node_id} left.")
+        # Ensure the affected nodes are still in the network
+        affected_nodes = [node for node in affected_nodes if node in available_nodes]
+
+        for neighbor_id in affected_nodes:
+            if neighbor_id and neighbor_id != self.node_id:
+                print(f"Node {self.node_id}: Sending REBUILD_NODE_STATE to {neighbor_id}.")
+                self.send_request(self.network.node_ports[neighbor_id], rebuild_request)
+
+        print(f"Node {self.node_id}: Finished processing NODE_LEAVE for {leaving_node_id}.")
         return {"status": "success", "message": f"Processed NODE_LEAVE for {leaving_node_id}."}
 
-    def _rebuild_node_state(self):
+    def _rebuild_node_state(self, request):
         """
         Rebuild the Lmin, Lmax, neighborhood_set, and routing_table of this node.
         """
         print(f"Node {self.node_id}: Rebuilding state.")
 
-        # Get all available nodes in the network except self
-        available_nodes = [node_id for node_id in self.network.nodes if node_id != self.node_id]
+        # Get available nodes and their positions from the request
+        available_nodes = request.get("available_nodes", [])
+        node_positions = request.get("node_positions", {})
+        leaving_node_id = request.get("leaving_node_id", None)
+
+        if not available_nodes or not node_positions:
+            print(f"Node {self.node_id}: Missing available nodes or positions in the request.")
+            return {"status": "failure", "message": "Missing available nodes or positions."}
+
+        # Remove the leaving node from the available nodes
+        if leaving_node_id in available_nodes:
+            available_nodes.remove(leaving_node_id)
+
+        print(f"Node {self.node_id}: Available nodes after removing {leaving_node_id}: {available_nodes}")
 
         # Rebuild Lmin and Lmax
         self.Lmin = self._find_closest_lower_nodes(available_nodes)
         self.Lmax = self._find_closest_higher_nodes(available_nodes)
+        print(f"Node {self.node_id}: Lmin: {self.Lmin}, Lmax: {self.Lmax}")
 
         # Rebuild neighborhood_set
-        self.neighborhood_set = self._update_closest_neighbors()
+        self.neighborhood_set = self._update_closest_neighbors(available_nodes, node_positions)
+        print(f"Node {self.node_id}: Updated neighborhood_set: {self.neighborhood_set}")
 
-        # Rebuild routing_table
-        self.routing_table = [[None for _ in range(pow(2, b))] for _ in range(HASH_HEX_DIGITS)]
-        for node_id in available_nodes:
-            common_prefix = common_prefix_length(self.node_id, node_id)
-            col = int(node_id[common_prefix], 16)
-            if self.routing_table[common_prefix][col] is None:
-                self.routing_table[common_prefix][col] = node_id
+        # Remove entries for the leaving node and track cleared positions
+        cleared_positions = []
+        for row_idx, row in enumerate(self.routing_table):
+            for col_idx, entry in enumerate(row):
+                if entry == leaving_node_id:
+                    self.routing_table[row_idx][col_idx] = None
+                    cleared_positions.append((row_idx, col_idx))
 
-        print(f"Node {self.node_id}: Rebuilding complete.")
+        print(f"Node {self.node_id}: Cleared routing table entries for {leaving_node_id}. Cleared positions: {cleared_positions}")
+
+        # Attempt to replace cleared positions
+        for row_idx, col_idx in cleared_positions:
+            for node_id in available_nodes:
+                # Check if the node_id matches the prefix required for this position
+                if common_prefix_length(self.node_id, node_id) == row_idx:
+                    try:
+                        # Verify the column matches the expected digit
+                        if int(node_id[row_idx], 16) == col_idx:
+                            self.routing_table[row_idx][col_idx] = node_id
+                            print(f"Node {self.node_id}: Replaced entry at Row {row_idx}, Column {col_idx} with {node_id}.")
+                            break  # Stop looking once a replacement is found
+                    except (IndexError, ValueError) as e:
+                        print(f"Node {self.node_id}: Skipping invalid node_id {node_id} due to error: {e}")
+
+        print(f"Node {self.node_id}: Updated routing table: {self.routing_table}")
+        return {"status": "success", "message": "Rebuilt node state successfully."}
 
     def _find_closest_lower_nodes(self, available_nodes):
         """
-        Find the closest numerically smaller nodes to populate Lmin.
+        Find the closest numerically lower nodes to populate Lmin.
         """
-        # Filter nodes that are numerically smaller than the current node
-        lower_nodes = [n for n in available_nodes if n < self.node_id]
+        print(f"\nNode {self.node_id}: Finding closest numerically lower nodes.")
+        print(f"Available nodes: {available_nodes}")
+
+        # Filter nodes that are numerically lower than the current node
+        lower_nodes = [n for n in available_nodes if int(n, 16) < int(self.node_id, 16)]
 
         # Compute distances for debugging
         distances = {n: int(self.node_id, 16) - int(n, 16) for n in lower_nodes}
@@ -518,8 +588,10 @@ class PastryNode:
         lower_nodes.sort(key=lambda n: distances[n])
 
         # Ensure Lmin has exactly L // 2 nodes (fill with None if not enough nodes)
-        result = lower_nodes[: L // 2] + [None] * (L // 2 - len(lower_nodes))
+        lmin_size = L // 2
+        result = lower_nodes[:lmin_size] + [None] * (lmin_size - len(lower_nodes))
 
+        print(f"Node {self.node_id}: Closest numerically lower nodes: {result}")
         return result
 
     def _find_closest_higher_nodes(self, available_nodes):
@@ -530,7 +602,7 @@ class PastryNode:
         print(f"Available nodes: {available_nodes}")
 
         # Filter nodes that are numerically higher than the current node
-        higher_nodes = [n for n in available_nodes if n > self.node_id]
+        higher_nodes = [n for n in available_nodes if int(n, 16) > int(self.node_id, 16)]
 
         # Compute distances for debugging
         distances = {n: int(n, 16) - int(self.node_id, 16) for n in higher_nodes}
@@ -539,18 +611,31 @@ class PastryNode:
         higher_nodes.sort(key=lambda n: distances[n])
 
         # Ensure Lmax has exactly L // 2 nodes (fill with None if not enough nodes)
-        result = higher_nodes[: L // 2] + [None] * (L // 2 - len(higher_nodes))
+        lmax_size = L // 2
+        result = higher_nodes[:lmax_size] + [None] * (lmax_size - len(higher_nodes))
+
+        print(f"Node {self.node_id}: Closest numerically higher nodes: {result}")
         return result
 
-    def _update_closest_neighbors(self):
-        """
-        Update the neighborhood set with the closest nodes by position.
-        """
-        available_nodes = [n for n in self.network.nodes if n != self.node_id]
-        available_nodes.sort(key=lambda n: abs(self.position - self.network.nodes[n].position))
+    def _update_closest_neighbors(self, available_nodes, node_positions):
+        print(f"Updating closest neighbors for Node {self.node_id}")
+        print(f"Available nodes: {available_nodes}")
+        print(f"Node positions: {node_positions}")
 
-        # Return the 3 closest nodes
-        return available_nodes[:3]
+        # Exclude self.node_id from the list
+        neighbors = [n for n in available_nodes if n != self.node_id]
+
+        # Validate that all nodes have positions
+        for node in neighbors:
+            if node not in node_positions:
+                print(f"Warning: Node {node} does not have a position in node_positions.")
+                return [None] * len(self.neighborhood_set)
+
+        # Sort by proximity to the current node
+        neighbors.sort(key=lambda n: abs(node_positions[n] - node_positions[self.node_id]))
+        result = neighbors[: len(self.neighborhood_set)] + [None] * (len(self.neighborhood_set) - len(neighbors))
+        print(f"Updated neighborhood_set: {result}")
+        return result
 
     def insert_key(self, key, point, review, country):
         """
@@ -622,41 +707,6 @@ class PastryNode:
         print(f"Node {self.node_id}: Handling Update Request: {request}")
         response = self._handle_update_key_request(request)
         return response
-
-    def leave(self):
-        """!prepei na ginei method sto network class!"""
-
-        print(f"Node {self.node_id} is leaving the network...")
-
-        # Identify affected nodes
-        affected_nodes = set(self.Lmin + self.Lmax + self.neighborhood_set)
-        for row in self.routing_table:
-            affected_nodes.update(filter(None, row))
-
-        # Notify affected nodes
-        for node_id in affected_nodes:
-            if node_id and node_id != self.node_id:
-                leave_request = {
-                    "operation": "NODE_LEAVE",
-                    "leaving_node_id": self.node_id,
-                    "hops": [],
-                }
-                self.send_request(self.network.node_ports[node_id], leave_request)
-
-        # Safely remove the node from the network
-        with self.lock:
-            if self.node_id in self.network.nodes:
-                del self.network.nodes[self.node_id]
-                print(f"Node {self.node_id} has been removed from the network.")
-            else:
-                print(f"Node {self.node_id} is not found in the network.")
-
-        # Rebuild state for affected nodes
-        for node_id in affected_nodes:
-            if node_id in self.network.nodes:
-                self.network.nodes[node_id]._rebuild_node_state()
-
-        print(f"Node {self.node_id} has successfully left the network.")
 
     def _find_next_hop(self, key):
         """
