@@ -169,6 +169,7 @@ class KDTree:
         Search for points within the given bounds for all axes using the KD-Tree.
 
         Args:
+            country_key (str): Hashed country key.
             lower_bounds (list): Lower bounds for each axis [review_date, rating, price].
             upper_bounds (list): Upper bounds for each axis [review_date, rating, price].
 
