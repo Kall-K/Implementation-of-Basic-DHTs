@@ -11,6 +11,12 @@ import platform  # for system identification to get excluded ports
 from constants import *
 from helper_functions import *
 
+import sys
+import os
+
+# Add the parent directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from Multidimensional_Data_Structures.kd_tree import KDTree
 from Multidimensional_Data_Structures.lsh import LSH
 from sklearn.feature_extraction.text import TfidfVectorizer
