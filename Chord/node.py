@@ -8,8 +8,8 @@ import numpy as np
 from constants import *
 from helper_functions import *
 
-# from Multidimensional_Data_Structures.kd_tree import KDTree
-# from Multidimensional_Data_Structures.lsh import LSH
+from Multidimensional_Data_Structures.kd_tree import KDTree
+from Multidimensional_Data_Structures.lsh import LSH
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 
@@ -235,7 +235,156 @@ class ChordNode:
         self.predecessor = predecessor_id
         return 0
 
+    def _handle_lookup_request(self, request):
+        """
+        Handle a LOOKUP operation.
+        """
+        key = request["key"]
+        lower_bounds = request["lower_bounds"]
+        upper_bounds = request["upper_bounds"]
+        N = request["N"]
+
+        # If this key is found in the leaf set or the next hop is the current node the lookup is successful
+        next_hop_id = self._find_next_hop(key)
+
+        if self._in_leaf_set(key) or next_hop_id == self.node_id:
+            print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
+
+            # If the KDTree is not initialized or has no data, return a failure message
+            if not self.kd_tree or self.kd_tree.points.size == 0:
+                print(f"Node {self.node_id}: No data for key {key}.")
+                return {"status": "failure", "message": f"No data for key {key}."}
+
+            # KDTree Range Search
+            points, reviews = self.kd_tree.search(lower_bounds, upper_bounds)
+            print(f"Node {self.node_id}: Found {len(points)} matching points.")
+
+            # LSH Similarity Search
+            vectorizer = TfidfVectorizer()
+            doc_vectors = vectorizer.fit_transform(reviews).toarray()
+
+            lsh = LSH(num_bands=4, num_rows=5)
+            for vector in doc_vectors:
+                lsh.add_document(vector)
+
+            similar_pairs = lsh.find_similar_pairs(N)
+            similar_docs = lsh.find_similar_docs(similar_pairs, reviews, N)
+
+            print(f"\nThe {N} Most Similar Reviews:\n")
+            for i, doc in enumerate(similar_docs, 1):
+                print(f"{i}. {doc}\n")
+
+            return {
+                "status": "success",
+                "message": f"Found {len(points)} matching points.",
+            }
+
+        # If the key is not found in the leaf set and the next hop is not the current node
+        # forward the request to the next hop
+        response = self.send_request(self.network.node_ports[next_hop_id], request)
+        return response
     
+    def _handle_insert_key_request(self, request):
+        """
+        Handle an INSERT_KEY operation.
+        """
+        key = request["key"]
+        point = request["point"]
+        review = request["review"]
+        country = request["country"]
+        country_key = hash_key(country)
+        hops = request.get("hops", [])
+
+        next_hop_id = self._find_next_hop(key)
+
+        # Determine if this node should store the key or forward it
+        if self._in_leaf_set(key) or next_hop_id == self.node_id:
+            if not self.kd_tree:
+                # Initialize KDTree with the first point
+                self.kd_tree = KDTree(
+                    points=np.array([point]),
+                    reviews=np.array([review]),
+                    country_keys=np.array([country_key]),
+                )
+            else:
+                # Add point to the existing KDTree
+                self.kd_tree.add_point(point, review, country)
+
+            # Print the point and review directly after adding
+            print(f"\nInserted Key: {key}")
+            print(f"Point: {point}")
+            print(f"Review: {review}")
+            print(f"Routed and stored at Node ID: {self.node_id}")
+            print(f"Hops: {hops}")
+            print("")
+            return {
+                "status": "success",
+                "message": f"Key {key} stored at {self.node_id}",
+            }
+
+        # If this node is not responsible for the key forward request to the next hop
+        return self.send_request(self.network.node_ports[next_hop_id], request)
+
+    def _handle_update_key_request(self, request):
+        """
+        Handle an UPDATE_KEY operation with criteria and update fields.
+        """
+        key = request["key"]
+        criteria = request.get("criteria", None)  # Optional criteria to filter
+        update_fields = request["data"]  # Update fields for the KDTree
+        hops = request.get("hops", [])
+
+        # Find the next hop or check if this node is responsible for the key
+        next_hop_id = self._find_next_hop(key)
+
+        if self._in_leaf_set(key) or next_hop_id == self.node_id:
+            # Check if the key exists in this node's data structure
+            if self.kd_tree and key in self.kd_tree.country_keys:
+                # Update the data in the KDTree
+                self.kd_tree.update_points(
+                    country_key=key,
+                    criteria=criteria,
+                    update_fields=update_fields,
+                )
+                print(f"Node {self.node_id}: Key {key} updated successfully.")
+                return {
+                    "status": "success",
+                    "message": f"Key {key} updated successfully.",
+                    "hops": hops,
+                }
+            else:
+                return {"status": "failure", "message": f"Key {key} not found.", "hops": hops}
+
+        # Forward the request to the next hop if not responsible for the key
+        return self.send_request(self.network.node_ports[next_hop_id], request)
+    
+    def _handle_delete_key_request(self, request):
+        """
+        Handle a DELETE_KEY operation.
+        """
+        key = request["key"]
+
+        next_hop_id = self._find_next_hop(key)
+
+        # If the key belongs to this node (based on leaf set), delete it from the KDTree
+        if self._in_leaf_set(key) or next_hop_id == self.node_id:
+            if not self.kd_tree:
+                print(f"\nNode {self.node_id}: No data for key {key}.")
+                return {"status": "failure", "message": f"No data for key {key}.\n"}
+
+            # Delete the key from the KDTree if it exists
+            if key in self.kd_tree.country_keys:
+                print(f"\nNode {self.node_id}: Deleted Key {key}.")
+                self.kd_tree.delete_points(key)
+            else:
+                print(f"\nNode {self.node_id}: No data for key {key}.\n")
+                return {"status": "failure", "message": f"No data for key {key}."}
+
+            return {"status": "success", "message": f"Deleted Key {key}."}
+
+        # Otherwise, forward the request to the next node
+        response = self.send_request(self.network.node_ports[next_hop_id], request)
+        return response
     #############################
     #### Update Finger Table ####
     #############################
