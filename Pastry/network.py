@@ -1,7 +1,5 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import random
-import socket
 
 from helper_functions import *
 from constants import N
@@ -129,19 +127,13 @@ class PastryNetwork:
             country = key_data["country"]  # Original country
 
             # Find the node with the minimum subtraction value from the key
-            closest_node_id = min(
-                available_nodes, key=lambda node_id: abs(int(node_id, 16) - int(key, 16))
-            )
+            closest_node_id = min(available_nodes, key=lambda node_id: abs(int(node_id, 16) - int(key, 16)))
 
             try:
-                print(
-                    f"Network: Redirecting key {key} (Country: {country}) to Node {closest_node_id}."
-                )
+                print(f"Network: Redirecting key {key} (Country: {country}) to Node {closest_node_id}.")
                 self.nodes[closest_node_id].insert_key(key, position, review, country)
             except Exception as e:
                 print(f"Network: Failed to redirect key {key} to Node {closest_node_id}. Error: {e}")
-
-
 
         skipped_count = len(keys_to_store) - reinserted_count
         print(f"Network: Successfully reinserted {reinserted_count} keys. Skipped {skipped_count} keys.")
@@ -153,7 +145,6 @@ class PastryNetwork:
             print(f"Node {node_id}: Routing Table: {node.routing_table}")
 
         return {"status": "success", "message": f"Node {leaving_node_id} has left the network."}
-
 
     def _find_topologically_closest_node(self, new_node):
         """
@@ -252,7 +243,7 @@ class PastryNetwork:
         ax.set_title("Pastry Network Visualization")
 
         # Save the plot
-        plt.savefig("Plots/pastry_network_visualization.png")
+        plt.savefig("../Plots/pastry_network_visualization.png")
 
         plt.show()
 
@@ -297,6 +288,6 @@ class PastryNetwork:
         ax.set_title("Pastry Network Topology")
 
         # Save the plot
-        plt.savefig("Plots/pastry_network_topology.png")
+        plt.savefig("../Plots/pastry_network_topology.png")
 
         plt.show()
