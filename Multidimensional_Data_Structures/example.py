@@ -14,7 +14,7 @@ Then we preprocess the reviews using TF-IDF and build an LSH index to find the N
 
 """-----------KD-Tree------------"""
 # Load CSV file
-csv_file = "Coffee Reviews Dataset/simplified_coffee.csv"
+csv_file = "Coffee_Reviews_Dataset/simplified_coffee.csv"
 df = pd.read_csv(csv_file)
 
 # Keep only the date from the review_date column
@@ -26,8 +26,11 @@ points = df[["review_date", "rating", "100g_USD"]].to_numpy()
 # Extract the reviews
 reviews = df["review"].to_numpy()
 
+#Extract loc_country
+country_keys = df["loc_country"].to_numpy()
+
 # Build the KD-Tree
-kd_tree = KDTree(points, reviews)
+kd_tree = KDTree(points, reviews, country_keys)
 
 # Optionallt visualize the 3D points
 # kd_tree.visualize(points, reviews)
@@ -36,7 +39,7 @@ kd_tree = KDTree(points, reviews)
 new_point = [2018, 94, 5.5]  # Example new point
 new_review = "Very delicate and sweet. Lemon verbena, dried persimmon, dogwood, baker’s chocolate in aroma and cup. Balanced, sweet-savory structure; velvety-smooth mouthfeel. The sweetly herb-toned finish centers on notes of lemon verbena and dried persimmon wrapped in baker’s chocolate."
 
-kd_tree.add_point(new_point, new_review)
+kd_tree.add_point(new_point, new_review, new_country='United States')
 
 # Search for points within a specific range [date, rating, price]
 lower_bounds = [2017, 90, 4.0]

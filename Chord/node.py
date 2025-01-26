@@ -29,7 +29,8 @@ class ChordNode:
         self.successor = self.node_id
         self.predecessor = self.node_id
         self.finger_table = [self.node_id] * M
-        self.running = True
+        self.running = True # maybe useless
+        self.kdtree = None
 
         self.data = {}  # For storing key-value pairs
 
@@ -235,7 +236,7 @@ class ChordNode:
         self.predecessor = predecessor_id
         return 0
 
-    def _handle_lookup_request(self, request):
+    def _handle_lookup_request(self, request): # adjust it to chord
         """
         Handle a LOOKUP operation.
         """
