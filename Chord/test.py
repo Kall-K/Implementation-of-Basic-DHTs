@@ -1,11 +1,30 @@
 import time
-
+import pandas as pd
 from network import ChordNetwork
 from node import ChordNode
 from constants import *
+from helper_functions import *
 
 
 def main():
+    # Load dataset
+    dataset_path = "../Coffee_Reviews_Dataset/simplified_coffee.csv"
+    df = pd.read_csv(dataset_path)
+
+    # Keep only the year from the review_date column
+    df["review_date"] = pd.to_datetime(df["review_date"], format="%B %Y").dt.year
+
+    # Extract loc_country as keys
+    keys = df["loc_country"].apply(hash_key)
+
+    # Extract data points (review_date, rating, 100g_USD)
+    points = df[["review_date", "rating", "100g_USD"]].to_numpy()
+
+    # Extract reviews and other details
+    reviews = df["review"].to_numpy()
+    countries = df["loc_country"].to_numpy()
+    names = df["name"].to_numpy()
+
     # Create the Chord network
     print("Creating the Chord network...")
     network = ChordNetwork()
@@ -24,6 +43,7 @@ def main():
     #     print(f"Node Added: ID = {node.node_id}, Address = {node.address}")
 
 
+    # Node Insertion
     node = ChordNode(network, predefined_ids[0])
     node.start_server()
     time.sleep(1)  # Allow the server to start
@@ -42,6 +62,10 @@ def main():
     network.node_join(node)
     node.print_state()
     
+    # Key Insertion
+
+
+
 
 if __name__ == "__main__":
     main()

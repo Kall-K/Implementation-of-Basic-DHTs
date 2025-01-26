@@ -4,6 +4,16 @@ import hashlib
 import pickle
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
+import subprocess  # for running netsh to get excluded ports on Windows
+import re
+import platform  # for system identification to get excluded ports
+
+
+import sys
+import os
+
+# Add the parent directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from constants import *
 from helper_functions import *
@@ -12,25 +22,24 @@ from Multidimensional_Data_Structures.kd_tree import KDTree
 from Multidimensional_Data_Structures.lsh import LSH
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-
 class ChordNode:
 
     def __init__(self, network, node_id=None):
         """
         Initialize a new Chord node with a unique ID, address, and empty data structures.
         """
+        self.network = network  # Reference to the DHT network
         self.address = self._generate_address()  # (IP, Port)
         self.node_id = (
             node_id if node_id is not None else self._generate_id(self.address)
         )
-        self.network = network  # Reference to the DHT network
-        # self.kd_tree = None  # Centralized KD-Tree
+        
+        self.kd_tree = None  # Centralized KD-Tree
         
         self.successor = self.node_id
         self.predecessor = self.node_id
         self.finger_table = [self.node_id] * M
         self.running = True # maybe useless
-        self.kdtree = None
 
         self.data = {}  # For storing key-value pairs
 
@@ -56,6 +65,43 @@ class ChordNode:
         sha1_hash = hashlib.sha1(address_str.encode()).hexdigest()
         node_id = sha1_hash[-HASH_HEX_DIGITS:]  # Take the last 128 bits
         return node_id
+    
+    def get_excluded_ports(self):
+        """
+        Retrieve the list of excluded ports from Windows (netsh) or Linux (/proc/sys/net/ipv4/ip_local_reserved_ports).
+        """
+        excluded_ports = []
+
+        if platform.system() == "Windows":
+            try:
+                # Run netsh command to get reserved ports
+                output = subprocess.check_output(["netsh", "int", "ipv4", "show", "excludedportrange", "protocol=tcp"], text=True, shell=True)
+
+                # Extract port ranges using regex
+                matches = re.findall(r"(\d+)\s+(\d+)", output)
+                for start, end in matches:
+                    excluded_ports.append((int(start), int(end)))
+
+            except subprocess.CalledProcessError as e:
+                print(f"Failed to retrieve excluded ports on Windows: {e}")
+
+        elif platform.system() == "Linux":
+            try:
+                # Use 'ss' get occupied ports
+                output = subprocess.check_output(["ss", "-tan"], text=True)
+                
+                # Extract port numbers from the output
+                matches = re.findall(r":(\d+)", output)
+                occupied_ports = {int(port) for port in matches}
+                
+                # Convert occupied ports to (port, port) format for consistency with Windows
+                for port in occupied_ports:
+                    excluded_ports.append((port, port))
+
+            except subprocess.CalledProcessError as e:
+                print(f"Failed to retrieve occupied ports on Linux using 'ss': {e}")
+
+        return excluded_ports
     
     def _generate_port(self):
         """

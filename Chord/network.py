@@ -7,6 +7,7 @@ class ChordNetwork:
 
     def __init__(self):
         self.nodes = {}  # Dictionary. Keys are node IDs, values are Node objects
+        self.used_ports = []
 
     def node_join(self, new_node):
         """
@@ -17,6 +18,9 @@ class ChordNetwork:
 
         # Add the node to the network
         self.nodes[node_id] = new_node
+
+        # # Add the node's port to the node_ports dictionary
+        # self.node_ports[new_node_id] = new_node.port
 
         if len(self.nodes) == 1:
             print("The network is empty. This node is the first node.")
