@@ -71,14 +71,6 @@ def main():
     print("\nInserting data into the network...")
     first_node = list(network.nodes.values())[0]
 
-    # # Insert only the first 10 entries for step-by-step hops
-    # print("\nInserting the first 10 entries into the network...\n")
-    # for i in range(10):
-    #     key, point, review, country, name = keys[i], points[i], reviews[i], countries[i], names[i]
-    #     print(f"Inserting Key: {key}, Country: {country}, Name: {name}")
-    #     print("")
-    #     first_node.insert_key(key, point, review)
-
     # For similarity search testing later insert a custom entry in the USA
     country = "United States"
     name = "Greg's Coffee"
@@ -142,9 +134,7 @@ def main():
 
     # Update only the review for Taiwan
     print("\nUpdating only the review for Taiwan:\n")
-    update_fields = {
-        "review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."
-    }
+    update_fields = {"review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."}
     first_node.update_key(key=taiwan_country_key, updated_data=update_fields)
 
     # Update based on specific attributes and modify multiple fields
@@ -171,7 +161,6 @@ def main():
     print("\nInspecting the state of the network after the node leaves:")
     for node in network.nodes.values():
         node.print_state()
-
 
 
 if __name__ == "__main__":

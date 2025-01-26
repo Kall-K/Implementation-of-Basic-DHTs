@@ -278,7 +278,7 @@ if __name__ == "__main__":
     country_keys = [hashlib.sha1(country.encode()).hexdigest()[-4:] for country in countries]
 
     # Build the KD-Tree
-    kd_tree = KDTree(points, reviews, country_keys)
+    kd_tree = KDTree(points, reviews, country_keys, countries)
 
     # kd_tree.visualize(points, reviews)
 
@@ -291,40 +291,39 @@ if __name__ == "__main__":
     # Search for points within a specific range
     lower_bounds = [2017, 90, 4.0]
     upper_bounds = [2018, 95, 5.5]
+    usa_key = hashlib.sha1("United States".encode()).hexdigest()[-4:]
 
-    points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 80 points result
+    # Search for points of the United States within the specified bounds
+    points, reviews = kd_tree.search(usa_key, lower_bounds, upper_bounds)  # 80 points result
     kd_tree.print_search_results(points, reviews)
 
     # Delete points form the United States
-    country_key = hashlib.sha1("United States".encode()).hexdigest()[-4:]
-    kd_tree.delete_points(country_key)
+    kd_tree.delete_points(usa_key)
 
-    points, reviews = kd_tree.search(lower_bounds, upper_bounds)  # 9 points result
+    taiwan_key = hashlib.sha1("Taiwan".encode()).hexdigest()[-4:]
+    points, reviews = kd_tree.search(taiwan_key, lower_bounds, upper_bounds)  # 9 points result
     kd_tree.print_search_results(points, reviews)
-
-    # Update specific point and review for Taiwan
-    taiwan_country_key = hashlib.sha1("Taiwan".encode()).hexdigest()[-4:]
 
     # Update all points for Taiwan
     print("\nUpdating all points for Taiwan:\n")
-    kd_tree.update_points(country_key=taiwan_country_key, update_fields={"attributes": {"price": 29.0}})
+    kd_tree.update_points(country_key=taiwan_key, update_fields={"attributes": {"price": 29.0}})
 
     # Update a specific point for Taiwan
     print("\nUpdating a specific point for Taiwan:\n")
     criteria = {"review_date": 2019, "rating": 94, "price": 29.0}
     update_fields = {"attributes": {"price": 30.0}}
-    kd_tree.update_points(country_key=taiwan_country_key, criteria=criteria, update_fields=update_fields)
+    kd_tree.update_points(country_key=taiwan_key, criteria=criteria, update_fields=update_fields)
 
     # Update only the review for Taiwan
     print("\nUpdating only the review for Taiwan:\n")
     update_fields = {"review": "An updated review for Taiwan's coffee."}
-    kd_tree.update_points(country_key=taiwan_country_key, update_fields=update_fields)
+    kd_tree.update_points(country_key=taiwan_key, update_fields=update_fields)
 
     # Update based on specific attributes (e.g., review_date and rating) and modify the price
     print("\nUpdating specific attributes for Taiwan:\n")
     criteria = {"review_date": 2019, "rating": 94}
     update_fields = {"attributes": {"price": 28.0}}
-    kd_tree.update_points(country_key=taiwan_country_key, criteria=criteria, update_fields=update_fields)
+    kd_tree.update_points(country_key=taiwan_key, criteria=criteria, update_fields=update_fields)
 
     # Verify all updates by searching again
     lower_bounds = [2019, 90, 26.0]

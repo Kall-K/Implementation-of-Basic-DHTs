@@ -62,7 +62,11 @@ class PastryNode:
         if platform.system() == "Windows":
             try:
                 # Run netsh command to get reserved ports
-                output = subprocess.check_output(["netsh", "int", "ipv4", "show", "excludedportrange", "protocol=tcp"], text=True, shell=True)
+                output = subprocess.check_output(
+                    ["netsh", "int", "ipv4", "show", "excludedportrange", "protocol=tcp"],
+                    text=True,
+                    shell=True,
+                )
 
                 # Extract port ranges using regex
                 matches = re.findall(r"(\d+)\s+(\d+)", output)
@@ -132,10 +136,18 @@ class PastryNode:
         print(f"Lmax: {self.Lmax}")
         print("\nNeighborhood Set:")
         print(self.neighborhood_set)
-        print("\nKD Tree Coutry Keys:")
+        print("\nKD Tree:\nUnique Coutry Keys:")
         if self.kd_tree:
             # Print the unique country keys in the KD-Tree
             print(np.unique(self.kd_tree.country_keys))
+        else:
+            print([])
+        print("Number of points/reviews for each country:")
+        if self.kd_tree:
+            unique_keys, counts = np.unique(self.kd_tree.country_keys, return_counts=True)
+
+            for key, count in zip(unique_keys, counts):
+                print(f"Country Key: {key} | Count: {count}")
         else:
             print([])
 
@@ -309,10 +321,11 @@ class PastryNode:
                     countries=np.array([country]),
                 )
             else:
-                # Check for duplicate key before insertion
+                """This was wrong!"""
+                """# Check for duplicate key before insertion
                 if country_key in self.kd_tree.country_keys:
                     print(f"Node {self.node_id}: Key {key} already exists. Skipping insertion.")
-                    return {"status": "duplicate", "message": f"Key {key} already exists."}
+                    return {"status": "duplicate", "message": f"Key {key} already exists."}"""
 
                 # Add point to the existing KDTree
                 self.kd_tree.add_point(point, review, country)
@@ -1017,7 +1030,10 @@ class PastryNode:
         curr_node_key_diff_dig_idx, curr_node_key_num_dist = hex_distance(curr_node_id, key)
 
         # Determine if the target node is a better candidate than the current node
-        if (i >= l) and ((target_key_diff_dig_idx > curr_node_key_diff_dig_idx) or (target_key_diff_dig_idx == curr_node_key_diff_dig_idx and target_key_num_dist < curr_node_key_num_dist)):
+        if (i >= l) and (
+            (target_key_diff_dig_idx > curr_node_key_diff_dig_idx)
+            or (target_key_diff_dig_idx == curr_node_key_diff_dig_idx and target_key_num_dist < curr_node_key_num_dist)
+        ):
             return True
         else:
             return False
