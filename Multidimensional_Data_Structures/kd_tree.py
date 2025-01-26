@@ -65,9 +65,7 @@ class KDTree:
             country_key (str): Hashed country.
         """
         # Find the indices of the points to delete
-        indices_to_delete = [
-            idx for idx, key in enumerate(self.country_keys) if key == country_key
-        ]
+        indices_to_delete = [idx for idx, key in enumerate(self.country_keys) if key == country_key]
 
         if not indices_to_delete:
             print(f"No points found with country key: {country_key}")
@@ -87,14 +85,11 @@ class KDTree:
 
         print(f"Deleted {len(indices_to_delete)} points with country key: {country_key}")
 
-
-
     def print_countries(self):
         """
         Print the list of countries stored in the KDTree.
         """
         print("Countries in KDTree:", self.countries)
-
 
     def update_points(self, country_key=None, criteria=None, update_fields=None):
         """
@@ -124,9 +119,7 @@ class KDTree:
 
             # Match additional criteria if provided
             if criteria:
-                match = all(
-                    point[CRITERIA_MAPPING[key]] == value for key, value in criteria.items()
-                )
+                match = all(point[CRITERIA_MAPPING[key]] == value for key, value in criteria.items())
                 if not match:
                     continue
 
@@ -171,7 +164,7 @@ class KDTree:
 
         return updates_applied
 
-    def search(self, lower_bounds, upper_bounds):
+    def search(self, country_key, lower_bounds, upper_bounds):
         """
         Search for points within the given bounds for all axes using the KD-Tree.
 
@@ -198,7 +191,7 @@ class KDTree:
 
         for idx in indices:
             point = self.points[idx]
-            if all(lower_bounds[i] <= point[i] <= upper_bounds[i] for i in range(3)):
+            if all(lower_bounds[i] <= point[i] <= upper_bounds[i] for i in range(3)) and self.country_keys[idx] == country_key:
                 matching_points.append(point)
                 matching_reviews.append(self.reviews[idx])
 
@@ -313,17 +306,13 @@ if __name__ == "__main__":
 
     # Update all points for Taiwan
     print("\nUpdating all points for Taiwan:\n")
-    kd_tree.update_points(
-        country_key=taiwan_country_key, update_fields={"attributes": {"price": 29.0}}
-    )
+    kd_tree.update_points(country_key=taiwan_country_key, update_fields={"attributes": {"price": 29.0}})
 
     # Update a specific point for Taiwan
     print("\nUpdating a specific point for Taiwan:\n")
     criteria = {"review_date": 2019, "rating": 94, "price": 29.0}
     update_fields = {"attributes": {"price": 30.0}}
-    kd_tree.update_points(
-        country_key=taiwan_country_key, criteria=criteria, update_fields=update_fields
-    )
+    kd_tree.update_points(country_key=taiwan_country_key, criteria=criteria, update_fields=update_fields)
 
     # Update only the review for Taiwan
     print("\nUpdating only the review for Taiwan:\n")
@@ -334,9 +323,7 @@ if __name__ == "__main__":
     print("\nUpdating specific attributes for Taiwan:\n")
     criteria = {"review_date": 2019, "rating": 94}
     update_fields = {"attributes": {"price": 28.0}}
-    kd_tree.update_points(
-        country_key=taiwan_country_key, criteria=criteria, update_fields=update_fields
-    )
+    kd_tree.update_points(country_key=taiwan_country_key, criteria=criteria, update_fields=update_fields)
 
     # Verify all updates by searching again
     lower_bounds = [2019, 90, 26.0]

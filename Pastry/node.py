@@ -381,7 +381,7 @@ class PastryNode:
                     return {"status": "failure", "message": f"No data for key {key}."}
 
                 # KD-Tree Range Search
-                points, reviews = self.kd_tree.search(lower_bounds, upper_bounds)
+                points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
                 print(f"Node {self.node_id}: Found {len(points)} matching points.")
 
                 if len(reviews) == 0:
