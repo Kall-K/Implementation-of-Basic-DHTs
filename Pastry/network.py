@@ -243,7 +243,7 @@ class PastryNetwork:
         ax.set_title("Pastry Network Visualization")
 
         # Save the plot
-        plt.savefig("Plots/pastry_network_visualization.png")
+        plt.savefig("../Plots/pastry_network_visualization.png")
 
         plt.show()
 
@@ -288,6 +288,6 @@ class PastryNetwork:
         ax.set_title("Pastry Network Topology")
 
         # Save the plot
-        plt.savefig("Plots/pastry_network_topology.png")
+        plt.savefig("../Plots/pastry_network_topology.png")
 
         plt.show()
