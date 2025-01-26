@@ -44,7 +44,7 @@ class ChordNode:
         """
         # Simulate unique IPs in a private network range (192.168.x.x)
         ip = f"192.168.{np.random.randint(0, 256)}.{np.random.randint(1, 256)}"
-        port = port or np.random.randint(1024, 65535)  # Random port if not provided
+        port = port or self._generate_port()
         return (ip, port)
 
     def _generate_id(self, address):
@@ -55,6 +55,22 @@ class ChordNode:
         sha1_hash = hashlib.sha1(address_str.encode()).hexdigest()
         node_id = sha1_hash[-HASH_HEX_DIGITS:]  # Take the last 128 bits
         return node_id
+    
+    def _generate_port(self):
+        """
+        Generate a unique address Port for the node.
+        """
+        excluded_ranges = self.get_excluded_ports()
+
+        def is_excluded(port):
+            return any(start <= port <= end for start, end in excluded_ranges)
+
+        while True:
+            port = np.random.randint(1024, 65535)  # Random port if not provided
+
+            if port not in self.network.used_ports and not is_excluded(port):
+                self.network.used_ports.append(port)
+                return port
 
     # Stop running
 
