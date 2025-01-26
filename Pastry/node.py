@@ -142,12 +142,15 @@ class PastryNode:
             print(np.unique(self.kd_tree.country_keys))
         else:
             print([])
-        print("Number of points/reviews for each country:")
+        print("\nNumber of points/reviews for each country:")
         if self.kd_tree:
             unique_keys, counts = np.unique(self.kd_tree.country_keys, return_counts=True)
-
+            print(f"{'Country Key':<12} | {'Country Name':<14} | {'Count':<6}")
+            print("-" * (12 + 14 + 12))
             for key, count in zip(unique_keys, counts):
-                print(f"Country Key: {key} | Count: {count}")
+                # Find the original country name
+                country_name = next((country for country, hashed_key in zip(self.kd_tree.countries, self.kd_tree.country_keys) if hashed_key == key))
+                print(f"{key:<12} | {country_name:<14} | {count:<6}")
         else:
             print([])
 

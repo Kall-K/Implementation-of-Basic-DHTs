@@ -25,7 +25,7 @@ class KDTree:
         self.points = points
         self.reviews = reviews  # Store reviews for reference
         self.country_keys = country_keys  # 4-digit hex hash of the country
-        self.countries = list(countries) if countries else []  # Store original country names
+        self.countries = list(countries) if countries is not None else []  # Store original country names
         self.build(points)
 
     def build(self, points):
@@ -328,7 +328,7 @@ if __name__ == "__main__":
     # Verify all updates by searching again
     lower_bounds = [2019, 90, 26.0]
     upper_bounds = [2020, 95, 29.0]
-    points, reviews = kd_tree.search(lower_bounds, upper_bounds)
+    points, reviews = kd_tree.search(taiwan_key, lower_bounds, upper_bounds)
     kd_tree.print_search_results(points, reviews)
     # Print all countries
     kd_tree.print_countries()
