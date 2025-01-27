@@ -1,5 +1,9 @@
 import time
+
+import threading
+
 import pandas as pd
+
 from network import ChordNetwork
 from node import ChordNode
 from constants import *
@@ -49,14 +53,25 @@ def main():
 
     print(f"Adding {len(predefined_ids)} nodes to the network...")
 
+
+
+    def visualize_network():
+        time.sleep(6)
+        network.visualize_network()
+    server_thread = threading.Thread(target=visualize_network, daemon=True)
+    server_thread.start()
+
+    
+
     # Node Insertion
+
     for node_id in predefined_ids:
         # Create a ChordNode with a specific ID
         node = ChordNode(network, node_id=node_id)
         node.start_server()
         time.sleep(1)  # Allow the server to start
         network.node_join(node)
-        print(f"Node Added: ID = {node.node_id}, Address = {node.address}")
+        # print(f"Node Added: ID = {node.node_id}, Port = {node.port}")
         #node.print_state()
     
     # Key Insertion
@@ -106,12 +121,14 @@ def main():
     update_fields = {"attributes": {"price": 37.0, "rating": 95}}
     network.update_key(key=taiwan_country_key, updated_data=update_fields, criteria=criteria)
 
+
     # # Verify all updates
     # lower_bounds = [2018, 90, 30.0]
     # upper_bounds = [2019, 95, 40.0]
     # print("\nVerifying updates through lookup:\n")
     # response = network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
     # print(response)
+
 
 
 if __name__ == "__main__":
