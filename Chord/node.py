@@ -3,6 +3,7 @@ import socket
 import hashlib
 import pickle
 from concurrent.futures import ThreadPoolExecutor
+import time
 import numpy as np
 import subprocess  # for running netsh to get excluded ports on Windows
 import re
@@ -143,6 +144,16 @@ class ChordNode:
         server_thread = threading.Thread(target=self._server, daemon=True)
         server_thread.start()
 
+        self.thread_pool.submit(self._update_scheduler)
+    
+    def _update_scheduler(self):
+        interval = 5  # seconds
+        while True:
+            time.sleep(interval)
+            self.update_finger_table()
+            print("Updated Finger Table of Node:", self.node_id)
+
+
     def _server(self):
         """
         Set up a socket server to handle incoming requests.
@@ -160,9 +171,8 @@ class ChordNode:
                 return
 
             s.listen()
-            print(
-                f"\nNode {self.node_id} listening on {self.address} (bound to {bind_address})"
-            )
+            # print(f"Node {self.node_id} listening on {self.address} (bound to {bind_address})")
+
             while True:
                 conn, addr = s.accept()  # Accept incoming connection
                 # Submit the connection to the thread pool for handling
@@ -173,7 +183,7 @@ class ChordNode:
             data = conn.recv(1024)  # Read up to 1024 bytes of data
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
-            print(f"Node {self.node_id}: Handling Request: {request}")
+            # print(f"Node {self.node_id}: Handling Request: {request}")
             response = None
 
             if operation == "FIND_SUCCESSOR":
@@ -206,7 +216,7 @@ class ChordNode:
                 s.connect(connect_address)  # Connect using loopback
                 s.sendall(pickle.dumps(request))  # Serialize and send the request
                 response = s.recv(1024)  # Receive the response
-                print("response: " + pickle.loads(response))
+                # print("response: " + str(pickle.loads(response)))
             except Exception as e:
                 print(f"Error connecting to {connect_address}: {e}")
                 return None
@@ -295,29 +305,25 @@ class ChordNode:
     #############################
     #### Update Finger Table ####
     #############################
-    
-    # Ανανεώνει τα fingers του κόμβου
-    def update_finger_table(self, node_left = None, leave = False):
+
+    def update_finger_table(self):
         for i in range(1, len(self.finger_table)):
             temp_node = self.request_find_successor((int(self.node_id, 16) + 2 ** i) % R, self)
-            # if leave:
-            #     if node_left != temp_node:
-            #         self.finger_table[i] = temp_node
-            #     else: 
-            #         self.finger_table[i] = self.request_find_successor((temp_node + 2 ** i) % R)
-            # else:
+            while self.network.nodes[temp_node].running == False:
+                temp_node = self.request_find_successor(temp_node)
             self.finger_table[i] = temp_node
+
 
     #############################
     ###### Find Successor #######
     #############################
-        
-    # Βρίσκει τον κόμβο που είναι πιο κοντά στο key
+
     def closest_preceding_node(self, node, h_key):
         for i in range(len(node.finger_table)-1, 0, -1):
             if self.distance(node.finger_table[i-1], h_key) < self.distance(node.finger_table[i], h_key):
-                return node.finger_table[i-1]
-
+                if self.network.nodes[node.finger_table[i-1]].running: # this is extra line
+                    return node.finger_table[i-1]
+                
         return node.finger_table[-1]
         
     def distance(self, hex1, hex2):
@@ -348,6 +354,8 @@ class ChordNode:
         # Delete keys
         self.request_delete_successor_keys(keys_to_delete_from_successor, suc_id)
 
+        # TODO: Update finger tables
+
 
     # Βρίσκει τη θέση του κόμβου
     def find_node_place(self, pre_id, suc_id):
@@ -356,6 +364,26 @@ class ChordNode:
         self.finger_table[0] = suc_id
         self.successor = suc_id
         self.predecessor = pre_id
+
+
+    #############################
+    ######## NODE LEAVE #########
+    #############################
+
+    def leave(self):
+        self.running = False
+
+        pre_id = self.predecessor
+        suc_id = self.successor
+        # Correct successor and predecessor
+        self.request_set_successor(self.successor, pre_id) # self.predecessor.successor = self.successor, self.predecessor.fingers_table[0] = self.successor
+        self.request_set_predecessor(self.predecessor, suc_id) # self.successor.predecessor = self.predecessor
+
+        # Transfer keys to successor
+        for key in sorted(self.data.keys()):
+            self.successor.data[key] = self.data[key]
+
+        # TODO: Update finger tables
 
 
     #############################
