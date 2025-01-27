@@ -47,15 +47,25 @@ class PastryNetwork:
         join_request = {
             "operation": "NODE_JOIN",
             "joining_node_id": new_node_id,
-            "hops": [],
+            "hops": [],  # Initialize an empty hops list
         }
         print(f"\nForwarding JOIN_NETWORK request to the closest node {closest_node_id}...")
         response = new_node.send_request(self.node_ports[closest_node_id], join_request)
-        print(response)
+
+        # Extract and print the hop count from the response
+        if response and "hops" in response:
+            hop_count = len(response["hops"])
+            print(f"Hops during node join for {new_node_id}: {hop_count}")
+            print(f"Full hops list: {response['hops']}")
+        else:
+            print(f"Failed to retrieve hop count for {new_node_id}. Response: {response}")
 
         # Broadcast the new node's arrival to the network
         print(f"\nBroadcasting the new node's arrival to the network...")
         new_node.transmit_state()
+        
+        return response
+
 
     def leave(self, leaving_node_id):
         """

@@ -1,5 +1,5 @@
 import hashlib
-
+import matplotlib.pyplot as plt
 from constants import *
 
 """---Helper function for the Pasrty Implementation---"""
@@ -61,3 +61,21 @@ def hex_compare(id1, id2, equality=True):
         return True
     else:
         return False
+
+def plot_hops(hops_counts):
+    """
+    Plot a bar graph for hops in different operations.
+    """
+    operations = list(hops_counts.keys())
+    # Extract the first value (or 0 if empty) for each operation
+    hops = [counts[0] if counts else 0 for counts in hops_counts.values()]
+
+    plt.figure(figsize=(10, 6))
+    plt.bar(operations, hops, color="skyblue")
+    plt.title("Number of Hops for Pastry Network Operations", fontsize=16)
+    plt.ylabel("Number of Hops", fontsize=14)
+    plt.xlabel("Operation Type", fontsize=14)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
+    plt.show()
+

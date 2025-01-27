@@ -192,22 +192,28 @@ class PastryNode:
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
             hops = request.get("hops", [])
-            hops.append(self.node_id)  # Add the current node to the hops list
+              # Add the current node to the hops list
 
             print(f"Node {self.node_id}: Handling Request: {request}")
             response = None
 
             if operation == "NODE_JOIN":
+                hops.append(self.node_id)
                 response = self._handle_join_request(request)
             elif operation == "NODE_LEAVE":
+                hops.append(self.node_id)
                 response = self._handle_leave_request(request)
             elif operation == "INSERT_KEY":
+                hops.append(self.node_id)
                 response = self._handle_insert_key_request(request)
             elif operation == "UPDATE_KEY":
+                hops.append(self.node_id)
                 response = self._handle_update_key_request(request)
             elif operation == "DELETE_KEY":
+                hops.append(self.node_id)
                 response = self._handle_delete_key_request(request)
             elif operation == "LOOKUP":
+                hops.append(self.node_id)
                 response = self._handle_lookup_request(request)
             elif operation == "UPDATE_PRESENCE":
                 response = self._handle_update_presence_request(request)
@@ -221,14 +227,15 @@ class PastryNode:
                 response = self._rebuild_node_state(request)
             elif operation == "DISTANCE":
                 distance = topological_distance(self.position, request["node_position"])
-                response = {"distance": distance, "neighborhood_set": self.neighborhood_set}
+                response = {"distance": distance, "neighborhood_set": self.neighborhood_set, "hops": hops}
             elif operation == "GET_LEAF_SET":
                 response = {
                     "status": "success",
                     "leaf_set": {"Lmin": self.Lmin, "Lmax": self.Lmax},
+                    "hops": hops
                 }
             else:
-                response = {"status": "failure", "message": "Unknown operation"}
+                response = {"status": "failure", "message": "Unknown operation", "hops": hops}
 
             # Add more operations here as needed
 
@@ -264,6 +271,7 @@ class PastryNode:
         Handle a request from a new node to join the network.
         """
         new_node_id = request["joining_node_id"]
+        hops = request.get("hops", [])
 
         # Determine the routing table row to update
         i = common_prefix_length(self.node_id, new_node_id)
@@ -273,7 +281,7 @@ class PastryNode:
             "operation": "UPDATE_ROUTING_TABLE_ROW",
             "row_idx": i,
             "received_row": self.routing_table[i],
-            "hops": [],
+            "hops": hops,  # Include the updated hops list
         }
         print(f"Node {self.node_id}: Updating the new node's Routing Table Row {i} with node's {self.node_id} row {i}...")
         self.send_request(self.network.node_ports[new_node_id], update_R_request)
@@ -288,12 +296,13 @@ class PastryNode:
                 "Lmin": self.Lmin,
                 "Lmax": self.Lmax,
                 "key": self.node_id,
-                "hops": [],
+                "hops": hops,  # Include the updated hops list
             }
             self.send_request(self.network.node_ports[new_node_id], update_L_request)
 
             return {
                 "status": "success",
+                "hops": hops,  # Include the final hops list in the response
             }
 
         # Else forward the request to the next hop
@@ -342,8 +351,11 @@ class PastryNode:
             return {
                 "status": "success",
                 "message": f"Key {key} stored at {self.node_id}",
+                "hops": hops,  # Include the full hops list in the response
             }
 
+        # If this node is not responsible for the key, forward the request to the next hop
+        request["hops"] = hops  # Pass the updated hops list
         # If this node is not responsible for the key, forward the request to the next hop
         return self.send_request(self.network.node_ports[next_hop_id], request)
 
@@ -352,6 +364,7 @@ class PastryNode:
         Handle a DELETE_KEY operation.
         """
         key = request["key"]
+        hops = request.get("hops", [])  # Retrieve the current hops list
 
         next_hop_id = self._find_next_hop(key)
 
@@ -360,7 +373,8 @@ class PastryNode:
             with self.lock:
                 if not self.kd_tree:
                     print(f"\nNode {self.node_id}: No data for key {key}.")
-                    return {"status": "failure", "message": f"No data for key {key}.\n"}
+                    hops.append(self.node_id)
+                    return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
 
                 # Delete the key from the KDTree if it exists
                 if key in self.kd_tree.country_keys:
@@ -368,13 +382,22 @@ class PastryNode:
                     self.kd_tree.delete_points(key)
                 else:
                     print(f"\nNode {self.node_id}: No data for key {key}.\n")
-                    return {"status": "failure", "message": f"No data for key {key}."}
+                    return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
 
-                return {"status": "success", "message": f"Deleted Key {key}."}
+                # Return success with the hops list
+                return {
+                    "status": "success",
+                    "message": f"Deleted Key {key}.",
+                    "hops": hops,  # Include the full hops list in the response
+                }
 
         # Otherwise, forward the request to the next node
+        print(f"Forwarding DELETE_KEY Request: {hops}")
         response = self.send_request(self.network.node_ports[next_hop_id], request)
+
+        # Ensure the hops list is returned in the response
         return response
+
 
     def _handle_lookup_request(self, request):
         """
@@ -665,23 +688,41 @@ class PastryNode:
             "review": review,
             "hops": [],  # Initialize hops tracking
         }
-        print(f"Node {self.node_id}: Handling Request: {request}")
+        print(f"Node {self.node_id}: Initiating INSERT_KEY Request: {request}")
 
+        # Handle the request
         response = self._handle_insert_key_request(request)
+
+        # Optional: Log the final response for debugging
+        if response and "hops" in response:
+            print(f"Node {self.node_id}: INSERT_KEY Operation Complete. Hops: {response['hops']}")
+        else:
+            print(f"Node {self.node_id}: INSERT_KEY Operation Failed or No Hops Tracked.")
+
         return response
 
     def delete_key(self, key):
         """
-        Delete a key from the network.
+        Initiate the DELETE_KEY operation for a given key.
         """
         request = {
             "operation": "DELETE_KEY",
             "key": key,
-            "hops": [],
+            "hops": [],  # Initialize hops tracking
         }
-        print(f"Node {self.node_id}: Handling Request: {request}")
+        print(f"Node {self.node_id}: Initiating DELETE_KEY Request: {request}")
+
+        # Handle the request
         response = self._handle_delete_key_request(request)
+
+        # Optional: Log the final response for debugging
+        if response and "hops" in response:
+            print(f"Node {self.node_id}: DELETE_KEY Operation Complete. Hops: {response['hops']}")
+        else:
+            print(f"Node {self.node_id}: DELETE_KEY Operation Failed or No Hops Tracked.")
+
         return response
+
 
     def lookup(self, key, lower_bounds, upper_bounds, N=5):
         """
