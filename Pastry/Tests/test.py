@@ -199,7 +199,7 @@ def main():
     print("=======================")
     # Trigger a node leave operation using the network
     
-    node_to_leave="4b12"
+    node_to_leave="3722"
     leave_response = network.leave(node_to_leave)
     
     

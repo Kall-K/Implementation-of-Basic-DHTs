@@ -73,10 +73,13 @@ class PastryNetwork:
         """
         print(f"Network: Processing leave request for Node {leaving_node_id}.")
 
+        # Initialize hops tracking
+        hops = []
+
         # Check if the node exists in the network
         if leaving_node_id not in self.nodes:
             print(f"Network: Node {leaving_node_id} does not exist.")
-            return {"status": "failure", "message": f"Node {leaving_node_id} not found."}
+            return {"status": "failure", "message": f"Node {leaving_node_id} not found.", "hops": hops}
 
         leaving_node = self.nodes[leaving_node_id]
         keys_to_store = []
@@ -119,13 +122,18 @@ class PastryNetwork:
                 "leaving_node_id": leaving_node_id,
                 "available_nodes": available_nodes,
                 "node_positions": node_positions,
+                "hops": hops,  # Pass the hops list
             }
-            self.nodes[node_id].send_request(self.node_ports[node_id], leave_request)
+            response = self.nodes[node_id].send_request(self.node_ports[node_id], leave_request)
+
+            # Update the hops list from the response
+            if response and "hops" in response:
+                hops = response["hops"]
 
         # Check if there are any available nodes for reinsertion
         if not available_nodes:
             print("Network: No available nodes to reinsert keys. Keys will not be reinserted.")
-            return {"status": "failure", "message": "No nodes available for reinsertion."}
+            return {"status": "failure", "message": "No nodes available for reinsertion.", "hops": hops}
 
         # Reinsert stored keys using the network-level insert_key function
         print(f"Network: Reinserting stored keys into the network.")
@@ -140,8 +148,9 @@ class PastryNetwork:
             closest_node_id = min(available_nodes, key=lambda node_id: abs(int(node_id, 16) - int(key, 16)))
 
             try:
-                print(f"Network: Redirecting key {key} (Country: {country}) to Node {closest_node_id}.")
+                print(f"Network: Redirecting key {key} (Country: {country}) from Node: {node_id}  to Node {closest_node_id}.")
                 self.nodes[closest_node_id].insert_key(key, position, review, country)
+                reinserted_count += 1
             except Exception as e:
                 print(f"Network: Failed to redirect key {key} to Node {closest_node_id}. Error: {e}")
 
@@ -149,12 +158,14 @@ class PastryNetwork:
         print(f"Network: Successfully reinserted {reinserted_count} keys. Skipped {skipped_count} keys.")
 
         print(f"Network: Node {leaving_node_id} has successfully left the network.")
+        print(f"The Hopes after leaving are: {hops}")
 
-        for node_id, node in self.nodes.items():
-            print(f"Node {node_id}: KD-Tree Keys: {node.kd_tree.country_keys if node.kd_tree else 'None'}")
-            print(f"Node {node_id}: Routing Table: {node.routing_table}")
+        # for node_id, node in self.nodes.items():
+        #     print(f"Node {node_id}: KD-Tree Keys: {node.kd_tree.country_keys if node.kd_tree else 'None'}")
+        #     print(f"Node {node_id}: Routing Table: {node.routing_table}")
 
-        return {"status": "success", "message": f"Node {leaving_node_id} has left the network."}
+        return {"status": "success", "message": f"Node {leaving_node_id} has left the network.", "hops": hops}
+
 
     def _find_topologically_closest_node(self, new_node):
         """

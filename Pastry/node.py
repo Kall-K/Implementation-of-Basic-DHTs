@@ -401,6 +401,8 @@ class PastryNode:
             upper_bounds = request["upper_bounds"]
             N = request["N"]
 
+            hops = request.get("hops", [])  # Retrieve the current hops list
+
             next_hop_id = self._find_next_hop(key)
 
             # If this key is found in the leaf set or the next hop is the current node, the lookup is successful
@@ -409,7 +411,7 @@ class PastryNode:
 
                 if not self.kd_tree or not self.kd_tree.points.size:
                     print(f"Node {self.node_id}: No data for key {key}.")
-                    return {"status": "failure", "message": f"No data for key {key}."}
+                    return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
 
                 # KD-Tree Range Search
                 points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
@@ -417,7 +419,7 @@ class PastryNode:
 
                 if len(reviews) == 0:
                     print(f"Node {self.node_id}: No reviews found within the specified range.")
-                    return {"status": "success", "points": [], "reviews": []}
+                    return {"status": "success", "points": [], "reviews": [], "hops": hops}
 
                 # LSH Similarity Search
                 try:
@@ -431,7 +433,10 @@ class PastryNode:
                     similar_pairs = lsh.find_similar_pairs(N)
                     similar_docs = lsh.find_similar_docs(similar_pairs, reviews, N)
 
+                    print(f"The Hops are: {hops}")
+                    print("")
                     print(f"\nThe {N} Most Similar Reviews:\n")
+                    
                     for i, doc in enumerate(similar_docs, 1):
                         print(f"{i}. {doc}\n")
 
@@ -440,20 +445,27 @@ class PastryNode:
                         "points_len": len(points),
                         "reviews_len": len(reviews),
                         "similar_reviews_len": len(similar_docs),
+                        "hops": hops,  # Include the hops list in the response
                     }
                 except ValueError as e:
                     print(f"Node {self.node_id}: Error during LSH similarity search: {e}")
                     return {
                         "status": "failure",
                         "message": f"Error during LSH similarity search: {e}",
+                        "hops": hops,  # Include the hops list in the response
                     }
 
-            # If the key is not found in the leaf set, forward the request
-            return self.send_request(self.network.node_ports[next_hop_id], request)
+            # Forward the request to the next node
+            print(f"Forwarding LOOKUP Request: {hops}")
+            response = self.send_request(self.network.node_ports[next_hop_id], request)
+
+            # Ensure the hops list is returned in the response
+            return response  # The `hops` list will already be included in the forwarded response.
 
         except Exception as e:
             print(f"Node {self.node_id}: Error handling LOOKUP request: {e}")
-            return {"status": "failure", "message": f"Error: {e}"}
+            return {"status": "failure", "message": f"Error: {e}", "hops": hops}
+
 
     def _handle_update_key_request(self, request):
         """
@@ -464,9 +476,9 @@ class PastryNode:
         update_fields = request["data"]  # Update fields for the KDTree
         hops = request.get("hops", [])
 
-        # Find the next hop or check if this node is responsible for the key
         next_hop_id = self._find_next_hop(key)
 
+        # If this node is responsible for the key
         if self._in_leaf_set(key) or next_hop_id == self.node_id:
             # Check if the key exists in this node's data structure
             if self.kd_tree and key in self.kd_tree.country_keys:
@@ -480,13 +492,19 @@ class PastryNode:
                 return {
                     "status": "success",
                     "message": f"Key {key} updated successfully.",
-                    "hops": hops,
+                    "hops": hops,  # Include the full hops list in the response
                 }
             else:
+                print(f"Node {self.node_id}: Key {key} not found.")
                 return {"status": "failure", "message": f"Key {key} not found.", "hops": hops}
 
-        # Forward the request to the next hop if not responsible for the key
-        return self.send_request(self.network.node_ports[next_hop_id], request)
+        # Forward the request to the next hop
+        print(f"Forwarding UPDATE_KEY Request: {hops}")
+        response = self.send_request(self.network.node_ports[next_hop_id], request)
+
+        # Ensure the hops list is returned in the response
+        return response
+
 
     def _repair_leaf_set(self):
         for leaf in self.Lmin + self.Lmax:
@@ -509,6 +527,7 @@ class PastryNode:
         leaving_node_id = request["leaving_node_id"]
         available_nodes = request.get("available_nodes", [])
         node_positions = request.get("node_positions", {})
+        hops = request.get("hops", [])  # Retrieve the current hops list
 
         print(f"Node {self.node_id}: Handling NODE_LEAVE for {leaving_node_id}.")
 
@@ -528,7 +547,7 @@ class PastryNode:
             "leaving_node_id": leaving_node_id,
             "available_nodes": available_nodes,
             "node_positions": node_positions,
-            "hops": request.get("hops", []),
+            "hops": hops,  # Include the updated hops list
         }
 
         # Notify affected nodes
@@ -543,7 +562,8 @@ class PastryNode:
                 self.send_request(self.network.node_ports[neighbor_id], rebuild_request)
 
         print(f"Node {self.node_id}: Finished processing NODE_LEAVE for {leaving_node_id}.")
-        return {"status": "success", "message": f"Processed NODE_LEAVE for {leaving_node_id}."}
+        return {"status": "success", "message": f"Processed NODE_LEAVE for {leaving_node_id}.", "hops": hops}
+
 
     def _rebuild_node_state(self, request):
         """
@@ -725,12 +745,20 @@ class PastryNode:
             "lower_bounds": lower_bounds,
             "upper_bounds": upper_bounds,
             "N": N,
-            "hops": [],
+            "hops": [],  # Initialize hops tracking
         }
-        print(f"Node {self.node_id}: Handling Request: {request}")
+        print(f"Node {self.node_id}: Initiating LOOKUP Request: {request}")
 
         response = self._handle_lookup_request(request)
+
+        # Log the response for debugging
+        if response and "hops" in response:
+            print(f"Node {self.node_id}: LOOKUP Operation Complete. Hops: {response['hops']}")
+        else:
+            print(f"Node {self.node_id}: LOOKUP Operation Failed or No Hops Tracked.")
+
         return response
+
 
     def update_key(self, key, updated_data, criteria=None):
         """
@@ -752,9 +780,19 @@ class PastryNode:
             "criteria": criteria,  # Optional criteria for filtering
             "hops": [],  # Initialize hops tracking
         }
-        print(f"Node {self.node_id}: Handling Update Request: {request}")
+        print(f"Node {self.node_id}: Initiating UPDATE_KEY Request: {request}")
+
+        # Handle the request
         response = self._handle_update_key_request(request)
+
+        # Optional: Log the final response for debugging
+        if response and "hops" in response:
+            print(f"Node {self.node_id}: UPDATE_KEY Operation Complete. Hops: {response['hops']}")
+        else:
+            print(f"Node {self.node_id}: UPDATE_KEY Operation Failed or No Hops Tracked.")
+
         return response
+
 
     def _find_next_hop(self, key):
         """
