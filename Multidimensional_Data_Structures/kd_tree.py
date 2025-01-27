@@ -25,7 +25,7 @@ class KDTree:
         self.points = points
         self.reviews = reviews  # Store reviews for reference
         self.country_keys = country_keys  # 4-digit hex hash of the country
-        self.countries = list(countries) if countries is not None else []  # Store original country names
+        self.countries = countries if countries is not None else []  # Store original country names
         self.build(points)
 
     def build(self, points):
@@ -52,7 +52,7 @@ class KDTree:
         self.country_keys = np.append(self.country_keys, new_country_key)
 
         # Append the original country to the countries list
-        self.countries.append(new_country)
+        self.countries = np.append(self.countries, new_country)
 
         # Rebuild the KD-Tree with the updated points
         self.build(self.points)

@@ -136,23 +136,20 @@ class PastryNode:
         print(f"Lmax: {self.Lmax}")
         print("\nNeighborhood Set:")
         print(self.neighborhood_set)
-        print("\nKD Tree:\nUnique Coutry Keys:")
-        if self.kd_tree:
-            # Print the unique country keys in the KD-Tree
-            print(np.unique(self.kd_tree.country_keys))
-        else:
+        print("\nKD Tree:\nUnique Country Keys:")
+        if not self.kd_tree or self.kd_tree.country_keys.size == 0:
             print([])
-        print("\nNumber of points/reviews for each country:")
-        if self.kd_tree:
+        else:
             unique_keys, counts = np.unique(self.kd_tree.country_keys, return_counts=True)
+            print(unique_keys)
+
+            print("\nNumber of points/reviews for each country:")
             print(f"{'Country Key':<12} | {'Country Name':<14} | {'Count':<6}")
-            print("-" * (12 + 14 + 12))
+            print("-" * 38)
+
+            country_map = dict(zip(self.kd_tree.country_keys, self.kd_tree.countries))
             for key, count in zip(unique_keys, counts):
-                # Find the original country name
-                country_name = next((country for country, hashed_key in zip(self.kd_tree.countries, self.kd_tree.country_keys) if hashed_key == key))
-                print(f"{key:<12} | {country_name:<14} | {count:<6}")
-        else:
-            print([])
+                print(f"{key:<12} | {country_map[key]:<14} | {count:<6}")
 
     # Network Communication
 
@@ -188,7 +185,7 @@ class PastryNode:
 
     def _handle_request(self, conn):
         try:
-            data = conn.recv(1024)  # Read up to 1024 bytes of data
+            data = conn.recv(4096)  # Read up to 1024 bytes of data
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
             hops = request.get("hops", [])
@@ -422,9 +419,9 @@ class PastryNode:
 
                     return {
                         "status": "success",
-                        "points": points.tolist(),
-                        "reviews": reviews.tolist(),
-                        "similar_reviews": similar_docs,
+                        "points_len": len(points),
+                        "reviews_len": len(reviews),
+                        "similar_reviews_len": len(similar_docs),
                     }
                 except ValueError as e:
                     print(f"Node {self.node_id}: Error during LSH similarity search: {e}")
