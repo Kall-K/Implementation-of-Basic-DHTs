@@ -189,11 +189,11 @@ class PastryNode:
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
             hops = request.get("hops", [])
-              # Add the current node to the hops list
 
             print(f"Node {self.node_id}: Handling Request: {request}")
             response = None
 
+            # Append the current node to the hops list only in main operations
             if operation == "NODE_JOIN":
                 hops.append(self.node_id)
                 response = self._handle_join_request(request)
@@ -226,11 +226,7 @@ class PastryNode:
                 distance = topological_distance(self.position, request["node_position"])
                 response = {"distance": distance, "neighborhood_set": self.neighborhood_set, "hops": hops}
             elif operation == "GET_LEAF_SET":
-                response = {
-                    "status": "success",
-                    "leaf_set": {"Lmin": self.Lmin, "Lmax": self.Lmax},
-                    "hops": hops
-                }
+                response = {"status": "success", "leaf_set": {"Lmin": self.Lmin, "Lmax": self.Lmax}, "hops": hops}
             else:
                 response = {"status": "failure", "message": "Unknown operation", "hops": hops}
 
@@ -394,7 +390,6 @@ class PastryNode:
 
         # Ensure the hops list is returned in the response
         return response
-
 
     def _handle_lookup_request(self, request):
         """
@@ -719,7 +714,6 @@ class PastryNode:
             print(f"Node {self.node_id}: DELETE_KEY Operation Failed or No Hops Tracked.")
 
         return response
-
 
     def lookup(self, key, lower_bounds, upper_bounds, N=5):
         """
