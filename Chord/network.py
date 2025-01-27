@@ -34,11 +34,8 @@ class ChordNetwork:
         new_node.join(self.nodes[successor_id])
 
     def insert_key(self, key, point, review, country):  
-        request = {
-            "operation": "FIND_SUCCESSOR",
-            "key": key,
-            "point": point,
-            "review": review,
-            "country": country
-        }      
-        print(ChordNetwork.bootstrap_node._handle_insert_key_request(request))
+        print(ChordNetwork.bootstrap_node.insert_key(key, point, review, country))   
+
+    def delete_key(self, key):
+        print(ChordNetwork.bootstrap_node.delete_key(key))   
+        

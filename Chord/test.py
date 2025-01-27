@@ -70,6 +70,12 @@ def main():
     # review = "Very delicate and sweet. Lemon verbena, dried persimmon, dogwood, baker's chocolate in aroma and cup. Balanced, sweet-savory structure; velvety-smooth mouthfeel. The sweetly herb-toned finish centers on notes of lemon verbena and dried persimmon wrapped in baker's chocolate."
 
     # insert_key(first_node, key, point, review, country, name)
+    # Key Deletion
+    print("Key Deletion")
+    print("=======================")
+    network.delete_key('372a')
+    network.delete_key('372b')
+
 
 
 if __name__ == "__main__":

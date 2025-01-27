@@ -7,10 +7,9 @@ import numpy as np
 import subprocess  # for running netsh to get excluded ports on Windows
 import re
 import platform  # for system identification to get excluded ports
-
 from constants import *
 from helper_functions import *
-
+from collections import defaultdict
 import sys
 import os
 
@@ -39,7 +38,7 @@ class ChordNode:
         self.finger_table = [self.node_id] * M
         self.running = True # maybe useless
 
-        self.data = {}  # For storing key-value pairs
+        self.data = defaultdict(list)  # For storing key-value pairs
 
         # Create a thread pool for handling requests to limit the number of concurrent threads
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
@@ -189,8 +188,6 @@ class ChordNode:
                 response = self._handle_set_successor(request)
             if operation == "SET_PREDECESSOR":
                 response = self._handle_set_predecessor(request)
-            if operation == "GET_NODE":
-                response = self.get_node(request)
 
             # Add more operations here as needed
 
@@ -347,7 +344,7 @@ class ChordNode:
         response = self.send_request(self.network.node_ports[next_hop_id], request)
         return response
     
-    def _handle_insert_key_request(self, request):
+    def _handle_insert_key_request(self, request):  #ok
         """
         Handle an INSERT_KEY operation.
         """
@@ -358,7 +355,11 @@ class ChordNode:
         country_key = hash_key(country)
 
         successor_id = self._handle_find_successor(request)
-        successor= self.network.nodes[successor_id]
+        successor = self.network.nodes[successor_id]
+
+        del request["key"]
+        del request["operation"]
+        successor.data[key].append(request)
 
         if successor.kd_tree == None:
             # Initialize KDTree with the first point
@@ -366,6 +367,7 @@ class ChordNode:
                 points=np.array([point]),
                 reviews=np.array([review]),
                 country_keys=np.array([country_key]),
+                countries=np.array([country]),
             )
         else:
             # Add point to the existing KDTree
@@ -421,27 +423,23 @@ class ChordNode:
         """
         key = request["key"]
 
-        next_hop_id = self._find_next_hop(key)
+        successor_id = self._handle_find_successor(request)
+        successor = self.network.nodes[successor_id]
 
-        # If the key belongs to this node (based on leaf set), delete it from the KDTree
-        if self._in_leaf_set(key) or next_hop_id == self.node_id:
-            if not self.kd_tree:
-                print(f"\nNode {self.node_id}: No data for key {key}.")
-                return {"status": "failure", "message": f"No data for key {key}.\n"}
-
-            # Delete the key from the KDTree if it exists
-            if key in self.kd_tree.country_keys:
-                print(f"\nNode {self.node_id}: Deleted Key {key}.")
+        if key in successor.data.keys():
+            print(f"\nNode {successor.node_id}: Handling Request: {request}")
+            del successor.data[key]
+            if key in successor.kd_tree.country_keys:
+                print(f"\nNode {successor.node_id}: Deleted Key {key}.")
                 self.kd_tree.delete_points(key)
             else:
-                print(f"\nNode {self.node_id}: No data for key {key}.\n")
-                return {"status": "failure", "message": f"No data for key {key}."}
+                print(f"\nNode {successor.node_id}: No data for key {key}.\n")
+                return {"status": "failure", "message": f"No data for key {key} on kdtree."}
+        else:
+            print(f"\nNode {self.node_id}: No data for key {key}.\n")
+            return {"status": "failure", "message": f"No data for key {key}."}
 
-            return {"status": "success", "message": f"Deleted Key {key}."}
-
-        # Otherwise, forward the request to the next node
-        response = self.send_request(self.network.node_ports[next_hop_id], request)
-        return response
+        return {"status": "success", "message": f"Deleted Key {key}."}
 
     #############################
     ############ KEY ############
@@ -451,14 +449,13 @@ class ChordNode:
         Initiate the INSERT_KEY operation for a given key, point, and review.
         """
         request = {
-            "operation": "INSERT_KEY",
+            "operation": "FIND_SUCCESSOR",
             "key": key,
-            "country": country,
             "point": point,
             "review": review,
-            "hops": [],  # Initialize hops tracking
+            "country": country
         }
-        print(f"Node {self.node_id}: Handling Request: {request}")
+        # print(f"Node {self.node_id}: Handling Request: {request}")
 
         response = self._handle_insert_key_request(request)
         return response
@@ -470,9 +467,8 @@ class ChordNode:
         request = {
             "operation": "DELETE_KEY",
             "key": key,
-            "hops": [],
         }
-        print(f"Node {self.node_id}: Handling Request: {request}")
+        # print(f"Node {self.node_id}: Handling Request: {request}")
         response = self._handle_delete_key_request(request)
         return response
     
@@ -571,7 +567,7 @@ class ChordNode:
     #############################
     ###### Find Successor #######
     #############################
-        
+
     # Βρίσκει τον κόμβο που είναι πιο κοντά στο key
     def closest_preceding_node(self, node, h_key):
         for i in range(len(node.finger_table)-1, 0, -1):
