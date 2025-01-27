@@ -38,4 +38,7 @@ class ChordNetwork:
 
     def delete_key(self, key):
         print(ChordNetwork.bootstrap_node.delete_key(key))   
+    
+    def update_key(self, key, updated_data, criteria=None):
+        print(ChordNetwork.bootstrap_node.update_key(key, updated_data, criteria=None))
         

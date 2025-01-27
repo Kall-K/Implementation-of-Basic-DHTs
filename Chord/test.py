@@ -24,7 +24,7 @@ def main():
     # Load dataset
     dataset_path = "../Coffee_Reviews_Dataset/simplified_coffee.csv"
     df = pd.read_csv(dataset_path)
-    df = df[:5]
+    df = df[10:15]
     print(df)
     # Keep only the year from the review_date column
     df["review_date"] = pd.to_datetime(df["review_date"], format="%B %Y").dt.year
@@ -60,7 +60,7 @@ def main():
         #node.print_state()
     
     # Key Insertion
-    print("Key Insertions")
+    print("\nKey Insertions")
     print("=======================")
     insert_keys(network, keys, points, reviews, countries, names)
     # country = "United States"
@@ -71,11 +71,47 @@ def main():
 
     # insert_key(first_node, key, point, review, country, name)
     # Key Deletion
-    print("Key Deletion")
+    print("\nKey Deletion")
     print("=======================")
     network.delete_key('372a')
     network.delete_key('372b')
 
+    # Key Update
+    print("\nKey Update")
+    print("=======================")
+
+    taiwan_country_key = hash_key("Taiwan")
+
+    # Update all points for Taiwan
+    print("\nUpdating all points for Taiwan:\n")
+    update_fields = {"attributes": {"price": 35.0}}
+    network.update_key(key=taiwan_country_key, updated_data=update_fields)
+
+    # Update a specific point for Taiwan
+    print("\nUpdating a specific point for Taiwan:\n")
+    criteria = {"review_date": 2019, "rating": 94, "price": 35.0}
+    update_fields = {"attributes": {"price": 36.0}}
+    network.update_key(key=taiwan_country_key, updated_data=update_fields, criteria=criteria)
+
+    # Update only the review for Taiwan
+    print("\nUpdating only the review for Taiwan:\n")
+    update_fields = {
+        "review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."
+    }
+    network.update_key(key=taiwan_country_key, updated_data=update_fields)
+
+    # Update based on specific attributes and modify multiple fields
+    print("\nUpdating specific attributes for Taiwan:\n")
+    criteria = {"review_date": 2019, "rating": 94}
+    update_fields = {"attributes": {"price": 37.0, "rating": 95}}
+    network.update_key(key=taiwan_country_key, updated_data=update_fields, criteria=criteria)
+
+    # # Verify all updates
+    # lower_bounds = [2018, 90, 30.0]
+    # upper_bounds = [2019, 95, 40.0]
+    # print("\nVerifying updates through lookup:\n")
+    # response = network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
+    # print(response)
 
 
 if __name__ == "__main__":
