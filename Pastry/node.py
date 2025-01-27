@@ -357,20 +357,20 @@ class PastryNode:
 
         # If the key belongs to this node (based on leaf set), delete it from the KDTree
         if self._in_leaf_set(key) or next_hop_id == self.node_id:
-            # with self.lock:
-            if not self.kd_tree:
-                print(f"\nNode {self.node_id}: No data for key {key}.")
-                return {"status": "failure", "message": f"No data for key {key}.\n"}
+            with self.lock:
+                if not self.kd_tree:
+                    print(f"\nNode {self.node_id}: No data for key {key}.")
+                    return {"status": "failure", "message": f"No data for key {key}.\n"}
 
-            # Delete the key from the KDTree if it exists
-            if key in self.kd_tree.country_keys:
-                print(f"\nNode {self.node_id}: Deleted Key {key}.")
-                self.kd_tree.delete_points(key)
-            else:
-                print(f"\nNode {self.node_id}: No data for key {key}.\n")
-                return {"status": "failure", "message": f"No data for key {key}."}
+                # Delete the key from the KDTree if it exists
+                if key in self.kd_tree.country_keys:
+                    print(f"\nNode {self.node_id}: Deleted Key {key}.")
+                    self.kd_tree.delete_points(key)
+                else:
+                    print(f"\nNode {self.node_id}: No data for key {key}.\n")
+                    return {"status": "failure", "message": f"No data for key {key}."}
 
-            return {"status": "success", "message": f"Deleted Key {key}."}
+                return {"status": "success", "message": f"Deleted Key {key}."}
 
         # Otherwise, forward the request to the next node
         response = self.send_request(self.network.node_ports[next_hop_id], request)
