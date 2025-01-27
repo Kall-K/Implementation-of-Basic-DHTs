@@ -32,7 +32,7 @@ class ChordNode:
         self.node_id = (
             node_id if node_id is not None else self._generate_id(self.address)
         )
-        # self.kd_tree = None  # Centralized KD-Tree
+        self.kd_tree = None  # Centralized KD-Tree
         
         self.successor = self.node_id
         self.predecessor = self.node_id
@@ -116,43 +116,6 @@ class ChordNode:
             if port not in self.network.used_ports and not is_excluded(port):
                 self.network.used_ports.append(port)
                 return port
-    
-    def get_excluded_ports(self):
-        """
-        Retrieve the list of excluded ports from Windows (netsh) or Linux (/proc/sys/net/ipv4/ip_local_reserved_ports).
-        """
-        excluded_ports = []
-
-        if platform.system() == "Windows":
-            try:
-                # Run netsh command to get reserved ports
-                output = subprocess.check_output(["netsh", "int", "ipv4", "show", "excludedportrange", "protocol=tcp"], text=True, shell=True)
-
-                # Extract port ranges using regex
-                matches = re.findall(r"(\d+)\s+(\d+)", output)
-                for start, end in matches:
-                    excluded_ports.append((int(start), int(end)))
-
-            except subprocess.CalledProcessError as e:
-                print(f"Failed to retrieve excluded ports on Windows: {e}")
-
-        elif platform.system() == "Linux":
-            try:
-                # Use 'ss' get occupied ports
-                output = subprocess.check_output(["ss", "-tan"], text=True)
-                
-                # Extract port numbers from the output
-                matches = re.findall(r":(\d+)", output)
-                occupied_ports = {int(port) for port in matches}
-                
-                # Convert occupied ports to (port, port) format for consistency with Windows
-                for port in occupied_ports:
-                    excluded_ports.append((port, port))
-
-            except subprocess.CalledProcessError as e:
-                print(f"Failed to retrieve occupied ports on Linux using 'ss': {e}")
-
-        return excluded_ports
 
     # Stop running
 
@@ -226,6 +189,8 @@ class ChordNode:
                 response = self._handle_set_successor(request)
             if operation == "SET_PREDECESSOR":
                 response = self._handle_set_predecessor(request)
+            if operation == "GET_NODE":
+                response = self.get_node(request)
 
             # Add more operations here as needed
 
@@ -391,37 +356,31 @@ class ChordNode:
         review = request["review"]
         country = request["country"]
         country_key = hash_key(country)
-        hops = request.get("hops", [])
 
-        next_hop_id = self._find_next_hop(key)
+        successor_id = self._handle_find_successor(request)
+        successor= self.network.nodes[successor_id]
 
-        # Determine if this node should store the key or forward it
-        if self._in_leaf_set(key) or next_hop_id == self.node_id:
-            if not self.kd_tree:
-                # Initialize KDTree with the first point
-                self.kd_tree = KDTree(
-                    points=np.array([point]),
-                    reviews=np.array([review]),
-                    country_keys=np.array([country_key]),
-                )
-            else:
-                # Add point to the existing KDTree
-                self.kd_tree.add_point(point, review, country)
+        if successor.kd_tree == None:
+            # Initialize KDTree with the first point
+            successor.kd_tree = KDTree(
+                points=np.array([point]),
+                reviews=np.array([review]),
+                country_keys=np.array([country_key]),
+            )
+        else:
+            # Add point to the existing KDTree
+            successor.kd_tree.add_point(point, review, country)
 
-            # Print the point and review directly after adding
-            print(f"\nInserted Key: {key}")
-            print(f"Point: {point}")
-            print(f"Review: {review}")
-            print(f"Routed and stored at Node ID: {self.node_id}")
-            print(f"Hops: {hops}")
-            print("")
-            return {
-                "status": "success",
-                "message": f"Key {key} stored at {self.node_id}",
-            }
-
-        # If this node is not responsible for the key forward request to the next hop
-        return self.send_request(self.network.node_ports[next_hop_id], request)
+        # Print the point and review directly after adding
+        print(f"\nInserted Key: {key}")
+        print(f"Point: {point}")
+        print(f"Review: {review}")
+        print(f"Routed and stored at Node ID: {successor.node_id}")
+        print("")
+        return {
+            "status": "success",
+            "message": f"Key {key} stored at {successor.node_id}",
+        }
 
     def _handle_update_key_request(self, request):
         """
@@ -483,6 +442,116 @@ class ChordNode:
         # Otherwise, forward the request to the next node
         response = self.send_request(self.network.node_ports[next_hop_id], request)
         return response
+
+    #############################
+    ############ KEY ############
+    #############################
+    def insert_key(self, key, point, review, country):
+        """
+        Initiate the INSERT_KEY operation for a given key, point, and review.
+        """
+        request = {
+            "operation": "INSERT_KEY",
+            "key": key,
+            "country": country,
+            "point": point,
+            "review": review,
+            "hops": [],  # Initialize hops tracking
+        }
+        print(f"Node {self.node_id}: Handling Request: {request}")
+
+        response = self._handle_insert_key_request(request)
+        return response
+
+    def delete_key(self, key):
+        """
+        Delete a key from the network.
+        """
+        request = {
+            "operation": "DELETE_KEY",
+            "key": key,
+            "hops": [],
+        }
+        print(f"Node {self.node_id}: Handling Request: {request}")
+        response = self._handle_delete_key_request(request)
+        return response
+    
+    def lookup(self, key, lower_bounds, upper_bounds, N=5):
+        """
+        Lookup operation for a given key with KDTree range search and LSH similarity check.
+        """
+        request = {
+            "operation": "LOOKUP",
+            "key": key,
+            "lower_bounds": lower_bounds,
+            "upper_bounds": upper_bounds,
+            "N": N,
+            "hops": [],
+        }
+        print(f"Node {self.node_id}: Handling Request: {request}")
+
+        response = self._handle_lookup_request(request)
+        return response
+    
+    def update_key(self, key, updated_data, criteria=None):
+        """
+        Initiate the UPDATE_KEY operation for a given key with optional criteria and updated data.
+
+        Args:
+            key (str): The key (hashed country) to be updated.
+            updated_data (dict): Fields to update. Example: {"attributes": {"price": 30.0}, "review": "Updated review"}.
+            criteria (dict, optional): Criteria for selecting points to update.
+                                    Example: {"review_date": 2019, "rating": 94}.
+
+        Returns:
+            dict: Response from the update operation, indicating success or failure.
+        """
+        request = {
+            "operation": "UPDATE_KEY",
+            "key": key,
+            "data": updated_data,
+            "criteria": criteria,  # Optional criteria for filtering
+            "hops": [],  # Initialize hops tracking
+        }
+        print(f"Node {self.node_id}: Handling Update Request: {request}")
+        response = self._handle_update_key_request(request)
+        return response
+    
+    def leave(self):
+        """!prepei na ginei method sto network class!"""
+
+        print(f"Node {self.node_id} is leaving the network...")
+
+        # Identify affected nodes
+        affected_nodes = set(self.Lmin + self.Lmax + self.neighborhood_set)
+        for row in self.routing_table:
+            affected_nodes.update(filter(None, row))
+
+        # Notify affected nodes
+        for node_id in affected_nodes:
+            if node_id and node_id != self.node_id:
+                leave_request = {
+                    "operation": "NODE_LEAVE",
+                    "leaving_node_id": self.node_id,
+                    "hops": [],
+                }
+                self.send_request(self.network.node_ports[node_id], leave_request)
+
+        # Safely remove the node from the network
+        with self.lock:
+            if self.node_id in self.network.nodes:
+                del self.network.nodes[self.node_id]
+                print(f"Node {self.node_id} has been removed from the network.")
+            else:
+                print(f"Node {self.node_id} is not found in the network.")
+
+        # Rebuild state for affected nodes
+        for node_id in affected_nodes:
+            if node_id in self.network.nodes:
+                self.network.nodes[node_id]._rebuild_node_state()
+
+        print(f"Node {self.node_id} has successfully left the network.")
+
     #############################
     #### Update Finger Table ####
     #############################

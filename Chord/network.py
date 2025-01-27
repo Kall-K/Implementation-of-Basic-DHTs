@@ -7,6 +7,7 @@ class ChordNetwork:
 
     def __init__(self):
         self.nodes = {}  # Dictionary. Keys are node IDs, values are Node objects
+        self.keys = {}
         self.used_ports = []
 
     def node_join(self, new_node):
@@ -31,3 +32,13 @@ class ChordNetwork:
         successor_id = new_node.request_find_successor(node_id, ChordNetwork.bootstrap_node)
         # new_node joins on successor
         new_node.join(self.nodes[successor_id])
+
+    def insert_key(self, key, point, review, country):  
+        request = {
+            "operation": "FIND_SUCCESSOR",
+            "key": key,
+            "point": point,
+            "review": review,
+            "country": country
+        }      
+        print(ChordNetwork.bootstrap_node._handle_insert_key_request(request))
