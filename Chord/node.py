@@ -148,7 +148,7 @@ class ChordNode:
         server_thread = threading.Thread(target=self._server, daemon=True)
         server_thread.start()
 
-        self.thread_pool.submit(self._update_scheduler)
+        # self.thread_pool.submit(self._update_scheduler)
     
     def _update_scheduler(self):
         interval = 5  # seconds
@@ -156,7 +156,6 @@ class ChordNode:
             time.sleep(interval)
             self.update_finger_table()
             print("Updated Finger Table of Node:", self.node_id)
-
 
     def _server(self):
         """
@@ -198,6 +197,14 @@ class ChordNode:
                 response = self._handle_set_successor(request)
             if operation == "SET_PREDECESSOR":
                 response = self._handle_set_predecessor(request)
+            if operation == "INSERT_KEY":
+                response = self._handle_insert_key_request(request)
+            if operation == "DELETE_KEY":
+                response = self._handle_delete_key_request(request)
+            if operation == "UPDATE_KEY":
+                response = self._handle_update_key_request(request)
+            if operation == "LOOKUP":
+                response = self._handle_lookup_request(request)
 
             # Add more operations here as needed
 
@@ -220,11 +227,6 @@ class ChordNode:
                 s.connect(connect_address)  # Connect using loopback
                 s.sendall(pickle.dumps(request))  # Serialize and send the request
                 response = s.recv(1024)  # Receive the response
-
-                # print("response: " + str(pickle.loads(response)))
-
-                # print("response: " + pickle.loads(response))
-
             except Exception as e:
                 print(f"Error connecting to {connect_address}: {e}")
                 return None
@@ -282,16 +284,12 @@ class ChordNode:
     #############################
 
     def _handle_find_successor(self, request):
-        print(self.node_id)
         key = request["key"]
         if self.node_id == key:
-            print(1)
             return self.node_id
         if self.distance(self.node_id, key) <= self.distance(self.successor, key):
-            print(2)
             return self.successor
         else:
-            print(3)
             closest_preceding_node_id = self.closest_preceding_node(self, key)
             closest_preceding_node = self.network.nodes[closest_preceding_node_id]
             return self.request_find_successor(key, closest_preceding_node)
@@ -320,28 +318,25 @@ class ChordNode:
     def _handle_insert_key_request(self, request):
         """
         Handle an INSERT_KEY operation.
-        """
+        """        
         key = request["key"]
         point = request["point"]
         review = request["review"]
         country = request["country"]
         country_key = hash_key(country)
-        
-        successor_id = self._handle_find_successor(request)
-        successor = self.network.nodes[successor_id]
 
         del request["key"]
         del request["operation"]
 
-        if key in successor.data.keys():
-            successor.data[key].append(request)
+        if key in self.data.keys():
+            self.data[key].append(request)
         else:
-            successor.data[key] = []
-            successor.data[key].append(request)
+            self.data[key] = []
+            self.data[key].append(request)
 
-        if successor.kd_tree == None:
+        if self.kd_tree == None:
             # Initialize KDTree with the first point
-            successor.kd_tree = KDTree(
+            self.kd_tree = KDTree(
                 points=np.array([point]),
                 reviews=np.array([review]),
                 country_keys=np.array([country_key]),
@@ -349,17 +344,17 @@ class ChordNode:
             )
         else:
             # Add point to the existing KDTree
-            successor.kd_tree.add_point(point, review, country)
+            self.kd_tree.add_point(point, review, country)
 
         # Print the point and review directly after adding
         print(f"\nInserted Key: {key}")
         print(f"Point: {point}")
         print(f"Review: {review}")
-        print(f"Routed and stored at Node ID: {successor.node_id}")
+        print(f"Routed and stored at Node ID: {self.node_id}")
         print("")
         return {
             "status": "success",
-            "message": f"Key {key} stored at {successor.node_id}",
+            "message": f"Key {key} stored at {self.node_id}",
         }
     
     def _handle_delete_key_request(self, request):
@@ -368,17 +363,13 @@ class ChordNode:
         """
         key = request["key"]
 
-        successor_id = self._handle_find_successor(request)
-        successor = self.network.nodes[successor_id]
-
-        if key in successor.data.keys():
-            print(f"\nNode {successor.node_id}: Handling Request: {request}")
-            del successor.data[key]
-            if key in successor.kd_tree.country_keys:
-                print(f"\nNode {successor.node_id}: Deleted Key {key}.")
+        if key in self.data.keys():
+            del self.data[key]
+            if key in self.kd_tree.country_keys:
+                print(f"\nNode {self.node_id}: Deleted Key {key}.")
                 self.kd_tree.delete_points(key)
             else:
-                print(f"\nNode {successor.node_id}: No data for key {key}.\n")
+                print(f"\nNode {self.node_id}: No data for key {key}.\n")
                 return {"status": "failure", "message": f"No data for key {key} on kdtree."}
         else:
             print(f"\nNode {self.node_id}: No data for key {key}.\n")
@@ -395,11 +386,7 @@ class ChordNode:
         update_fields = request["data"]  # Update fields for the KDTree
         hops = request.get("hops", [])
 
-        successor_id = self._handle_find_successor(request)
-        successor = self.network.nodes[successor_id]
-
-
-        if key in successor.data.keys():
+        if key in self.data.keys():
             # Check if the key exists in this node's data structure
             if self.kd_tree and key in self.kd_tree.country_keys:
                 # Update the data in the KDTree
@@ -425,11 +412,10 @@ class ChordNode:
         lower_bounds = request["lower_bounds"]
         upper_bounds = request["upper_bounds"]
         N = request["N"]
+        hops = request.get("hops", [])  # Retrieve the current hops list
 
-        # If this key is found in the leaf set or the next hop is the current node the lookup is successful
-        next_hop_id = self._find_next_hop(key)
 
-        if self._in_leaf_set(key) or next_hop_id == self.node_id:
+        if key in self.data.keys():
             print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
 
             # If the KDTree is not initialized or has no data, return a failure message
@@ -438,8 +424,12 @@ class ChordNode:
                 return {"status": "failure", "message": f"No data for key {key}."}
 
             # KDTree Range Search
-            points, reviews = self.kd_tree.search(lower_bounds, upper_bounds)
+            points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
             print(f"Node {self.node_id}: Found {len(points)} matching points.")
+
+            if len(reviews) == 0:
+                print(f"Node {self.node_id}: No reviews found within the specified range.")
+                return {"status": "success", "points": [], "reviews": [], "hops": hops}
 
             # LSH Similarity Search
             vectorizer = TfidfVectorizer()
@@ -460,11 +450,6 @@ class ChordNode:
                 "status": "success",
                 "message": f"Found {len(points)} matching points.",
             }
-
-        # If the key is not found in the leaf set and the next hop is not the current node
-        # forward the request to the next hop
-        response = self.send_request(self.network.node_ports[next_hop_id], request)
-        return response
     
     #############################
     ###### KEY operations #######
@@ -482,23 +467,26 @@ class ChordNode:
             "country": country,
             "hops": [],  # Initialize hops tracking
         }
-        # print(f"Node {self.node_id}: Handling Request: {request}")
-
-        response = self._handle_insert_key_request(request)
-        return response
+        successor_id = self._handle_find_successor(request)
+        successor = self.network.nodes[successor_id]
+        
+        request["operation"] = "INSERT_KEY"
+        return self.send_request(successor, request)
 
     def delete_key(self, key):
         """
         Delete a key from the network.
         """
         request = {
-            "operation": "DELETE_KEY",
+            "operation": "FIND_SUCCESSOR",
             "key": key,
             "hops": [],  # Initialize hops tracking
         }
-        # print(f"Node {self.node_id}: Handling Request: {request}")
-        response = self._handle_delete_key_request(request)
-        return response
+        successor_id = self._handle_find_successor(request)
+        successor = self.network.nodes[successor_id]
+
+        request["operation"] = "DELETE_KEY"
+        return self.send_request(successor, request)
     
     def update_key(self, key, updated_data, criteria=None):
         """
@@ -514,32 +502,36 @@ class ChordNode:
             dict: Response from the update operation, indicating success or failure.
         """
         request = {
-            "operation": "UPDATE_KEY",
+            "operation": "FIND_SUCCESSOR",
             "key": key,
             "data": updated_data,
             "criteria": criteria,  # Optional criteria for filtering
             "hops": [],  # Initialize hops tracking
         }
         # print(f"Node {self.node_id}: Handling Update Request: {request}")
-        response = self._handle_update_key_request(request)
-        return response
+        successor_id = self._handle_find_successor(request)
+        successor = self.network.nodes[successor_id]
+        request["operation"] = "UPDATE_KEY"
+        return self.send_request(successor, request)
+        # response = successor._handle_update_key_request(request)
+        # return response
     
     def lookup(self, key, lower_bounds, upper_bounds, N=5):
         """
         Lookup operation for a given key with KDTree range search and LSH similarity check.
         """
         request = {
-            "operation": "LOOKUP",
+            "operation": "FIND_SUCCESSOR",
             "key": key,
             "lower_bounds": lower_bounds,
             "upper_bounds": upper_bounds,
             "N": N,
             "hops": [],
         }
-        print(f"Node {self.node_id}: Handling Request: {request}")
-
-        response = self._handle_lookup_request(request)
-        return response
+        successor_id = self._handle_find_successor(request)
+        successor = self.network.nodes[successor_id]
+        request["operation"] = "LOOKUP"
+        return self.send_request(successor, request)
 
     #############################
     #### Update Finger Table ####
@@ -547,7 +539,8 @@ class ChordNode:
 
     def update_finger_table(self):
         for i in range(1, len(self.finger_table)):
-            temp_node = self.request_find_successor((int(self.node_id, 16) + 2 ** i) % R, self)
+            key = hex((int(self.node_id, 16) + 2 ** i) % R)[2:].rjust(4, "0")
+            temp_node = self.request_find_successor(key, self)
             while self.network.nodes[temp_node].running == False:
                 temp_node = self.request_find_successor(temp_node)
             self.finger_table[i] = temp_node
