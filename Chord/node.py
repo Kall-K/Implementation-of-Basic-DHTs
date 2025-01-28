@@ -171,7 +171,7 @@ class ChordNode:
                 return
 
             s.listen()
-            # print(f"Node {self.node_id} listening on {self.address} (bound to {bind_address})")
+            print(f"Node {self.node_id} listening on {self.address} (bound to {bind_address})")
 
             while True:
                 conn, addr = s.accept()  # Accept incoming connection
@@ -183,7 +183,7 @@ class ChordNode:
             data = conn.recv(1024)  # Read up to 1024 bytes of data
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
-            # print(f"Node {self.node_id}: Handling Request: {request}")
+            print(f"Node {self.node_id}: Handling Request: {request}")
             response = None
 
             if operation == "FIND_SUCCESSOR":
@@ -308,7 +308,7 @@ class ChordNode:
 
     def update_finger_table(self):
         for i in range(1, len(self.finger_table)):
-            temp_node = self.request_find_successor((int(self.node_id, 16) + 2 ** i) % R, self)
+            temp_node = self.request_find_successor(hex((int(self.node_id, 16) + 2 ** i) % R)[2:].rjust(4, "0"), self)
             while self.network.nodes[temp_node].running == False:
                 temp_node = self.request_find_successor(temp_node)
             self.finger_table[i] = temp_node

@@ -16,14 +16,6 @@ def main():
 
     print(f"Adding {len(predefined_ids)} nodes to the network...")
 
-
-    def visualize_network():
-        time.sleep(6)
-        network.visualize_network()
-    server_thread = threading.Thread(target=visualize_network, daemon=True)
-    server_thread.start()
-
-    
     for node_id in predefined_ids:
         # Create a ChordNode with a specific ID
         node = ChordNode(network, node_id=node_id)
@@ -33,8 +25,15 @@ def main():
         # print(f"Node Added: ID = {node.node_id}, Port = {node.port}")
         #node.print_state()
 
+    network.visualize_network()
 
-
+    running = True
+    while running:
+        time.sleep(2)
+        running = False
+        for node in network.nodes.values():
+            if node.running:
+                running = True
 
 
     # for node_id in predefined_ids:
