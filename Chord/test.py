@@ -29,7 +29,7 @@ def main():
     dataset_path = "../Coffee_Reviews_Dataset/simplified_coffee.csv"
     df = pd.read_csv(dataset_path)
     df = df[:10]
-    print(df)
+    # print(df)
     # Keep only the year from the review_date column
     df["review_date"] = pd.to_datetime(df["review_date"], format="%B %Y").dt.year
 
@@ -68,7 +68,7 @@ def main():
         network.node_join(node)
         # print(f"Node Added: ID = {node.node_id}, Port = {node.port}")
         #node.print_state()
-    
+
     # Key Insertion
     print("\nKey Insertions")
     print("=======================")

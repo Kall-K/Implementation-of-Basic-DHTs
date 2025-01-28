@@ -186,7 +186,7 @@ class ChordNode:
             data = conn.recv(1024)  # Read up to 1024 bytes of data
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
-            print(f"Node {self.node_id}: Handling Request: {request}")
+            # print(f"Node {self.node_id}: Handling Request: {request}")
             response = None
 
             if operation == "FIND_SUCCESSOR":
@@ -370,12 +370,12 @@ class ChordNode:
             # Add point to the existing KDTree
             self.kd_tree.add_point(point, review, country)
 
-        # Print the point and review directly after adding
-        print(f"\nInserted Key: {key}")
-        print(f"Point: {point}")
-        print(f"Review: {review}")
-        print(f"Routed and stored at Node ID: {self.node_id}")
-        print("")
+        # # Print the point and review directly after adding
+        # print(f"\nInserted Key: {key}")
+        # print(f"Point: {point}")
+        # print(f"Review: {review}")
+        # print(f"Routed and stored at Node ID: {self.node_id}")
+        # print("")
         return {
             "status": "success",
             "message": f"Key {key} stored at {self.node_id}",
