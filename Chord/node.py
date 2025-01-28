@@ -186,7 +186,7 @@ class ChordNode:
             data = conn.recv(1024)  # Read up to 1024 bytes of data
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
-            print(f"Node {self.node_id}: Handling Request: {request}")
+            # print(f"Node {self.node_id}: Handling Request: {request}")
             response = None
 
             if operation == "FIND_SUCCESSOR":
@@ -197,8 +197,8 @@ class ChordNode:
                 response = self._handle_set_successor(request)
             if operation == "SET_PREDECESSOR":
                 response = self._handle_set_predecessor(request)
-            if operation == "FIND_KEY_SUCCESSOR":#
-                response = self._handle_find_key_successor(request)#
+            if operation == "FIND_KEY_SUCCESSOR":
+                response = self._handle_find_key_successor(request)
             if operation == "INSERT_KEY":
                 response = self._handle_insert_key_request(request)
             if operation == "DELETE_KEY":
@@ -255,8 +255,7 @@ class ChordNode:
             "hops": hops
         }
         # Get the possition on the ring
-        successor_id = self.send_request(node, get_successor_request)
-        return successor_id
+        return self.send_request(node, get_successor_request)
     
     def request_delete_successor_keys(self, keys, successor_id):
         node = self.network.nodes[successor_id]
