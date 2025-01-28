@@ -117,4 +117,5 @@ class ChordNetwork:
     def update_key(self, key, updated_data, criteria=None):
         print(ChordNetwork.bootstrap_node.update_key(key, updated_data, criteria=None))
         
-
+    def lookup(self, key, lower_bounds, upper_bounds, N):
+        print(ChordNetwork.bootstrap_node.lookup(key, lower_bounds, upper_bounds, N))

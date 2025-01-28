@@ -5,12 +5,6 @@ from constants import *
 
 """---Helper function for the Pasrty Implementation---"""
 
-def hash_key(value):
-    """
-    Hash the input value and return the last 4 hex digits.
-    """
-    sha1_hash = hashlib.sha1(value.encode()).hexdigest()
-    return sha1_hash[-4:]
 
 def hash_key(value):
     """
