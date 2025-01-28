@@ -186,7 +186,7 @@ class ChordNode:
             data = conn.recv(1024)  # Read up to 1024 bytes of data
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
-            # print(f"Node {self.node_id}: Handling Request: {request}")
+            print(f"Node {self.node_id}: Handling Request: {request}")
             response = None
 
             if operation == "FIND_SUCCESSOR":
@@ -197,6 +197,8 @@ class ChordNode:
                 response = self._handle_set_successor(request)
             if operation == "SET_PREDECESSOR":
                 response = self._handle_set_predecessor(request)
+            if operation == "FIND_KEY_SUCCESSOR":#
+                response = self._handle_find_key_successor(request)#
             if operation == "INSERT_KEY":
                 response = self._handle_insert_key_request(request)
             if operation == "DELETE_KEY":
@@ -246,6 +248,16 @@ class ChordNode:
         successor_id = self.send_request(node, get_successor_request)
         return successor_id
     
+    def request_find_key_successor(self, key, node, hops):
+        get_successor_request = {
+            "operation": "FIND_KEY_SUCCESSOR",
+            "key": key,
+            "hops": hops
+        }
+        # Get the possition on the ring
+        successor_id = self.send_request(node, get_successor_request)
+        return successor_id
+    
     def request_delete_successor_keys(self, keys, successor_id):
         node = self.network.nodes[successor_id]
         delete_successor_keys = {
@@ -282,7 +294,6 @@ class ChordNode:
     #############################
     ######### Handlers ##########
     #############################
-
     def _handle_find_successor(self, request):
         key = request["key"]
         if self.node_id == key:
@@ -293,6 +304,18 @@ class ChordNode:
             closest_preceding_node_id = self.closest_preceding_node(self, key)
             closest_preceding_node = self.network.nodes[closest_preceding_node_id]
             return self.request_find_successor(key, closest_preceding_node)
+    
+    def _handle_find_key_successor(self, request):
+        key = request["key"]
+        request["hops"].append(self.node_id)
+        if self.node_id == key:
+            return self.node_id, request["hops"]
+        if self.distance(self.node_id, key) <= self.distance(self.successor, key):
+            return self.successor, request["hops"]
+        else:
+            closest_preceding_node_id = self.closest_preceding_node(self, key)
+            closest_preceding_node = self.network.nodes[closest_preceding_node_id]
+            return self.request_find_key_successor(key, closest_preceding_node, request["hops"])
     
     def _handle_delete_successor_keys(self, request):
         keys = request["keys"]
@@ -322,6 +345,7 @@ class ChordNode:
         key = request["key"]
         point = request["point"]
         review = request["review"]
+        hops = request["hops"]
         country = request["country"]
         country_key = hash_key(country)
 
@@ -355,6 +379,7 @@ class ChordNode:
         return {
             "status": "success",
             "message": f"Key {key} stored at {self.node_id}",
+            "hops": hops
         }
     
     def _handle_delete_key_request(self, request):
@@ -362,6 +387,7 @@ class ChordNode:
         Handle a DELETE_KEY operation.
         """
         key = request["key"]
+        hops = request["hops"]
 
         if key in self.data.keys():
             del self.data[key]
@@ -375,7 +401,7 @@ class ChordNode:
             print(f"\nNode {self.node_id}: No data for key {key}.\n")
             return {"status": "failure", "message": f"No data for key {key}."}
 
-        return {"status": "success", "message": f"Deleted Key {key}."}
+        return {"status": "success", "message": f"Deleted Key {key}.", "hops": hops}
 
     def _handle_update_key_request(self, request):
         """
@@ -401,8 +427,8 @@ class ChordNode:
                     "message": f"Key {key} updated successfully.",
                     "hops": hops,
                 }
-            else:
-                return {"status": "failure", "message": f"Key {key} not found.", "hops": hops}
+        else:
+            return {"status": "failure", "message": f"Key {key} not found.", "hops": hops}
     
     def _handle_lookup_request(self, request): 
         """
@@ -450,6 +476,8 @@ class ChordNode:
                 "status": "success",
                 "message": f"Found {len(points)} matching points.",
             }
+        else:
+            return {"status": "failure", "message": f"Key {key} not found.", "hops": hops}
     
     #############################
     ###### KEY operations #######
@@ -460,17 +488,17 @@ class ChordNode:
         Initiate the INSERT_KEY operation for a given key, point, and review.
         """
         request = {
-            "operation": "FIND_SUCCESSOR",
+            "operation": "INSERT_KEY",
             "key": key,
             "point": point,
             "review": review,
             "country": country,
             "hops": [],  # Initialize hops tracking
         }
-        successor_id = self._handle_find_successor(request)
+        successor_id, hops = self._handle_find_key_successor(request)
+        request["hops"] = len(hops)-1
         successor = self.network.nodes[successor_id]
         
-        request["operation"] = "INSERT_KEY"
         return self.send_request(successor, request)
 
     def delete_key(self, key):
@@ -478,14 +506,14 @@ class ChordNode:
         Delete a key from the network.
         """
         request = {
-            "operation": "FIND_SUCCESSOR",
+            "operation": "DELETE_KEY",
             "key": key,
             "hops": [],  # Initialize hops tracking
         }
-        successor_id = self._handle_find_successor(request)
+        successor_id, hops = self._handle_find_key_successor(request)
+        request["hops"] = len(hops)-1
         successor = self.network.nodes[successor_id]
 
-        request["operation"] = "DELETE_KEY"
         return self.send_request(successor, request)
     
     def update_key(self, key, updated_data, criteria=None):
@@ -502,35 +530,35 @@ class ChordNode:
             dict: Response from the update operation, indicating success or failure.
         """
         request = {
-            "operation": "FIND_SUCCESSOR",
+            "operation": "UPDATE_KEY",
             "key": key,
             "data": updated_data,
             "criteria": criteria,  # Optional criteria for filtering
             "hops": [],  # Initialize hops tracking
         }
         # print(f"Node {self.node_id}: Handling Update Request: {request}")
-        successor_id = self._handle_find_successor(request)
+        successor_id, hops = self._handle_find_key_successor(request)
+        request["hops"] = len(hops)-1
         successor = self.network.nodes[successor_id]
-        request["operation"] = "UPDATE_KEY"
+
         return self.send_request(successor, request)
-        # response = successor._handle_update_key_request(request)
-        # return response
-    
+  
     def lookup(self, key, lower_bounds, upper_bounds, N=5):
         """
         Lookup operation for a given key with KDTree range search and LSH similarity check.
         """
         request = {
-            "operation": "FIND_SUCCESSOR",
+            "operation": "LOOKUP",
             "key": key,
             "lower_bounds": lower_bounds,
             "upper_bounds": upper_bounds,
             "N": N,
             "hops": [],
         }
-        successor_id = self._handle_find_successor(request)
+        successor_id, hops = self._handle_find_key_successor(request)
+        request["hops"] = len(hops)-1
         successor = self.network.nodes[successor_id]
-        request["operation"] = "LOOKUP"
+
         return self.send_request(successor, request)
 
     #############################

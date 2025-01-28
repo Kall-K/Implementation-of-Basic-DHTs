@@ -28,7 +28,7 @@ def main():
     # Load dataset
     dataset_path = "../Coffee_Reviews_Dataset/simplified_coffee.csv"
     df = pd.read_csv(dataset_path)
-    df = df[:250]
+    df = df[:10]
     print(df)
     # Keep only the year from the review_date column
     df["review_date"] = pd.to_datetime(df["review_date"], format="%B %Y").dt.year
@@ -80,6 +80,7 @@ def main():
     # review = "Very delicate and sweet. Lemon verbena, dried persimmon, dogwood, baker's chocolate in aroma and cup. Balanced, sweet-savory structure; velvety-smooth mouthfeel. The sweetly herb-toned finish centers on notes of lemon verbena and dried persimmon wrapped in baker's chocolate."
     
     # insert_key(first_node, key, point, review, country, name)
+    
     # Key Deletion
     print("\nKey Deletion")
     print("=======================")
