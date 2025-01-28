@@ -373,37 +373,69 @@ class PastryNode:
 
     def _repair_neighborhood_set(self, failed_node_id):
         """
-        Repair the neighborhood set by verifying liveness and replacing failed nodes with closer nodes.
+        Repair the neighborhood set by hopping through neighborhoods of nodes in the set
+        and finding the closest nodes to the current node. Ensure the set is fully populated.
         """
-        print(f"Node {self.node_id}: Repairing neighborhood set.")
+        print(f"Node {self.node_id}: Repairing neighborhood set after detecting failed node {failed_node_id}.")
 
-        live_neighbors = []
-        
-        # Step 1: Verify existing neighbors are still alive
-        for neighbor in self.neighborhood_set:
-            if neighbor:
+        # Step 1: Check if the failed node was in the neighborhood set
+        was_in_neighborhood_set = failed_node_id in self.neighborhood_set
+        max_size = len(self.neighborhood_set)
+        print(f"Current neighborhood set size: {max_size}")
+
+        # Remove the failed node from the neighborhood set
+        if was_in_neighborhood_set:
+            self.neighborhood_set = [node for node in self.neighborhood_set if node != failed_node_id]
+
+        # If the failed node was not in the neighborhood set, no further action needed
+        if not was_in_neighborhood_set:
+            print(f"Node {self.node_id}: Failed node {failed_node_id} was not in the neighborhood set. No repair needed.")
+            return
+
+        # Step 2: Gather neighborhood sets from all reachable neighbors
+        all_candidates = set()  # Use a set to avoid duplicates
+        visited_nodes = set()
+        nodes_to_visit = list(self.neighborhood_set)  # Start with the current neighborhood set
+
+        while nodes_to_visit:
+            current_node = nodes_to_visit.pop(0)
+            if current_node and current_node not in visited_nodes:
+                visited_nodes.add(current_node)
                 try:
-                    request = {"operation": "PING"}
-                    response = self.send_request(self.network.node_ports[neighbor], request)
+                    # Request the neighborhood set from the current node
+                    request = {"operation": "GET_NEIGHBORHOOD_SET"}
+                    response = self.send_request(self.network.node_ports[current_node], request)
                     if response["status"] == "success":
-                        live_neighbors.append(neighbor)
-                except Exception:
-                    print(f"Node {self.node_id}: Neighbor {neighbor} is unresponsive. Removing from neighborhood set.")
+                        neighbors = response["neighborhood_set"]
+                        all_candidates.update(neighbors)  # Add to the candidate pool
+                        nodes_to_visit.extend(neighbors)  # Add these neighbors to the visit queue
+                except Exception as e:
+                    print(f"Node {self.node_id}: Error querying {current_node} for neighborhood set: {e}")
 
-        # Step 2: Query live neighbors for their neighborhood sets
-        new_neighbors = set()
-        for neighbor in live_neighbors:
-            try:
-                request = {"operation": "GET_NEIGHBORHOOD_SET"}
-                response = self.send_request(self.network.node_ports[neighbor], request)
-                if response["status"] == "success":
-                    new_neighbors.update(response["neighborhood_set"])
-            except Exception as e:
-                print(f"Node {self.node_id}: Error retrieving neighborhood set from {neighbor}: {e}")
+        # Add the current neighborhood set and exclude the current node and the failed node
+        all_candidates.update(self.neighborhood_set)
+        all_candidates = [node for node in all_candidates if node and node != self.node_id and node != failed_node_id]
 
-        # Step 3: Update neighborhood set based on proximity
-        self.neighborhood_set = sorted(new_neighbors, key=lambda n: abs(int(n, 16) - int(self.node_id, 16)))[:len(self.neighborhood_set)]
-        print(f"Node {self.node_id}: Updated neighborhood set: {self.neighborhood_set}.")
+        # Step 3: Sort candidates by distance to the current node's position
+        try:
+            if hasattr(self.network, "node_positions"):
+                all_candidates.sort(key=lambda n: abs(self.network.node_positions.get(n, float("inf")) - self.network.node_positions[self.node_id]))
+            else:
+                print(f"Node {self.node_id}: node_positions attribute is missing in the network.")
+                all_candidates = []
+        except KeyError as e:
+            print(f"Node {self.node_id}: Missing position data for one or more nodes: {e}")
+            return
+
+        print(f"All sorted candidates: {all_candidates}")
+
+        # Step 4: Rebuild the neighborhood set with the closest nodes
+        self.neighborhood_set = all_candidates[:max_size]
+
+        # Pad with None if not enough candidates are available
+        self.neighborhood_set += [None] * (max_size - len(self.neighborhood_set))
+
+        print(f"Node {self.node_id}: Updated Neighborhood Set: {self.neighborhood_set}")
 
 
     def _find_closest_alive_node(self, failed_node_id):
@@ -525,7 +557,8 @@ class PastryNode:
             # Repair routing table before proceeding
             self._repair_routing_table_entry(next_hop_id)
             self._repair_leaf_set(next_hop_id)
-
+            self._repair_neighborhood_set(next_hop_id)
+            print("re pousti")
             # After repair, find a new next hop
             next_hop_id = self._find_next_hop(key)
 
@@ -749,48 +782,62 @@ class PastryNode:
 
     def _repair_leaf_set(self, failed_node_id):
         """
-        Repair the leaf set after detecting a failed node.
-        Ask nodes in the leaf set for their leaf sets and keep the closest nodes.
+        Repair the leaf set by querying all nodes in the current leaf set and
+        updating Lmin or Lmax only if the failed node was part of the respective set.
         """
-        print(f"Node {self.node_id}: Repairing leaf set for failed node {failed_node_id}.")
+        print(f"Node {self.node_id}: Repairing leaf set after detecting failed node {failed_node_id}.")
 
-        # Step 1: Remove the failed node from the leaf set
-        if failed_node_id in self.Lmin:
+        # Step 1: Determine if the failed node was in Lmin or Lmax
+        was_in_lmin = failed_node_id in self.Lmin
+        was_in_lmax = failed_node_id in self.Lmax
+
+        # Remove the failed node only from the respective set
+        if was_in_lmin:
             self.Lmin = [node for node in self.Lmin if node != failed_node_id]
-            print(f"Node {self.node_id}: Removed {failed_node_id} from Lmin.")
-        elif failed_node_id in self.Lmax:
+        if was_in_lmax:
             self.Lmax = [node for node in self.Lmax if node != failed_node_id]
-            print(f"Node {self.node_id}: Removed {failed_node_id} from Lmax.")
 
-        # Step 2: Gather all nodes from the current leaf set (Lmin and Lmax)
-        candidate_nodes = set(self.Lmin + self.Lmax)
+        # Step 2: If the node was not in either set, no further action is needed
+        if not was_in_lmin and not was_in_lmax:
+            print(f"Node {self.node_id}: Failed node {failed_node_id} was not in the leaf set. No repair needed.")
+            return
 
-        # Step 3: Ask each node in the leaf set for their leaf sets
-        for node_id in list(candidate_nodes):
-            if node_id:
+        # Step 3: Query all nodes in the current leaf set (Lmin or Lmax) for their leaf sets
+        all_candidates = []
+        leaf_set_to_query = self.Lmin + self.Lmax  # Query both Lmin and Lmax
+
+        for node in leaf_set_to_query:
+            if node and node != failed_node_id:  # Exclude failed node
                 try:
                     request = {"operation": "GET_LEAF_SET"}
-                    response = self.send_request(self.network.node_ports[node_id], request)
-
+                    response = self.send_request(self.network.node_ports[node], request)
                     if response["status"] == "success":
-                        # Add the received leaf set to candidates
-                        received_Lmin = response["leaf_set"].get("Lmin", [])
-                        received_Lmax = response["leaf_set"].get("Lmax", [])
-                        candidate_nodes.update(received_Lmin + received_Lmax)
+                        all_candidates.extend(response["leaf_set"]["Lmin"])
+                        all_candidates.extend(response["leaf_set"]["Lmax"])
                 except Exception as e:
-                    print(f"Node {self.node_id}: Error contacting {node_id} for leaf set repair: {e}")
+                    print(f"Node {self.node_id}: Error querying {node} for leaf set: {e}")
 
-        # Step 4: Sort candidates based on proximity and update Lmin and Lmax
-        candidate_nodes = list(candidate_nodes)
-        candidate_nodes.sort(key=lambda node: abs(int(node, 16) - int(self.node_id, 16)))
+        # Step 4: Add current leaf set to the candidates and exclude duplicates, self, and failed node
+        all_candidates.extend(leaf_set_to_query)  # Include existing leaf set
+        all_candidates = list(set(all_candidates))  # Remove duplicates
+        all_candidates = [
+            node for node in all_candidates if node and node != self.node_id and node != failed_node_id
+        ]  # Exclude self and failed node
 
-        # Update Lmin and Lmax to maintain the correct size
-        self.Lmin = [node for node in candidate_nodes if node < self.node_id][:(L//2)]
-        self.Lmax = [node for node in candidate_nodes if node > self.node_id][:(L//2)]
+        # Sort candidates by numerical distance to the current node ID
+        all_candidates.sort(key=lambda n: abs(int(n, 16) - int(self.node_id, 16)))
 
-        print(f"Node {self.node_id}: Repaired Leaf Set - Lmin: {self.Lmin}, Lmax: {self.Lmax}.")
+        # Step 5: Rebuild the relevant set (Lmin or Lmax)
+        if was_in_lmin:
+            self.Lmin = [node for node in all_candidates if node < self.node_id][:L // 2]
+            self.Lmin += [None] * (L // 2 - len(self.Lmin))  # Pad with None if not enough nodes
+            print(f"Node {self.node_id}: Rebuilt Lmin: {self.Lmin}")
+        if was_in_lmax:
+            self.Lmax = [node for node in all_candidates if node > self.node_id][:L // 2]
+            self.Lmax += [None] * (L // 2 - len(self.Lmax))  # Pad with None if not enough nodes
+            print(f"Node {self.node_id}: Rebuilt Lmax: {self.Lmax}")
 
-
+        print(f"Node {self.node_id}: Updated Leaf Set - Lmin: {self.Lmin}, Lmax: {self.Lmax}")
 
     def _handle_leave_request(self, request):
         """
