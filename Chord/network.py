@@ -7,6 +7,7 @@ class ChordNetwork:
 
     def __init__(self):
         self.nodes = {}  # Dictionary. Keys are node IDs, values are Node objects
+        self.keys = {}
         self.used_ports = []
 
     def node_join(self, new_node):
@@ -19,6 +20,9 @@ class ChordNetwork:
         # Add the node to the network
         self.nodes[node_id] = new_node
 
+        # # Add the node's port to the node_ports dictionary
+        # self.node_ports[new_node_id] = new_node.port
+
         if len(self.nodes) == 1:
             print("The network is empty. This node is the first node.")
             ChordNetwork.bootstrap_node = new_node
@@ -28,6 +32,7 @@ class ChordNetwork:
         successor_id = new_node.request_find_successor(node_id, ChordNetwork.bootstrap_node)
         # new_node joins on successor
         new_node.join(self.nodes[successor_id])
+
 
     def visualize_network(self, threshold=0.2):
         """
@@ -102,3 +107,14 @@ class ChordNetwork:
         plt.savefig("../Chord/Plots/chord_network_visualization.png")
 
         plt.show()
+
+    def insert_key(self, key, point, review, country):  
+        print(ChordNetwork.bootstrap_node.insert_key(key, point, review, country))   
+
+    def delete_key(self, key):
+        print(ChordNetwork.bootstrap_node.delete_key(key))   
+    
+    def update_key(self, key, updated_data, criteria=None):
+        print(ChordNetwork.bootstrap_node.update_key(key, updated_data, criteria=None))
+        
+
