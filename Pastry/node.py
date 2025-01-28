@@ -192,7 +192,8 @@ class PastryNode:
 
             print(f"Node {self.node_id}: Handling Request: {request}")
             response = None
-
+            print(f"my name is {self.node_id}")
+            
             # Append the current node to the hops list only in main operations
             if operation == "NODE_JOIN":
                 hops.append(self.node_id)
@@ -227,6 +228,12 @@ class PastryNode:
                 response = {"distance": distance, "neighborhood_set": self.neighborhood_set, "hops": hops}
             elif operation == "GET_LEAF_SET":
                 response = {"status": "success", "leaf_set": {"Lmin": self.Lmin, "Lmax": self.Lmax}, "hops": hops}
+            elif operation == "GET_NEIGHBORHOOD_SET":  # New operation
+                response = self._handle_get_neighborhood_set(request)
+            elif operation == "REQUEST_NEXT_HOP":
+                failed_node_id = request["failed_node_id"]
+                next_hop = self._find_next_hop(failed_node_id)  # Perform find_next_hop   
+                response = {"status": "success" if next_hop else "failure","next_hop": next_hop}
             else:
                 response = {"status": "failure", "message": "Unknown operation", "hops": hops}
 
@@ -238,24 +245,223 @@ class PastryNode:
         finally:
             conn.close()
 
-    def send_request(self, node_port, request):
+    def send_request(self, port, request):
         """
-        Send a request to a node and wait for its response.
+        Send a request to a specified node. If the node is missing, trigger repair.
         """
-        # Use loopback IP for actual connection
-        connect_address = ("127.0.0.1", node_port)
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(2)  # Timeout to avoid long delays
+                s.connect(("localhost", port))
+                s.sendall(pickle.dumps(request))
+                response = s.recv(4096)
+                return pickle.loads(response)
+        except (socket.error, EOFError, pickle.PickleError):
+            print(f"Network: Detected failure of node at port {port}. Initiating repair...")
+            return self.repair_node_failure(request)
+        
+    def repair_node_failure(self, failed_node_id):
+        """
+        Repair the network after detecting a failed node.
+        Uses log(N) hops to restore routing tables and leaf sets.
+        """
+        print(f"Node {self.node_id}: Repairing failure of Node {failed_node_id}.")
 
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            # s.settimeout(10)  # Set a timeout for both connect and recv
+        # Find the closest alive node to the failed node
+        closest_node_id = self._find_closest_alive_node(failed_node_id)
+        
+        if not closest_node_id:
+            print(f"Node {self.node_id}: No available nodes to repair {failed_node_id}.")
+            return {"status": "failure", "message": f"No available nodes to repair {failed_node_id}."}
+
+        # Inform the closest node to begin repair
+        repair_request = {
+            "operation": "NODE_REPAIR",
+            "failed_node_id": failed_node_id,
+            "hops": [],  # Initialize hops tracking
+        }
+        response = self.send_request(self.network.node_ports[closest_node_id], repair_request)
+
+        # Ensure a structured response is always returned
+        if response is None:
+            return {"status": "failure", "message": f"Repair attempt for {failed_node_id} failed due to no response."}
+        return response
+
+    def _handle_get_neighborhood_set(self, request):
+        """
+        Handle a GET_NEIGHBORHOOD_SET operation by returning the current node's neighborhood set.
+        """
+        try:
+            print(f"Node {self.node_id}: Responding to GET_NEIGHBORHOOD_SET request.")
+            return {
+                "status": "success",
+                "neighborhood_set": self.neighborhood_set,
+            }
+        except Exception as e:
+            print(f"Node {self.node_id}: Error responding to GET_NEIGHBORHOOD_SET request: {e}")
+            return {
+                "status": "failure",
+                "message": f"Error: {e}",
+            }
+
+    def _repair_routing_table_entry(self, failed_node_id):
+        """
+        Repair a missing routing table entry for a failed node.
+        Ensures that the replacement has the same prefix length as the failed node.
+        """
+        print(f"Node {self.node_id}: Repairing routing table entry for failed node {failed_node_id}.")
+        repair_hops = []  # Track hops specific to the repair process
+
+        row_idx = common_prefix_length(self.node_id, failed_node_id)
+        col_idx = int(failed_node_id[row_idx], 16)
+
+        # Step 1: Remove failed entry
+        self.routing_table[row_idx][col_idx] = None
+
+        # Step 2: Try to get a replacement from another node in the same row
+        for entry in self.routing_table[row_idx]:
+            if entry and entry != failed_node_id:
+                try:
+                    request = {"operation": "GET_ROUTING_TABLE_ENTRY", "row_idx": row_idx, "col_idx": col_idx}
+                    response = self.send_request(self.network.node_ports[entry], request)
+                    if response["status"] == "success" and response.get("entry"):
+                        replacement = response["entry"]
+                        
+                        if replacement != failed_node_id and common_prefix_length(self.node_id, replacement) == row_idx:
+                            self.routing_table[row_idx][col_idx] = replacement
+                            repair_hops.append(entry)  # Add hop to repair_hops
+                            print(f"Node {self.node_id}: Repaired routing table entry {failed_node_id} using {replacement}.")
+                            print(f"Repair Hops: {repair_hops}")  # Log repair hops
+                            return replacement
+                except Exception as e:
+                    print(f"Node {self.node_id}: Error contacting {entry} for routing table repair: {e}")
+
+        # Step 3: Attempt progressive repair using _find_next_hop
+        visited_nodes = set()
+        next_hop_id = self._find_next_hop(failed_node_id)
+
+        while next_hop_id and next_hop_id not in visited_nodes:
+            visited_nodes.add(next_hop_id)
+            repair_hops.append(next_hop_id)  # Track repair hops
+            print(f"Node {self.node_id}: Requesting {next_hop_id} to perform _find_next_hop.")
+
             try:
-                s.connect(connect_address)  # Connect using loopback
-                s.sendall(pickle.dumps(request))  # Serialize and send the request
-                response = s.recv(1024)  # Receive the response
-            except Exception as e:
-                print(f"Error connecting to {connect_address}: {e}")
-                return None
+                repair_request = {"operation": "REQUEST_NEXT_HOP", "failed_node_id": failed_node_id}
+                response = self.send_request(self.network.node_ports[next_hop_id], repair_request)
 
-        return pickle.loads(response)  # Deserialize the response
+                if response["status"] == "success" and response.get("next_hop"):
+                    replacement = response["next_hop"]
+
+                    if replacement != failed_node_id and common_prefix_length(self.node_id, replacement) == row_idx:
+                        self.routing_table[row_idx][col_idx] = replacement
+                        print(f"Node {self.node_id}: Successfully repaired routing table with {replacement}.")
+                        print(f"Repair Hops: {repair_hops}")  # Log repair hops
+                        return replacement
+
+                # Continue searching if no valid replacement is found
+                next_hop_id = response.get("next_hop", None)
+
+            except Exception as e:
+                print(f"Node {self.node_id}: Failed to request routing repair from {next_hop_id}: {e}")
+                next_hop_id = None  # Break out of the loop on failure
+
+        # Step 4: If no replacement is found, leave the entry as None
+        print(f"Node {self.node_id}: Could not find a suitable replacement for {failed_node_id}.")
+        print(f"Repair Hops: {repair_hops}")  # Log repair hops
+        self.routing_table[row_idx][col_idx] = None  # Explicitly set to None
+        return None
+
+    def _repair_neighborhood_set(self, failed_node_id):
+        """
+        Repair the neighborhood set by verifying liveness and replacing failed nodes with closer nodes.
+        """
+        print(f"Node {self.node_id}: Repairing neighborhood set.")
+
+        live_neighbors = []
+        
+        # Step 1: Verify existing neighbors are still alive
+        for neighbor in self.neighborhood_set:
+            if neighbor:
+                try:
+                    request = {"operation": "PING"}
+                    response = self.send_request(self.network.node_ports[neighbor], request)
+                    if response["status"] == "success":
+                        live_neighbors.append(neighbor)
+                except Exception:
+                    print(f"Node {self.node_id}: Neighbor {neighbor} is unresponsive. Removing from neighborhood set.")
+
+        # Step 2: Query live neighbors for their neighborhood sets
+        new_neighbors = set()
+        for neighbor in live_neighbors:
+            try:
+                request = {"operation": "GET_NEIGHBORHOOD_SET"}
+                response = self.send_request(self.network.node_ports[neighbor], request)
+                if response["status"] == "success":
+                    new_neighbors.update(response["neighborhood_set"])
+            except Exception as e:
+                print(f"Node {self.node_id}: Error retrieving neighborhood set from {neighbor}: {e}")
+
+        # Step 3: Update neighborhood set based on proximity
+        self.neighborhood_set = sorted(new_neighbors, key=lambda n: abs(int(n, 16) - int(self.node_id, 16)))[:len(self.neighborhood_set)]
+        print(f"Node {self.node_id}: Updated neighborhood set: {self.neighborhood_set}.")
+
+
+    def _find_closest_alive_node(self, failed_node_id):
+        """
+        Find the closest alive node to the given failed_node_id.
+        """
+        if not isinstance(failed_node_id, str):
+            print(f"Node {self.node_id}: Invalid failed_node_id: {failed_node_id}. Expected a string.")
+            return None  # Gracefully handle invalid input
+
+        min_distance = float("inf")
+        closest_node_id = None
+
+        # Iterate through all known nodes
+        for node_id in self.routing_table:  # Replace with actual available nodes logic
+            if node_id == failed_node_id:
+                continue  # Skip the failed node
+
+            try:
+                distance = abs(int(node_id, 16) - int(failed_node_id, 16))
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_node_id = node_id
+            except ValueError as e:
+                print(f"Node {self.node_id}: Failed to compute distance for node_id {node_id}: {e}")
+
+        if closest_node_id:
+            print(f"Node {self.node_id}: Closest alive node to {failed_node_id} is {closest_node_id}.")
+        else:
+            print(f"Node {self.node_id}: No alive node found to repair {failed_node_id}.")
+        return closest_node_id
+
+    def _handle_repair_request(self, request):
+        """
+        Handle a NODE_REPAIR operation by reconstructing routing and leaf tables.
+        """
+        failed_node_id = request["failed_node_id"]
+        hops = request.get("hops", [])
+
+        # Append this node to the hop list
+        if self.node_id not in hops:
+            hops.append(self.node_id)
+
+        print(f"Node {self.node_id}: Repairing failure of Node {failed_node_id}. Hops: {len(hops)}")
+
+        # Use routing table to find next closest node
+        next_hop_id = self._find_next_hop(failed_node_id)
+
+        if next_hop_id == self.node_id or next_hop_id is None:
+            # No further hops needed, update local tables
+            print(f"Node {self.node_id}: Finalizing repair for {failed_node_id}.")
+            self._rebuild_node_state()
+            return {"status": "success", "message": f"Node {failed_node_id} repaired.", "hops": hops}
+
+        # Forward repair request to next closest node
+        request["hops"] = hops  # Update the hops list
+        return self.send_request(self.network.node_ports[next_hop_id], request)
+
 
     # Node Joining and Routing
 
@@ -304,53 +510,55 @@ class PastryNode:
 
     def _handle_insert_key_request(self, request):
         """
-        Handle an INSERT_KEY operation.
+        Handle an INSERT_KEY operation. If a routing table entry is missing, route around it
+        and inform the upstream node of a possible replacement.
         """
         key = request["key"]
-        point = request["point"]
-        review = request["review"]
-        country = request["country"]
-        country_key = hash_key(country)
         hops = request.get("hops", [])
 
         next_hop_id = self._find_next_hop(key)
 
-        # Determine if this node should store the key or forward it
+        # Step 1: Detect if the next hop is missing
+        if next_hop_id and next_hop_id not in self.network.node_ports:
+            print(f"Node {self.node_id}: Detected failed node {next_hop_id}. Initiating repair...")
+            
+            # Repair routing table before proceeding
+            self._repair_routing_table_entry(next_hop_id)
+            self._repair_leaf_set(next_hop_id)
+
+            # After repair, find a new next hop
+            next_hop_id = self._find_next_hop(key)
+
+        # Step 2: If this node is responsible for storing the key, insert it
         if self._in_leaf_set(key) or next_hop_id == self.node_id:
             if not self.kd_tree:
-                # Initialize KDTree with the first point
-                self.kd_tree = KDTree(
-                    points=np.array([point]),
-                    reviews=np.array([review]),
-                    country_keys=np.array([country_key]),
-                    countries=np.array([country]),
-                )
+                self.kd_tree = KDTree(points=np.array([request["point"]]),
+                                    reviews=np.array([request["review"]]),
+                                    country_keys=np.array([hash_key(request["country"])]),
+                                    countries=np.array([request["country"]]))
             else:
-                """This was wrong!"""
-                """# Check for duplicate key before insertion
-                if country_key in self.kd_tree.country_keys:
-                    print(f"Node {self.node_id}: Key {key} already exists. Skipping insertion.")
-                    return {"status": "duplicate", "message": f"Key {key} already exists."}"""
-
-                # Add point to the existing KDTree
-                self.kd_tree.add_point(point, review, country)
+                self.kd_tree.add_point(request["point"], request["review"], request["country"])
 
             print(f"\nInserted Key: {key}")
-            print(f"Point: {point}")
-            print(f"Review: {review}")
+            print(f"Point: {request['point']}")
+            print(f"Review: {request['review']}")
             print(f"Routed and stored at Node ID: {self.node_id}")
             print(f"Hops: {hops}")
-            print("")
-            return {
-                "status": "success",
-                "message": f"Key {key} stored at {self.node_id}",
-                "hops": hops,  # Include the full hops list in the response
-            }
 
-        # If this node is not responsible for the key, forward the request to the next hop
-        request["hops"] = hops  # Pass the updated hops list
-        # If this node is not responsible for the key, forward the request to the next hop
-        return self.send_request(self.network.node_ports[next_hop_id], request)
+            return {"status": "success", "message": f"Key {key} stored at {self.node_id}", "hops": hops}
+
+        # Step 3: If forwarding, inform upstream node about the missing entry
+        if next_hop_id:
+            request["hops"] = hops
+            response = self.send_request(self.network.node_ports[next_hop_id], request)
+
+            # If the downstream node finds a replacement, update the routing table
+            if response and response.get("replacement"):
+                self.routing_table[common_prefix_length(self.node_id, next_hop_id)][int(next_hop_id[0], 16)] = response["replacement"]
+                print(f"Node {self.node_id}: Updated routing table with replacement from {next_hop_id}.")
+
+            return response
+
 
     def _handle_delete_key_request(self, request):
         """
@@ -361,6 +569,17 @@ class PastryNode:
 
         next_hop_id = self._find_next_hop(key)
 
+        # Step 1: Detect if next hop is missing
+        if next_hop_id and next_hop_id not in self.network.node_ports:
+            print(f"Node {self.node_id}: Detected failed node {next_hop_id}. Initiating repair...")
+            repair_request = {
+                "operation": "NODE_REPAIR",
+                "failed_node_id": next_hop_id,
+                "hops": [],  # Initialize hops tracking
+            }
+            self.repair_node_failure(repair_request)
+
+        
         # If the key belongs to this node (based on leaf set), delete it from the KDTree
         if self._in_leaf_set(key) or next_hop_id == self.node_id:
             with self.lock:
@@ -405,6 +624,17 @@ class PastryNode:
 
             next_hop_id = self._find_next_hop(key)
 
+            # Step 1: Detect if next hop is missing
+            if next_hop_id and next_hop_id not in self.network.node_ports:
+                print(f"Node {self.node_id}: Detected failed node {next_hop_id}. Initiating repair...")
+                repair_request = {
+                    "operation": "NODE_REPAIR",
+                    "failed_node_id": next_hop_id,
+                    "hops": [],  # Initialize hops tracking
+                }
+                self.repair_node_failure(repair_request)
+
+            
             # If this key is found in the leaf set or the next hop is the current node, the lookup is successful
             if self._in_leaf_set(key) or next_hop_id == self.node_id:
                 print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
@@ -478,6 +708,17 @@ class PastryNode:
 
         next_hop_id = self._find_next_hop(key)
 
+
+        if next_hop_id and next_hop_id not in self.network.node_ports:
+            print(f"Node {self.node_id}: Detected failed node {next_hop_id}. Initiating repair...")
+            repair_request = {
+                "operation": "NODE_REPAIR",
+                "failed_node_id": next_hop_id,
+                "hops": [],  # Initialize hops tracking
+            }
+            self.repair_node_failure(repair_request)
+
+        
         # If this node is responsible for the key
         if self._in_leaf_set(key) or next_hop_id == self.node_id:
             # Check if the key exists in this node's data structure
@@ -506,19 +747,50 @@ class PastryNode:
         return response
 
 
-    def _repair_leaf_set(self):
-        for leaf in self.Lmin + self.Lmax:
-            if leaf and leaf != self.node_id:
+    def _repair_leaf_set(self, failed_node_id):
+        """
+        Repair the leaf set after detecting a failed node.
+        Ask nodes in the leaf set for their leaf sets and keep the closest nodes.
+        """
+        print(f"Node {self.node_id}: Repairing leaf set for failed node {failed_node_id}.")
+
+        # Step 1: Remove the failed node from the leaf set
+        if failed_node_id in self.Lmin:
+            self.Lmin = [node for node in self.Lmin if node != failed_node_id]
+            print(f"Node {self.node_id}: Removed {failed_node_id} from Lmin.")
+        elif failed_node_id in self.Lmax:
+            self.Lmax = [node for node in self.Lmax if node != failed_node_id]
+            print(f"Node {self.node_id}: Removed {failed_node_id} from Lmax.")
+
+        # Step 2: Gather all nodes from the current leaf set (Lmin and Lmax)
+        candidate_nodes = set(self.Lmin + self.Lmax)
+
+        # Step 3: Ask each node in the leaf set for their leaf sets
+        for node_id in list(candidate_nodes):
+            if node_id:
                 try:
                     request = {"operation": "GET_LEAF_SET"}
-                    response = self.send_request(self.network.node_ports[leaf], request)
+                    response = self.send_request(self.network.node_ports[node_id], request)
+
                     if response["status"] == "success":
-                        for new_leaf in response["leaf_set"]["Lmin"] + response["leaf_set"]["Lmax"]:
-                            if new_leaf and new_leaf != self.node_id and new_leaf not in self.Lmin + self.Lmax:
-                                self._update_leaf_list(self.Lmin, new_leaf)
-                                self._update_leaf_list(self.Lmax, new_leaf)
+                        # Add the received leaf set to candidates
+                        received_Lmin = response["leaf_set"].get("Lmin", [])
+                        received_Lmax = response["leaf_set"].get("Lmax", [])
+                        candidate_nodes.update(received_Lmin + received_Lmax)
                 except Exception as e:
-                    print(f"Error repairing leaf set with node {leaf}: {e}")
+                    print(f"Node {self.node_id}: Error contacting {node_id} for leaf set repair: {e}")
+
+        # Step 4: Sort candidates based on proximity and update Lmin and Lmax
+        candidate_nodes = list(candidate_nodes)
+        candidate_nodes.sort(key=lambda node: abs(int(node, 16) - int(self.node_id, 16)))
+
+        # Update Lmin and Lmax to maintain the correct size
+        self.Lmin = [node for node in candidate_nodes if node < self.node_id][:(L//2)]
+        self.Lmax = [node for node in candidate_nodes if node > self.node_id][:(L//2)]
+
+        print(f"Node {self.node_id}: Repaired Leaf Set - Lmin: {self.Lmin}, Lmax: {self.Lmax}.")
+
+
 
     def _handle_leave_request(self, request):
         """

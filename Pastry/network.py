@@ -165,7 +165,25 @@ class PastryNetwork:
         #     print(f"Node {node_id}: Routing Table: {node.routing_table}")
 
         return {"status": "success", "message": f"Node {leaving_node_id} has left the network.", "hops": hops}
+    
+    def leave_unexpected(self, failing_node_id):
+        """
+        Simulates an unexpected failure of a node.
+        The node is removed without notifying other nodes, requiring later repair.
+        """
+        print(f"Network: Unexpected failure of Node {failing_node_id}.")
 
+        if failing_node_id not in self.nodes:
+            print(f"Network: Node {failing_node_id} does not exist.")
+            return {"status": "failure", "message": f"Node {failing_node_id} not found."}
+
+        # Remove the node from the network **without notifying others**
+        del self.nodes[failing_node_id]
+        del self.node_ports[failing_node_id]
+
+        print(f"Network: Node {failing_node_id} has failed unexpectedly. No notifications sent.")
+
+        return {"status": "success", "message": f"Node {failing_node_id} has failed unexpectedly."}
 
     def _find_topologically_closest_node(self, new_node):
         """

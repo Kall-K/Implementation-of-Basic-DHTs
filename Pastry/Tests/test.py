@@ -209,6 +209,46 @@ def main():
     else:
         print(f"Failed to retrieve hops for NODE_LEAVE {node_to_leave}.")
 
+        print("\nStage 7: Unexpected Node Failure")
+    print("=======================")
+
+    # Choose a random node to fail unexpectedly
+    unexpected_failure_node = "20bd"  # Replace with any node ID
+    print(f"\nSimulating unexpected failure of Node {unexpected_failure_node}...\n")
+
+    # Trigger unexpected failure
+    unexpected_leave_response = network.leave_unexpected(unexpected_failure_node)
+
+    if unexpected_leave_response["status"] == "success":
+        print(f"Node {unexpected_failure_node} has failed unexpectedly.")
+    else:
+        print(f"Failed to simulate unexpected failure for Node {unexpected_failure_node}.")
+
+    # Attempt an operation to trigger repair
+    print("\nAttempting to INSERT a key after unexpected failure...\n")
+    key = hash_key("Germany")
+    point = [2020, 85, 3.5]
+    review = "Testing repair after unexpected failure."
+    country = "Test Failure Country"
+    insert_response = first_node.insert_key(key, point, review, country)
+
+    if insert_response and "hops" in insert_response:
+        print(f"Hops during INSERT_KEY after unexpected failure: {len(insert_response['hops'])}")
+        print(f"Full Hops List: {insert_response['hops']}")
+    else:
+        print("INSERT_KEY Operation failed after unexpected failure.")
+
+    # # Verify repair by performing a LOOKUP
+    # print("\nAttempting to LOOKUP the inserted key after unexpected failure...\n")
+    # lookup_response = first_node.lookup(key, lower_bounds=[2019, 80, 3.0], upper_bounds=[2021, 90, 4.0])
+
+    # if lookup_response and "hops" in lookup_response:
+    #     print(f"Hops during LOOKUP after unexpected failure: {len(lookup_response['hops'])}")
+    #     print(f"Full Hops List: {lookup_response['hops']}")
+    # else:
+    #     print("LOOKUP Operation failed after unexpected failure.")
+
+
     # Verify the state of the network after the node leaves
     print("\nInspecting the state of the network after the node leaves:")
     for node in network.nodes.values():
