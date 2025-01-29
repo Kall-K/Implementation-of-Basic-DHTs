@@ -183,7 +183,7 @@ class ChordNode:
 
     def _handle_request(self, conn):
         try:
-            data = conn.recv(1024)  # Read up to 1024 bytes of data
+            data = conn.recv(1024*1024)  # Read up to 1024*1024*1024 bytes of data
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
             # print(f"Node {self.node_id}: Handling Request: {request}")
@@ -197,8 +197,6 @@ class ChordNode:
                 response = self._handle_set_successor(request)
             if operation == "SET_PREDECESSOR":
                 response = self._handle_set_predecessor(request)
-            if operation == "FIND_KEY_SUCCESSOR":
-                response = self._handle_find_key_successor(request)
             if operation == "INSERT_KEY":
                 response = self._handle_insert_key_request(request)
             if operation == "DELETE_KEY":
@@ -228,7 +226,7 @@ class ChordNode:
             try:
                 s.connect(connect_address)  # Connect using loopback
                 s.sendall(pickle.dumps(request))  # Serialize and send the request
-                response = s.recv(1024)  # Receive the response
+                response = s.recv(1024*1024)  # Receive the response
             except Exception as e:
                 print(f"Error connecting to {connect_address}: {e}")
                 return None
@@ -239,18 +237,9 @@ class ChordNode:
     ######### Requests ##########
     #############################
     
-    def request_find_successor(self, key, node):
+    def request_find_successor(self, key, node, hops):
         get_successor_request = {
             "operation": "FIND_SUCCESSOR",
-            "key": key,
-        }
-        # Get the possition on the ring
-        successor_id = self.send_request(node, get_successor_request)
-        return successor_id
-    
-    def request_find_key_successor(self, key, node, hops):
-        get_successor_request = {
-            "operation": "FIND_KEY_SUCCESSOR",
             "key": key,
             "hops": hops
         }
@@ -293,18 +282,8 @@ class ChordNode:
     #############################
     ######### Handlers ##########
     #############################
-    def _handle_find_successor(self, request):
-        key = request["key"]
-        if self.node_id == key:
-            return self.node_id
-        if self.distance(self.node_id, key) <= self.distance(self.successor, key):
-            return self.successor
-        else:
-            closest_preceding_node_id = self.closest_preceding_node(self, key)
-            closest_preceding_node = self.network.nodes[closest_preceding_node_id]
-            return self.request_find_successor(key, closest_preceding_node)
     
-    def _handle_find_key_successor(self, request):
+    def _handle_find_successor(self, request):
         key = request["key"]
         request["hops"].append(self.node_id)
         if self.node_id == key:
@@ -314,7 +293,7 @@ class ChordNode:
         else:
             closest_preceding_node_id = self.closest_preceding_node(self, key)
             closest_preceding_node = self.network.nodes[closest_preceding_node_id]
-            return self.request_find_key_successor(key, closest_preceding_node, request["hops"])
+            return self.request_find_successor(key, closest_preceding_node, request["hops"])
     
     def _handle_delete_successor_keys(self, request):
         keys = request["keys"]
@@ -494,7 +473,7 @@ class ChordNode:
             "country": country,
             "hops": [],  # Initialize hops tracking
         }
-        successor_id, hops = self._handle_find_key_successor(request)
+        successor_id, hops = self._handle_find_successor(request)
         request["hops"] = len(hops)-1
         successor = self.network.nodes[successor_id]
         
@@ -509,7 +488,7 @@ class ChordNode:
             "key": key,
             "hops": [],  # Initialize hops tracking
         }
-        successor_id, hops = self._handle_find_key_successor(request)
+        successor_id, hops = self._handle_find_successor(request)
         request["hops"] = len(hops)-1
         successor = self.network.nodes[successor_id]
 
@@ -536,7 +515,7 @@ class ChordNode:
             "hops": [],  # Initialize hops tracking
         }
         # print(f"Node {self.node_id}: Handling Update Request: {request}")
-        successor_id, hops = self._handle_find_key_successor(request)
+        successor_id, hops = self._handle_find_successor(request)
         request["hops"] = len(hops)-1
         successor = self.network.nodes[successor_id]
 
@@ -554,7 +533,7 @@ class ChordNode:
             "N": N,
             "hops": [],
         }
-        successor_id, hops = self._handle_find_key_successor(request)
+        successor_id, hops = self._handle_find_successor(request)
         request["hops"] = len(hops)-1
         successor = self.network.nodes[successor_id]
 
@@ -564,12 +543,12 @@ class ChordNode:
     #### Update Finger Table ####
     #############################
 
-    def update_finger_table(self):
+    def update_finger_table(self, hops=[]):
         for i in range(1, len(self.finger_table)):
             key = hex((int(self.node_id, 16) + 2 ** i) % R)[2:].rjust(4, "0")
-            temp_node = self.request_find_successor(key, self)
+            temp_node = self.request_find_successor(key, self, hops)[0]
             while self.network.nodes[temp_node].running == False:
-                temp_node = self.request_find_successor(temp_node)
+                temp_node = self.request_find_successor(temp_node, self, hops)[0]
             self.finger_table[i] = temp_node
 
 
@@ -613,8 +592,6 @@ class ChordNode:
         # Delete keys
         self.request_delete_successor_keys(keys_to_delete_from_successor, suc_id)
 
-        # TODO: Update finger tables
-
 
     # Βρίσκει τη θέση του κόμβου
     def find_node_place(self, pre_id, suc_id):
@@ -641,8 +618,6 @@ class ChordNode:
         # Transfer keys to successor
         for key in sorted(self.data.keys()):
             self.successor.data[key] = self.data[key]
-
-        # TODO: Update finger tables
 
 
     #############################
