@@ -192,7 +192,6 @@ class PastryNode:
 
             print(f"Node {self.node_id}: Handling Request: {request}")
             response = None
-            print(f"my name is {self.node_id}")
             
             # Append the current node to the hops list only in main operations
             if operation == "NODE_JOIN":
@@ -230,10 +229,14 @@ class PastryNode:
                 response = {"status": "success", "leaf_set": {"Lmin": self.Lmin, "Lmax": self.Lmax}, "hops": hops}
             elif operation == "GET_NEIGHBORHOOD_SET":  # New operation
                 response = self._handle_get_neighborhood_set(request)
+                
+                print(response)
             elif operation == "REQUEST_NEXT_HOP":
                 failed_node_id = request["failed_node_id"]
                 next_hop = self._find_next_hop(failed_node_id)  # Perform find_next_hop   
                 response = {"status": "success" if next_hop else "failure","next_hop": next_hop}
+            elif operation == "GET_POSITION":
+                response = {"status": "success", "position": self.position}
             else:
                 response = {"status": "failure", "message": "Unknown operation", "hops": hops}
 
@@ -373,15 +376,15 @@ class PastryNode:
 
     def _repair_neighborhood_set(self, failed_node_id):
         """
-        Repair the neighborhood set by hopping through neighborhoods of nodes in the set
-        and finding the closest nodes to the current node. Ensure the set is fully populated.
+        Repair the neighborhood set by discovering all reachable nodes.
+        Expands through both neighborhood sets and leaf sets.
+        Finds the closest nodes to the current node based on position.
         """
         print(f"Node {self.node_id}: Repairing neighborhood set after detecting failed node {failed_node_id}.")
 
         # Step 1: Check if the failed node was in the neighborhood set
         was_in_neighborhood_set = failed_node_id in self.neighborhood_set
         max_size = len(self.neighborhood_set)
-        print(f"Current neighborhood set size: {max_size}")
 
         # Remove the failed node from the neighborhood set
         if was_in_neighborhood_set:
@@ -392,8 +395,8 @@ class PastryNode:
             print(f"Node {self.node_id}: Failed node {failed_node_id} was not in the neighborhood set. No repair needed.")
             return
 
-        # Step 2: Gather neighborhood sets from all reachable neighbors
-        all_candidates = set()  # Use a set to avoid duplicates
+        # Step 2: Discover all nodes using BFS-like expansion
+        all_candidates = {}  # Store {node_id: position} pairs
         visited_nodes = set()
         nodes_to_visit = list(self.neighborhood_set)  # Start with the current neighborhood set
 
@@ -402,41 +405,54 @@ class PastryNode:
             if current_node and current_node not in visited_nodes:
                 visited_nodes.add(current_node)
                 try:
-                    # Request the neighborhood set from the current node
-                    request = {"operation": "GET_NEIGHBORHOOD_SET"}
-                    response = self.send_request(self.network.node_ports[current_node], request)
-                    if response["status"] == "success":
-                        neighbors = response["neighborhood_set"]
-                        all_candidates.update(neighbors)  # Add to the candidate pool
-                        nodes_to_visit.extend(neighbors)  # Add these neighbors to the visit queue
+                    # Request neighborhood set, leaf set, and position
+                    neighbor_request = {"operation": "GET_NEIGHBORHOOD_SET"}
+                    leafset_request = {"operation": "GET_LEAF_SET"}
+                    position_request = {"operation": "GET_POSITION"}
+
+                    # Get neighborhood set
+                    neighbor_response = self.send_request(self.network.node_ports[current_node], neighbor_request)
+                    if neighbor_response["status"] == "success":
+                        neighbors = neighbor_response["neighborhood_set"]
+                        nodes_to_visit.extend(neighbors)  # Expand search through neighbors
+
+                    # Get leaf set
+                    leafset_response = self.send_request(self.network.node_ports[current_node], leafset_request)
+                    if leafset_response["status"] == "success":
+                        leaf_nodes = leafset_response["leaf_set"]["Lmin"] + leafset_response["leaf_set"]["Lmax"]
+                        nodes_to_visit.extend(leaf_nodes)
+
+                    # Get position of the current node
+                    position_response = self.send_request(self.network.node_ports[current_node], position_request)
+                    if position_response["status"] == "success":
+                        all_candidates[current_node] = position_response["position"]
+
                 except Exception as e:
-                    print(f"Node {self.node_id}: Error querying {current_node} for neighborhood set: {e}")
+                    print(f"Node {self.node_id}: Error querying {current_node} for neighborhood or leaf set: {e}")
 
-        # Add the current neighborhood set and exclude the current node and the failed node
-        all_candidates.update(self.neighborhood_set)
-        all_candidates = [node for node in all_candidates if node and node != self.node_id and node != failed_node_id]
+        # Step 3: Remove self and failed node from candidates
+        if self.node_id in all_candidates:
+            del all_candidates[self.node_id]
+        if failed_node_id in all_candidates:
+            del all_candidates[failed_node_id]
 
-        # Step 3: Sort candidates by distance to the current node's position
+        # Step 4: Sort candidates by distance to the current node's position
         try:
-            if hasattr(self.network, "node_positions"):
-                all_candidates.sort(key=lambda n: abs(self.network.node_positions.get(n, float("inf")) - self.network.node_positions[self.node_id]))
-            else:
-                print(f"Node {self.node_id}: node_positions attribute is missing in the network.")
-                all_candidates = []
-        except KeyError as e:
-            print(f"Node {self.node_id}: Missing position data for one or more nodes: {e}")
+            all_candidates = sorted(all_candidates.items(), key=lambda n: abs(n[1] - self.position))
+            sorted_candidates = [node for node, _ in all_candidates]
+        except Exception as e:
+            print(f"Node {self.node_id}: Error sorting candidates: {e}")
             return
 
-        print(f"All sorted candidates: {all_candidates}")
+        print(f"Node {self.node_id}: Sorted potential neighbors: {sorted_candidates}")
 
-        # Step 4: Rebuild the neighborhood set with the closest nodes
-        self.neighborhood_set = all_candidates[:max_size]
+        # Step 5: Update neighborhood set with the closest nodes
+        self.neighborhood_set = sorted_candidates[:max_size]
 
         # Pad with None if not enough candidates are available
         self.neighborhood_set += [None] * (max_size - len(self.neighborhood_set))
 
         print(f"Node {self.node_id}: Updated Neighborhood Set: {self.neighborhood_set}")
-
 
     def _find_closest_alive_node(self, failed_node_id):
         """
@@ -549,6 +565,7 @@ class PastryNode:
         hops = request.get("hops", [])
 
         next_hop_id = self._find_next_hop(key)
+        print(f"Node {self.node_id}: Next hop for key {key} is {next_hop_id}")
 
         # Step 1: Detect if the next hop is missing
         if next_hop_id and next_hop_id not in self.network.node_ports:
@@ -558,19 +575,25 @@ class PastryNode:
             self._repair_routing_table_entry(next_hop_id)
             self._repair_leaf_set(next_hop_id)
             self._repair_neighborhood_set(next_hop_id)
-            print("re pousti")
+            
             # After repair, find a new next hop
             next_hop_id = self._find_next_hop(key)
+            
 
         # Step 2: If this node is responsible for storing the key, insert it
         if self._in_leaf_set(key) or next_hop_id == self.node_id:
+            
             if not self.kd_tree:
+                
+                print(f"The country is :{request["country"]} and the key is : {hash_key(request["country"])}")
                 self.kd_tree = KDTree(points=np.array([request["point"]]),
                                     reviews=np.array([request["review"]]),
                                     country_keys=np.array([hash_key(request["country"])]),
                                     countries=np.array([request["country"]]))
             else:
+                
                 self.kd_tree.add_point(request["point"], request["review"], request["country"])
+                print(f"Node {self.node_id}: Inserted {key} into KDTree. Points now: {self.kd_tree.points.shape}")
 
             print(f"\nInserted Key: {key}")
             print(f"Point: {request['point']}")
@@ -679,6 +702,9 @@ class PastryNode:
                 # KD-Tree Range Search
                 points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
                 print(f"Node {self.node_id}: Found {len(points)} matching points.")
+                print(f"Node {self.node_id}: Searching in KDTree. Query bounds: {lower_bounds} - {upper_bounds}")
+                print(f"Stored points: {self.kd_tree.points}")
+
 
                 if len(reviews) == 0:
                     print(f"Node {self.node_id}: No reviews found within the specified range.")

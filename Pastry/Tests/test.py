@@ -226,10 +226,11 @@ def main():
 
     # Attempt an operation to trigger repair
     print("\nAttempting to INSERT a key after unexpected failure...\n")
-    key = hash_key("Germany")
+    country = "Germany"
+    key = hash_key(country)
+    print(f"key is: {key}")
     point = [2020, 85, 3.5]
     review = "Testing repair after unexpected failure."
-    country = "Test Failure Country"
     insert_response = first_node.insert_key(key, point, review, country)
 
     if insert_response and "hops" in insert_response:
@@ -238,15 +239,15 @@ def main():
     else:
         print("INSERT_KEY Operation failed after unexpected failure.")
 
-    # # Verify repair by performing a LOOKUP
-    # print("\nAttempting to LOOKUP the inserted key after unexpected failure...\n")
-    # lookup_response = first_node.lookup(key, lower_bounds=[2019, 80, 3.0], upper_bounds=[2021, 90, 4.0])
+    # Verify repair by performing a LOOKUP
+    print(f"\nAttempting to LOOKUP the inserted key {key} after unexpected failure...\n")
+    lookup_response = first_node.lookup(key, lower_bounds=[2019, 80, 3.0], upper_bounds=[2021, 90, 4.0],N=1)
 
-    # if lookup_response and "hops" in lookup_response:
-    #     print(f"Hops during LOOKUP after unexpected failure: {len(lookup_response['hops'])}")
-    #     print(f"Full Hops List: {lookup_response['hops']}")
-    # else:
-    #     print("LOOKUP Operation failed after unexpected failure.")
+    if lookup_response and "hops" in lookup_response:
+        print(f"Hops during LOOKUP after unexpected failure: {len(lookup_response['hops'])}")
+        print(f"Full Hops List: {lookup_response['hops']}")
+    else:
+        print("LOOKUP Operation failed after unexpected failure.")
 
 
     # Verify the state of the network after the node leaves
