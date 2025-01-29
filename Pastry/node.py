@@ -38,13 +38,14 @@ class PastryNode:
 
         # 2D Routing Table
         self.routing_table = [[None for j in range(pow(2, b))] for i in range(HASH_HEX_DIGITS)]
-        # Leaf Set
 
+        # Leaf Set
         self.Lmin = [None for x in range(L // 2)]
         self.Lmax = [None for x in range(L // 2)]
-        # Nearby nodes
 
-        self.neighborhood_set = [None for x in range(np.floor(np.sqrt(N)).astype(int))]
+        # Nearby nodes
+        # self.neighborhood_set = [None for x in range(np.floor(np.sqrt(N)).astype(int))]
+        self.neighborhood_set = [None for x in range(M)]
 
         self.lock = threading.Lock()  # Lock for thread safety
 
@@ -120,36 +121,62 @@ class PastryNode:
 
     # State Inspection
 
+    def get_state(self):
+        """
+        Returns a formatted string with the state of the node, including:
+        - Node ID
+        - Port
+        - Position
+        - Routing Table
+        - Leaf Set
+        - Neighborhood Set
+        - KD Tree Information
+        """
+        state_info = []
+        state_info.append(f"Node ID: {self.node_id}")
+        state_info.append(f"Port: {self.port}")
+        state_info.append(f"Position: {self.position:.2f}")
+
+        # Routing Table
+        state_info.append("\nRouting Table:")
+
+        for row in self.routing_table:
+            formatted_row = [f"{str(entry) if entry is not None else ' -- '}" for entry in row]  # Fixed-width formatting
+            state_info.append("|".join(formatted_row))  # Format as a table row
+
+        # Leaf Set
+        state_info.append("\nLeaf Set:")
+        state_info.append(f"Lmin: {self.Lmin}")
+        state_info.append(f"Lmax: {self.Lmax}")
+
+        # Neighborhood Set
+        state_info.append("\nNeighborhood Set:")
+        state_info.append(str(self.neighborhood_set))
+
+        # KD Tree Information
+        state_info.append("\nKD Tree:\nUnique Country Keys:")
+        if not self.kd_tree or self.kd_tree.country_keys.size == 0:
+            state_info.append("[]")  # Empty KD Tree
+        else:
+            unique_keys, counts = np.unique(self.kd_tree.country_keys, return_counts=True)
+            state_info.append(f"{list(map(str, unique_keys))}")
+
+            # Country count table
+            state_info.append("\nNumber of points/reviews for each country:")
+            state_info.append(f"{'Country Key':<12} | {'Country Name':<14} | {'Count':<6}")
+            state_info.append("-" * 38)
+
+            country_map = dict(zip(self.kd_tree.country_keys, self.kd_tree.countries))
+            for key, count in zip(unique_keys, counts):
+                state_info.append(f"{key:<12} | {country_map[key]:<14} | {count:<6}")
+
+        return "\n".join(state_info)
+
     def print_state(self):
         """
         Print the state of the node (ID, Port, Position, Data Structures).
         """
-        print("\n" + "-" * 100)
-        print(f"Node ID: {self.node_id}")
-        print(f"Port: {self.port}")
-        print(f"Position: {self.position}")
-        print("\nRouting Table:")
-        for row in self.routing_table:
-            print(row)
-        print("\nLeaf Set:")
-        print(f"Lmin: {self.Lmin}")
-        print(f"Lmax: {self.Lmax}")
-        print("\nNeighborhood Set:")
-        print(self.neighborhood_set)
-        print("\nKD Tree:\nUnique Country Keys:")
-        if not self.kd_tree or self.kd_tree.country_keys.size == 0:
-            print([])
-        else:
-            unique_keys, counts = np.unique(self.kd_tree.country_keys, return_counts=True)
-            print(unique_keys)
-
-            print("\nNumber of points/reviews for each country:")
-            print(f"{'Country Key':<12} | {'Country Name':<14} | {'Count':<6}")
-            print("-" * 38)
-
-            country_map = dict(zip(self.kd_tree.country_keys, self.kd_tree.countries))
-            for key, count in zip(unique_keys, counts):
-                print(f"{key:<12} | {country_map[key]:<14} | {count:<6}")
+        print(self.get_state())
 
     # Network Communication
 
@@ -190,27 +217,25 @@ class PastryNode:
             operation = request["operation"]
             hops = request.get("hops", [])
 
-            print(f"Node {self.node_id}: Handling Request: {request}")
+            # print(f"Node {self.node_id}: Handling Request: {request}")
             response = None
 
             # Append the current node to the hops list only in main operations
-            if operation == "NODE_JOIN":
+            if operation in main_operations:
                 hops.append(self.node_id)
+                print(f"Node {self.node_id}: Handling Request: {request}")
+
+            if operation == "NODE_JOIN":
                 response = self._handle_join_request(request)
             elif operation == "NODE_LEAVE":
-                hops.append(self.node_id)
                 response = self._handle_leave_request(request)
             elif operation == "INSERT_KEY":
-                hops.append(self.node_id)
                 response = self._handle_insert_key_request(request)
             elif operation == "UPDATE_KEY":
-                hops.append(self.node_id)
                 response = self._handle_update_key_request(request)
             elif operation == "DELETE_KEY":
-                hops.append(self.node_id)
                 response = self._handle_delete_key_request(request)
             elif operation == "LOOKUP":
-                hops.append(self.node_id)
                 response = self._handle_lookup_request(request)
             elif operation == "UPDATE_PRESENCE":
                 response = self._handle_update_presence_request(request)
@@ -229,8 +254,6 @@ class PastryNode:
                 response = {"status": "success", "leaf_set": {"Lmin": self.Lmin, "Lmax": self.Lmax}, "hops": hops}
             else:
                 response = {"status": "failure", "message": "Unknown operation", "hops": hops}
-
-            # Add more operations here as needed
 
             conn.sendall(pickle.dumps(response))  # Serialize and send the response
         except Exception as e:
@@ -299,6 +322,7 @@ class PastryNode:
             }
 
         # Else forward the request to the next hop
+        print(f"\nForwarding JOIN_NETWORK request to node {next_hop_id}...")
         response = self.send_request(self.network.node_ports[next_hop_id], request)
         return response
 
@@ -436,7 +460,7 @@ class PastryNode:
                     print(f"The Hops are: {hops}")
                     print("")
                     print(f"\nThe {N} Most Similar Reviews:\n")
-                    
+
                     for i, doc in enumerate(similar_docs, 1):
                         print(f"{i}. {doc}\n")
 
@@ -465,7 +489,6 @@ class PastryNode:
         except Exception as e:
             print(f"Node {self.node_id}: Error handling LOOKUP request: {e}")
             return {"status": "failure", "message": f"Error: {e}", "hops": hops}
-
 
     def _handle_update_key_request(self, request):
         """
@@ -504,7 +527,6 @@ class PastryNode:
 
         # Ensure the hops list is returned in the response
         return response
-
 
     def _repair_leaf_set(self):
         for leaf in self.Lmin + self.Lmax:
@@ -563,7 +585,6 @@ class PastryNode:
 
         print(f"Node {self.node_id}: Finished processing NODE_LEAVE for {leaving_node_id}.")
         return {"status": "success", "message": f"Processed NODE_LEAVE for {leaving_node_id}.", "hops": hops}
-
 
     def _rebuild_node_state(self, request):
         """
@@ -759,7 +780,6 @@ class PastryNode:
 
         return response
 
-
     def update_key(self, key, updated_data, criteria=None):
         """
         Initiate the UPDATE_KEY operation for a given key with optional criteria and updated data.
@@ -792,7 +812,6 @@ class PastryNode:
             print(f"Node {self.node_id}: UPDATE_KEY Operation Failed or No Hops Tracked.")
 
         return response
-
 
     def _find_next_hop(self, key):
         """
@@ -989,7 +1008,7 @@ class PastryNode:
         idx = common_prefix_length(key, self.node_id)
 
         # If the entry in the routing table is empty, update it with the key
-        print(f"Node {self.node_id}: Updating Routing Table Entry for new node {key}...")
+        print(f"Node {self.node_id}: Updating Routing Table Entry {idx, int(key[idx], 16)} for new node {key}...")
         if self.routing_table[idx][int(key[idx], 16)] is None:
             self.routing_table[idx][int(key[idx], 16)] = key
 
