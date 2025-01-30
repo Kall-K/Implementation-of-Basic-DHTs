@@ -626,13 +626,13 @@ class ChordNode:
     def leave(self):
         self.running = False
 
-        pre_id = self.predecessor
-        suc_id = self.get_successor()
+        # pre_id = self.predecessor
+        # suc_id = self.get_successor()
 
-        # set the successor of the predecessor to self's successor
-        self.request_set_successor(suc_id, pre_id)
-        # set the predecessor of the successor to self's predecessor
-        self.request_set_predecessor(pre_id, suc_id)
+        # # set the successor of the predecessor to self's successor
+        # self.request_set_successor(suc_id, pre_id)
+        # # set the predecessor of the successor to self's predecessor
+        # self.request_set_predecessor(pre_id, suc_id)
 
         # # Transfer keys to successor
         # for key in sorted(self.data.keys()):
