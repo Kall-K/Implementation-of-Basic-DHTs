@@ -38,7 +38,7 @@ class ChordNode:
         self.predecessor = self.node_id
         self.finger_table = [self.node_id] * M
         self.successors = [self.node_id] * S
-        self.running = True # maybe useless
+        self.running = True
 
         self.data = {}  # For storing key-value pairs
 
@@ -149,9 +149,10 @@ class ChordNode:
         server_thread = threading.Thread(target=self._server, daemon=True)
         server_thread.start()
 
-        self.thread_pool.submit(self._update_scheduler)
+        self.thread_pool.submit(self._update_finger_table_scheduler)
+        self.thread_pool.submit(self._update_successors_scheduler)
     
-    def _update_scheduler(self):
+    def _update_finger_table_scheduler(self):
         interval = 5  # seconds
         while True:
             if not self.running:
@@ -159,6 +160,16 @@ class ChordNode:
             time.sleep(interval)
             self.update_finger_table()
             print("Updated Finger Table of Node:", self.node_id)
+    
+    def _update_successors_scheduler(self):
+        interval = 0.1  # seconds
+        while True:
+            if not self.running:
+                break
+            time.sleep(interval)
+            self.update_successors_on_join()
+            self.update_successors_on_leave()
+            print(".", end="", flush=True)
 
 
     def _server(self):
@@ -615,9 +626,12 @@ class ChordNode:
 
         pre_id = self.predecessor
         suc_id = self.get_successor()
+        # print("==============================")
+        # print(suc_id)
+        # print("==============================")
         # Correct successor and predecessor
-        self.request_set_successor(self.get_successor(), pre_id) # self.predecessor.successor = self.successor, self.predecessor.fingers_table[0] = self.successor
-        self.request_set_predecessor(self.predecessor, suc_id) # self.successor.predecessor = self.predecessor
+        self.request_set_successor(suc_id, pre_id) # self.predecessor.successor = self.successor, self.predecessor.fingers_table[0] = self.successor
+        self.request_set_predecessor(pre_id, suc_id) # self.successor.predecessor = self.predecessor
 
         # # Transfer keys to successor
         # for key in sorted(self.data.keys()):
@@ -632,20 +646,23 @@ class ChordNode:
         for i in range(from_idx, len(self.successors)):
             if self.network.nodes[self.successors[i]].running:
                 return self.successors[i]
-        return "not found"
+        return -1
     
-    def update_successors_on_join(self, node_id):
+    def update_successors_on_join(self):
         # Find node to insert node
         index_to_insert_node = -1
         node_id = ""
-
+        
         for i in range(len(self.successors)-1):
-            successor_of_successor = self.network.nodes[self.successors[i]].successors[0]
+            successor_of_successor = self.network.nodes[self.successors[i]].get_successor()
             if successor_of_successor != self.successors[i+1]:
                 index_to_insert_node = i + 1
                 node_id = successor_of_successor
                 break
-        
+
+        if index_to_insert_node == -1:
+            return
+
         # Insert node
         for i in range(index_to_insert_node, len(self.successors)-1):
             self.successors[i+1] = self.successors[i]
@@ -658,6 +675,9 @@ class ChordNode:
             if not self.network.nodes[self.successors[i]].running:
                 index_of_node_that_left = i
                 break
+
+        if index_of_node_that_left == -1:
+            return
         
         # For each index in the successors list
         for i in range(index_of_node_that_left, len(self.successors)-1):
@@ -666,8 +686,8 @@ class ChordNode:
         # Request is not necessary
         self.successors[-1] = self.request_find_successor(int_to_hex((int(self.successors[-2], 16)+1) % R), self.successors[-2], [])[0]
 
-        if index_of_node_that_left != -1:
-            self.update_successors_on_leave()
+        # Recursively update successors
+        self.update_successors_on_leave()
 
 
     #############################
