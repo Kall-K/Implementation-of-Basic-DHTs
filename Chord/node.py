@@ -198,7 +198,7 @@ class ChordNode:
 
     def _handle_request(self, conn):
         try:
-            data = conn.recv(1024*1024)  # Read up to 1024*1024*1024 bytes of data
+            data = conn.recv(1024*1024)  # Read up to 1024*1024 bytes of data
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
             # print(f"Node {self.node_id}: Handling Request: {request}")
@@ -626,10 +626,7 @@ class ChordNode:
 
         pre_id = self.predecessor
         suc_id = self.get_successor()
-        # print("==============================")
-        # print(suc_id)
-        # print("==============================")
-        # Correct successor and predecessor
+
         self.request_set_successor(suc_id, pre_id) # self.predecessor.successor = self.successor, self.predecessor.fingers_table[0] = self.successor
         self.request_set_predecessor(pre_id, suc_id) # self.successor.predecessor = self.predecessor
 
@@ -689,67 +686,3 @@ class ChordNode:
         # Recursively update successors
         self.update_successors_on_leave()
 
-
-    #############################
-    ########### DATA ############
-    #############################
-
-    # Data Structure Updates
-    def update_routing_table(self, row_idx, received_row):
-        """
-        Update the routing table of the current node with the received row.
-        """
-        for col_idx in range(len(received_row)):
-            entry = received_row[col_idx]
-            if entry is None:
-                continue
-            # Skip if the entry's hex digit at row_idx matches this node's ID at the same index.
-            # This avoids conflicts in the routing table.
-            if entry[row_idx] == self.node_id[row_idx]:
-                continue
-            # Update the routing table with the received entry if the current entry is empty
-            if self.routing_table[row_idx][col_idx] is None:
-                self.routing_table[row_idx][col_idx] = received_row[col_idx]
-
-
-    def _update_presence(self, key):
-        """
-        Update the presence of a node in all the data structures of this node.
-        """
-        # Neighborhood Set (M)
-        if key not in self.neighborhood_set:
-            self._update_neighborhood_set(key)
-
-        # Routing Table (R)
-        # Find the length of the common prefix between the key and the current node's ID
-        idx = common_prefix_length(key, self.node_id)
-
-        # If the entry in the routing table is empty, update it with the key
-        if self.routing_table[idx][int(key[idx], 16)] is None:
-            self.routing_table[idx][int(key[idx], 16)] = key
-
-        """Giati to ekana auto!! na to psaksw an xreiazetai"""
-        # If the entry in the routing table of the node corresponding to the key
-        # is empty, update it with the current node's ID
-        if (
-            self.network.nodes[key].routing_table[idx][int(self.node_id[idx], 16)]
-            is None
-        ):
-            self.network.nodes[key].routing_table[idx][
-                int(self.node_id[idx], 16)
-            ] = self.node_id
-
-        # Leaf Set (Lmin, Lmax)
-        # If key >= this node's ID, update Lmax
-        if hex_compare(key, self.node_id):
-            if key not in self.Lmax:
-                self._update_leaf_list(self.Lmax, key)
-        # Else update Lmin
-        else:
-            if key not in self.Lmin:
-                self._update_leaf_list(self.Lmin, key)
-
-    # Helper Methods
-
-
-   
