@@ -574,9 +574,9 @@ class ChordNode:
     def closest_preceding_node(self, node, h_key):
         for i in range(len(node.finger_table)-1, 0, -1):
             if self.distance(node.finger_table[i-1], h_key) < self.distance(node.finger_table[i], h_key):
-                if self.network.nodes[node.finger_table[i-1]].running: # this is extra line
+                if self.network.nodes[node.finger_table[i-1]].running: # skip non-running nodes
                     return node.finger_table[i-1]
-                
+
         return node.finger_table[-1]
         
     def distance(self, hex1, hex2):
@@ -630,9 +630,9 @@ class ChordNode:
         suc_id = self.get_successor()
 
         # set the successor of the predecessor to self's successor
-        self.request_set_successor(suc_id, pre_id) # self.predecessor.successor = self.successor, self.predecessor.fingers_table[0] = self.successor
+        self.request_set_successor(suc_id, pre_id)
         # set the predecessor of the successor to self's predecessor
-        self.request_set_predecessor(pre_id, suc_id) # self.successor.predecessor = self.predecessor
+        self.request_set_predecessor(pre_id, suc_id)
 
         # # Transfer keys to successor
         # for key in sorted(self.data.keys()):
