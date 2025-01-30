@@ -34,9 +34,10 @@ class ChordNode:
         )
         self.kd_tree = None  # Centralized KD-Tree
         
-        self.successor = self.node_id
+        # self.successor = self.node_id
         self.predecessor = self.node_id
         self.finger_table = [self.node_id] * M
+        self.successors = [self.node_id] * S
         self.running = True # maybe useless
 
         self.data = {}  # For storing key-value pairs
@@ -153,9 +154,12 @@ class ChordNode:
     def _update_scheduler(self):
         interval = 5  # seconds
         while True:
+            if not self.running:
+                break
             time.sleep(interval)
             self.update_finger_table()
             print("Updated Finger Table of Node:", self.node_id)
+
 
     def _server(self):
         """
@@ -288,8 +292,8 @@ class ChordNode:
         request["hops"].append(self.node_id)
         if self.node_id == key:
             return self.node_id, request["hops"]
-        if self.distance(self.node_id, key) <= self.distance(self.successor, key):
-            return self.successor, request["hops"]
+        if self.distance(self.node_id, key) <= self.distance(self.get_successor(), key):
+            return self.get_successor(), request["hops"]
         else:
             closest_preceding_node_id = self.closest_preceding_node(self, key)
             closest_preceding_node = self.network.nodes[closest_preceding_node_id]
@@ -304,7 +308,7 @@ class ChordNode:
     def _handle_set_successor(self, request):
         successor_id = request["successor"]
         self.finger_table[0] = successor_id
-        self.successor = successor_id
+        self.successors[0] = successor_id
         return 0
     
     def _handle_set_predecessor(self, request):
@@ -545,10 +549,10 @@ class ChordNode:
 
     def update_finger_table(self, hops=[]):
         for i in range(1, len(self.finger_table)):
-            key = hex((int(self.node_id, 16) + 2 ** i) % R)[2:].rjust(4, "0")
+            key = int_to_hex((int(self.node_id, 16) + 2 ** i) % R)
             temp_node = self.request_find_successor(key, self, hops)[0]
             while self.network.nodes[temp_node].running == False:
-                temp_node = self.request_find_successor(temp_node, self, hops)[0]
+                temp_node = self.request_find_successor(int_to_hex((int(temp_node, 16) + 1) % R), self, hops)[0]
             self.finger_table[i] = temp_node
 
 
@@ -580,17 +584,17 @@ class ChordNode:
         self.find_node_place(pre_id, suc_id)
         self.update_finger_table()
 
-        # Get keys from successor
-        self.data = {key: successor_node.data[key] for key in sorted(
-            successor_node.data.keys()) if key <= self.node_id}
+        # # Get keys from successor
+        # self.data = {key: successor_node.data[key] for key in sorted(
+        #     successor_node.data.keys()) if key <= self.node_id}
 
-        keys_to_delete_from_successor = []
-        for key in sorted(self.data.keys()):
-            if key in successor_node.data:
-                keys_to_delete_from_successor.append(key)
+        # keys_to_delete_from_successor = []
+        # for key in sorted(self.data.keys()):
+        #     if key in successor_node.data:
+        #         keys_to_delete_from_successor.append(key)
         
-        # Delete keys
-        self.request_delete_successor_keys(keys_to_delete_from_successor, suc_id)
+        # # Delete keys
+        # self.request_delete_successor_keys(keys_to_delete_from_successor, suc_id)
 
 
     # Βρίσκει τη θέση του κόμβου
@@ -598,7 +602,7 @@ class ChordNode:
         self.request_set_successor(self.node_id, pre_id) # pre.finger_table[0] = self.node_id, pre.successor = self.node_id
         self.request_set_predecessor(self.node_id, suc_id) #suc.predecessor = self.node_id
         self.finger_table[0] = suc_id
-        self.successor = suc_id
+        self.successors[0] = suc_id
         self.predecessor = pre_id
 
 
@@ -610,14 +614,60 @@ class ChordNode:
         self.running = False
 
         pre_id = self.predecessor
-        suc_id = self.successor
+        suc_id = self.get_successor()
         # Correct successor and predecessor
-        self.request_set_successor(self.successor, pre_id) # self.predecessor.successor = self.successor, self.predecessor.fingers_table[0] = self.successor
+        self.request_set_successor(self.get_successor(), pre_id) # self.predecessor.successor = self.successor, self.predecessor.fingers_table[0] = self.successor
         self.request_set_predecessor(self.predecessor, suc_id) # self.successor.predecessor = self.predecessor
 
-        # Transfer keys to successor
-        for key in sorted(self.data.keys()):
-            self.successor.data[key] = self.data[key]
+        # # Transfer keys to successor
+        # for key in sorted(self.data.keys()):
+        #     self.successor.data[key] = self.data[key]
+
+
+    #############################
+    ###### Get Successors #######
+    #############################
+
+    def get_successor(self, from_idx=0):
+        for i in range(from_idx, len(self.successors)):
+            if self.network.nodes[self.successors[i]].running:
+                return self.successors[i]
+        return "not found"
+    
+    def update_successors_on_join(self, node_id):
+        # Find node to insert node
+        index_to_insert_node = -1
+        node_id = ""
+
+        for i in range(len(self.successors)-1):
+            successor_of_successor = self.network.nodes[self.successors[i]].successors[0]
+            if successor_of_successor != self.successors[i+1]:
+                index_to_insert_node = i + 1
+                node_id = successor_of_successor
+                break
+        
+        # Insert node
+        for i in range(index_to_insert_node, len(self.successors)-1):
+            self.successors[i+1] = self.successors[i]
+        self.successors[index_to_insert_node] = node_id
+
+    def update_successors_on_leave(self):
+        # Find index of the node that left
+        index_of_node_that_left = -1
+        for i in range(len(self.successors)):
+            if not self.network.nodes[self.successors[i]].running:
+                index_of_node_that_left = i
+                break
+        
+        # For each index in the successors list
+        for i in range(index_of_node_that_left, len(self.successors)-1):
+            self.successors[i] = self.successors[i+1]
+        
+        # Request is not necessary
+        self.successors[-1] = self.request_find_successor(int_to_hex((int(self.successors[-2], 16)+1) % R), self.successors[-2], [])[0]
+
+        if index_of_node_that_left != -1:
+            self.update_successors_on_leave()
 
 
     #############################

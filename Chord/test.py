@@ -119,6 +119,8 @@ def main():
 
     network.visualize_network()
 
+    network.nodes["19bd"].leave()
+
     running = True
     while running:
         time.sleep(2)
