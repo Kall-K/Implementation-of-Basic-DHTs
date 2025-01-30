@@ -15,8 +15,6 @@ class PastryNetwork:
         self.used_positions = list(positions)
 
         self.gui = GUI(self)  # Initialize the GUI
-        # Initialize plotting
-        # self.setup_plot()
 
     def node_join(self, new_node):
         """
@@ -28,6 +26,7 @@ class PastryNetwork:
         # Check if the node ID is already in use
         if new_node_id in self.nodes.keys():
             print(f"Node {new_node_id} already exists in the network.")
+            new_node.running = False
             return {"status": "failure", "message": f"Node {new_node_id} already exists."}
 
         if self.used_positions:
@@ -76,6 +75,7 @@ class PastryNetwork:
         new_node.transmit_state()
 
         # Move any keys that should be stored in the new node
+        new_node.get_keys()
 
         # Visualize the network after the new node joins
         self.gui.visualize_network()
@@ -95,7 +95,11 @@ class PastryNetwork:
         # Check if the node exists in the network
         if leaving_node_id not in self.nodes:
             print(f"Network: Node {leaving_node_id} does not exist.")
-            return {"status": "failure", "message": f"Node {leaving_node_id} not found.", "hops": hops}
+            return {
+                "status": "failure",
+                "message": f"Node {leaving_node_id} not found.",
+                "hops": hops,
+            }
 
         leaving_node = self.nodes[leaving_node_id]
         keys_to_store = []
@@ -149,7 +153,11 @@ class PastryNetwork:
         # Check if there are any available nodes for reinsertion
         if not available_nodes:
             print("Network: No available nodes to reinsert keys. Keys will not be reinserted.")
-            return {"status": "failure", "message": "No nodes available for reinsertion.", "hops": hops}
+            return {
+                "status": "failure",
+                "message": "No nodes available for reinsertion.",
+                "hops": hops,
+            }
 
         # Reinsert stored keys using the network-level insert_key function
         print(f"Network: Reinserting stored keys into the network.")
@@ -161,17 +169,25 @@ class PastryNetwork:
             country = key_data["country"]  # Original country
 
             # Find the node with the minimum subtraction value from the key
-            closest_node_id = min(available_nodes, key=lambda node_id: abs(int(node_id, 16) - int(key, 16)))
+            closest_node_id = min(
+                available_nodes, key=lambda node_id: abs(int(node_id, 16) - int(key, 16))
+            )
 
             try:
-                print(f"Network: Redirecting key {key} (Country: {country}) from Node: {node_id}  to Node {closest_node_id}.")
+                print(
+                    f"Network: Redirecting key {key} (Country: {country}) from Node: {node_id}  to Node {closest_node_id}."
+                )
                 self.nodes[closest_node_id].insert_key(key, position, review, country)
                 reinserted_count += 1
             except Exception as e:
-                print(f"Network: Failed to redirect key {key} to Node {closest_node_id}. Error: {e}")
+                print(
+                    f"Network: Failed to redirect key {key} to Node {closest_node_id}. Error: {e}"
+                )
 
         skipped_count = len(keys_to_store) - reinserted_count
-        print(f"Network: Successfully reinserted {reinserted_count} keys. Skipped {skipped_count} keys.")
+        print(
+            f"Network: Successfully reinserted {reinserted_count} keys. Skipped {skipped_count} keys."
+        )
 
         print(f"Network: Node {leaving_node_id} has successfully left the network.")
         print(f"The Hopes after leaving are: {hops}")
@@ -180,7 +196,11 @@ class PastryNetwork:
         #     print(f"Node {node_id}: KD-Tree Keys: {node.kd_tree.country_keys if node.kd_tree else 'None'}")
         #     print(f"Node {node_id}: Routing Table: {node.routing_table}")
 
-        return {"status": "success", "message": f"Node {leaving_node_id} has left the network.", "hops": hops}
+        return {
+            "status": "success",
+            "message": f"Node {leaving_node_id} has left the network.",
+            "hops": hops,
+        }
 
     def _find_topologically_closest_node(self, new_node):
         """

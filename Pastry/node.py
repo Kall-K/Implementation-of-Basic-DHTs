@@ -30,6 +30,7 @@ class PastryNode:
         Initialize a new Pastry node with a unique ID, Port, Position, and empty data structures.
         """
         self.network = network  # Reference to the DHT network
+        self.running = True
         self.port = self._generate_port()  # IP = (127.0.0.1, Port)
 
         self.node_id = node_id if node_id is not None else self._generate_id(self.port)
@@ -141,7 +142,9 @@ class PastryNode:
         state_info.append("\nRouting Table:")
 
         for row in self.routing_table:
-            formatted_row = [f"{str(entry) if entry is not None else ' -- '}" for entry in row]  # Fixed-width formatting
+            formatted_row = [
+                f"{str(entry) if entry is not None else ' -- '}" for entry in row
+            ]  # Fixed-width formatting
             state_info.append("|".join(formatted_row))  # Format as a table row
 
         # Leaf Set
@@ -204,11 +207,28 @@ class PastryNode:
                 return
 
             s.listen()
-            print(f"Node {self.node_id} listening on {bind_address})")
-            while True:
-                conn, addr = s.accept()  # Accept incoming connection
-                # Submit the connection to the thread pool for handling
-                self.thread_pool.submit(self._handle_request, conn)
+            s.settimeout(1.0)
+
+            print(f"Node {self.node_id} listening on {bind_address}")
+
+            try:
+                while self.running:
+                    try:
+                        conn, addr = s.accept()  # Accept incoming connection
+                        if not self.running:  # If shutting down, close connection
+                            conn.close()
+                            break
+                        self.thread_pool.submit(self._handle_request, conn)
+                    except socket.timeout:
+                        continue  # Check `self.running` flag again
+                    except OSError as e:
+                        if self.running:  # Only log errors if still running
+                            print(f"Server Error: {e}")
+                        break  # Exit loop if socket is already closed
+            finally:
+                # Shutdown the thread pool when exiting
+                self.thread_pool.shutdown(wait=False)
+                print(f"Node {self.node_id} server shutting down.")
 
     def _handle_request(self, conn):
         try:
@@ -249,9 +269,19 @@ class PastryNode:
                 response = self._rebuild_node_state(request)
             elif operation == "DISTANCE":
                 distance = topological_distance(self.position, request["node_position"])
-                response = {"distance": distance, "neighborhood_set": self.neighborhood_set, "hops": hops}
+                response = {
+                    "distance": distance,
+                    "neighborhood_set": self.neighborhood_set,
+                    "hops": hops,
+                }
             elif operation == "GET_LEAF_SET":
-                response = {"status": "success", "leaf_set": {"Lmin": self.Lmin, "Lmax": self.Lmax}, "hops": hops}
+                response = {
+                    "status": "success",
+                    "leaf_set": {"Lmin": self.Lmin, "Lmax": self.Lmax},
+                    "hops": hops,
+                }
+            elif operation == "GET_KEYS":
+                response = self._handle_get_keys_request(request)
             else:
                 response = {"status": "failure", "message": "Unknown operation", "hops": hops}
 
@@ -280,7 +310,7 @@ class PastryNode:
 
         return pickle.loads(response)  # Deserialize the response
 
-    # Node Joining and Routing
+    # Node Operations and Routing
 
     def _handle_join_request(self, request):
         """
@@ -299,14 +329,18 @@ class PastryNode:
             "received_row": self.routing_table[i],
             "hops": hops,  # Include the updated hops list
         }
-        print(f"Node {self.node_id}: Updating the new node's Routing Table Row {i} with node's {self.node_id} row {i}...")
+        print(
+            f"Node {self.node_id}: Updating the new node's Routing Table Row {i} with node's {self.node_id} row {i}..."
+        )
         self.send_request(self.network.node_ports[new_node_id], update_R_request)
 
         next_hop_id = self._find_next_hop(new_node_id)
 
         if next_hop_id == self.node_id:
             # If the next hop is the current node, update the new node's Leaf Set
-            print(f"Node {self.node_id}: This node is the numerically closest node to the new node.\nUpdating the new node's Leaf Set...")
+            print(
+                f"Node {self.node_id}: This node is the numerically closest node to the new node.\nUpdating the new node's Leaf Set..."
+            )
             update_L_request = {
                 "operation": "UPDATE_LEAF_SET",
                 "Lmin": self.Lmin,
@@ -536,7 +570,11 @@ class PastryNode:
                     response = self.send_request(self.network.node_ports[leaf], request)
                     if response["status"] == "success":
                         for new_leaf in response["leaf_set"]["Lmin"] + response["leaf_set"]["Lmax"]:
-                            if new_leaf and new_leaf != self.node_id and new_leaf not in self.Lmin + self.Lmax:
+                            if (
+                                new_leaf
+                                and new_leaf != self.node_id
+                                and new_leaf not in self.Lmin + self.Lmax
+                            ):
                                 self._update_leaf_list(self.Lmin, new_leaf)
                                 self._update_leaf_list(self.Lmax, new_leaf)
                 except Exception as e:
@@ -557,7 +595,9 @@ class PastryNode:
         with self.lock:
             self.Lmin = [node for node in self.Lmin if node != leaving_node_id]
             self.Lmax = [node for node in self.Lmax if node != leaving_node_id]
-            self.neighborhood_set = [node for node in self.neighborhood_set if node != leaving_node_id]
+            self.neighborhood_set = [
+                node for node in self.neighborhood_set if node != leaving_node_id
+            ]
 
         # Prepare rebuild request
         rebuild_request = {
@@ -584,7 +624,11 @@ class PastryNode:
                 self.send_request(self.network.node_ports[neighbor_id], rebuild_request)
 
         print(f"Node {self.node_id}: Finished processing NODE_LEAVE for {leaving_node_id}.")
-        return {"status": "success", "message": f"Processed NODE_LEAVE for {leaving_node_id}.", "hops": hops}
+        return {
+            "status": "success",
+            "message": f"Processed NODE_LEAVE for {leaving_node_id}.",
+            "hops": hops,
+        }
 
     def _rebuild_node_state(self, request):
         """
@@ -605,7 +649,9 @@ class PastryNode:
         if leaving_node_id in available_nodes:
             available_nodes.remove(leaving_node_id)
 
-        print(f"Node {self.node_id}: Available nodes after removing {leaving_node_id}: {available_nodes}")
+        print(
+            f"Node {self.node_id}: Available nodes after removing {leaving_node_id}: {available_nodes}"
+        )
 
         # Rebuild Lmin and Lmax
         self.Lmin = self._find_closest_lower_nodes(available_nodes)
@@ -624,7 +670,9 @@ class PastryNode:
                     self.routing_table[row_idx][col_idx] = None
                     cleared_positions.append((row_idx, col_idx))
 
-        print(f"Node {self.node_id}: Cleared routing table entries for {leaving_node_id}. Cleared positions: {cleared_positions}")
+        print(
+            f"Node {self.node_id}: Cleared routing table entries for {leaving_node_id}. Cleared positions: {cleared_positions}"
+        )
 
         # Attempt to replace cleared positions
         for row_idx, col_idx in cleared_positions:
@@ -635,10 +683,14 @@ class PastryNode:
                         # Verify the column matches the expected digit
                         if int(node_id[row_idx], 16) == col_idx:
                             self.routing_table[row_idx][col_idx] = node_id
-                            print(f"Node {self.node_id}: Replaced entry at Row {row_idx}, Column {col_idx} with {node_id}.")
+                            print(
+                                f"Node {self.node_id}: Replaced entry at Row {row_idx}, Column {col_idx} with {node_id}."
+                            )
                             break  # Stop looking once a replacement is found
                     except (IndexError, ValueError) as e:
-                        print(f"Node {self.node_id}: Skipping invalid node_id {node_id} due to error: {e}")
+                        print(
+                            f"Node {self.node_id}: Skipping invalid node_id {node_id} due to error: {e}"
+                        )
 
         print(f"Node {self.node_id}: Updated routing table: {self.routing_table}")
         return {"status": "success", "message": "Rebuilt node state successfully."}
@@ -705,9 +757,62 @@ class PastryNode:
 
         # Sort by proximity to the current node
         neighbors.sort(key=lambda n: abs(node_positions[n] - node_positions[self.node_id]))
-        result = neighbors[: len(self.neighborhood_set)] + [None] * (len(self.neighborhood_set) - len(neighbors))
+        result = neighbors[: len(self.neighborhood_set)] + [None] * (
+            len(self.neighborhood_set) - len(neighbors)
+        )
         print(f"Updated neighborhood_set: {result}")
         return result
+
+    def _handle_get_keys_request(self, request):
+        """
+        Handle a GET_KEYS operation to retrieve all keys that belong to the node making the request.
+        """
+        request_node_id = request["node_id"]
+
+        if not self.kd_tree or self.kd_tree.country_keys.size == 0:
+            return {"status": "failure", "message": "No keys stored in this node."}
+
+        keys_to_move = []
+
+        # Check if any country_keys should be moved to the requesting node
+        for country_key in np.unique(self.kd_tree.country_keys):
+            l = common_prefix_length(self.node_id, country_key)  # Use the correct key
+            if self._is_closer_node(request_node_id, country_key, l, self.node_id):
+                keys_to_move.append(country_key)
+
+        for country_key in keys_to_move:
+            # Get the corresponding points, reviews, and countries indices
+            indices = np.where(self.kd_tree.country_keys == country_key)[0]
+
+            if len(indices) == 0:
+                continue  # Skip if no matching indices were found
+
+            for idx in indices:
+                point = self.kd_tree.points[idx]
+                review = self.kd_tree.reviews[idx]
+                country = self.kd_tree.countries[idx]
+
+                # Insert the key and data into the requesting node's KDTree
+                insert_request = {
+                    "operation": "INSERT_KEY",
+                    "key": country_key,
+                    "country": country,
+                    "point": point,
+                    "review": review,
+                    "hops": [],
+                }
+                self.send_request(self.network.node_ports[request_node_id], insert_request)
+                print(f"Node {self.node_id}: Moved Key {country_key} to {request_node_id}.")
+
+            # Remove the key and data from the current node's KDTree
+            print(f"Node {self.node_id}: Deleted Key {country_key}.")
+            self.kd_tree.delete_points(country_key)
+
+        print(f"\nNode {self.node_id}: Moved {len(keys_to_move)} keys to {request_node_id}.")
+        return {
+            "status": "success",
+            "message": f"Moved {len(keys_to_move)} keys to {request_node_id}.",
+        }
 
     def insert_key(self, key, point, review, country):
         """
@@ -813,6 +918,15 @@ class PastryNode:
 
         return response
 
+    def get_keys(self):
+        """
+        Move keys from nodes in the leaf set if necessary.
+        """
+        for node_id in self.Lmin + self.Lmax:
+            if node_id is not None:
+                request = {"operation": "GET_KEYS", "node_id": self.node_id, "hops": []}
+                self.send_request(self.network.node_ports[node_id], request)
+
     def _find_next_hop(self, key):
         """
         Find the next hop to forward a request based on the node ID.
@@ -909,17 +1023,23 @@ class PastryNode:
         """
 
         self.neighborhood_set = close_node_neighborhood_set
-        print(f"Node {self.node_id}: Copying neighborhood set from the closest node {close_node_id}...")
+        print(
+            f"Node {self.node_id}: Copying neighborhood set from the closest node {close_node_id}..."
+        )
 
         # Insert the close node aswell if there is space
-        print(f"Node {self.node_id}: Adding Node close node {close_node_id} to the neighborhood set aswell...")
+        print(
+            f"Node {self.node_id}: Adding Node close node {close_node_id} to the neighborhood set aswell..."
+        )
         for i in range(len(self.neighborhood_set)):
             if self.neighborhood_set[i] is None:
                 self.neighborhood_set[i] = close_node_id
                 return
 
         # If there is no space, replace the farthest node id with the close node
-        print(f"Node {self.node_id}: No space in the neighborhood set for the close node. Replacing the farthest node...")
+        print(
+            f"Node {self.node_id}: No space in the neighborhood set for the close node. Replacing the farthest node..."
+        )
         max_dist = -1
         idx = -1
         for i in range(len(self.neighborhood_set)):
@@ -928,7 +1048,9 @@ class PastryNode:
                 "node_position": self.position,
                 "hops": [],
             }
-            response = self.send_request(self.network.node_ports[self.neighborhood_set[i]], dist_request)
+            response = self.send_request(
+                self.network.node_ports[self.neighborhood_set[i]], dist_request
+            )
             dist = response["distance"]
 
             if dist > max_dist:
@@ -1008,7 +1130,9 @@ class PastryNode:
         idx = common_prefix_length(key, self.node_id)
 
         # If the entry in the routing table is empty, update it with the key
-        print(f"Node {self.node_id}: Updating Routing Table Entry {idx, int(key[idx], 16)} for new node {key}...")
+        print(
+            f"Node {self.node_id}: Updating Routing Table Entry {idx, int(key[idx], 16)} for new node {key}..."
+        )
         if self.routing_table[idx][int(key[idx], 16)] is None:
             self.routing_table[idx][int(key[idx], 16)] = key
 
@@ -1055,7 +1179,9 @@ class PastryNode:
 
                 # Update if the different digit index is grater
                 # or if its the same but this node is numerically closer
-                if (key_leaf_diff_dig_idx > closest_diff_dig_idx) or (key_leaf_diff_dig_idx == closest_diff_dig_idx and key_leaf_dist < closest_dist):
+                if (key_leaf_diff_dig_idx > closest_diff_dig_idx) or (
+                    key_leaf_diff_dig_idx == closest_diff_dig_idx and key_leaf_dist < closest_dist
+                ):
                     closest_leaf_id = leaf
                     closest_diff_dig_idx = key_leaf_diff_dig_idx
                     closest_dist = key_leaf_dist
@@ -1066,7 +1192,9 @@ class PastryNode:
                 key_leaf_diff_dig_idx, key_leaf_dist = hex_distance(leaf, key)
 
                 # Apply the same update logic
-                if (key_leaf_diff_dig_idx > closest_diff_dig_idx) or (key_leaf_diff_dig_idx == closest_diff_dig_idx and key_leaf_dist < closest_dist):
+                if (key_leaf_diff_dig_idx > closest_diff_dig_idx) or (
+                    key_leaf_diff_dig_idx == closest_diff_dig_idx and key_leaf_dist < closest_dist
+                ):
                     closest_leaf_id = leaf
                     closest_diff_dig_idx = key_leaf_diff_dig_idx
                     closest_dist = key_leaf_dist
@@ -1124,7 +1252,10 @@ class PastryNode:
         # Determine if the target node is a better candidate than the current node
         if (i >= l) and (
             (target_key_diff_dig_idx > curr_node_key_diff_dig_idx)
-            or (target_key_diff_dig_idx == curr_node_key_diff_dig_idx and target_key_num_dist < curr_node_key_num_dist)
+            or (
+                target_key_diff_dig_idx == curr_node_key_diff_dig_idx
+                and target_key_num_dist < curr_node_key_num_dist
+            )
         ):
             return True
         else:
@@ -1153,7 +1284,9 @@ class PastryNode:
             diff_dig_idx, num_dist = hex_distance(leaf_list[i], self.node_id)
 
             # Replace the farthest node (numerical distance or digit index)
-            if (diff_dig_idx < far_diff_dig_idx) or (diff_dig_idx == far_diff_dig_idx and num_dist > max_num_dist):
+            if (diff_dig_idx < far_diff_dig_idx) or (
+                diff_dig_idx == far_diff_dig_idx and num_dist > max_num_dist
+            ):
                 far_diff_dig_idx = diff_dig_idx
                 max_num_dist = num_dist
                 replace_index = i
@@ -1162,5 +1295,7 @@ class PastryNode:
         diff_dig_idx, num_dist = hex_distance(key, self.node_id)
 
         # Replace if the key is closer than the farthest node
-        if (diff_dig_idx > far_diff_dig_idx) or (diff_dig_idx == far_diff_dig_idx and num_dist < max_num_dist):
+        if (diff_dig_idx > far_diff_dig_idx) or (
+            diff_dig_idx == far_diff_dig_idx and num_dist < max_num_dist
+        ):
             leaf_list[replace_index] = key

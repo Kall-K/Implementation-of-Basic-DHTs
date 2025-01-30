@@ -1,5 +1,6 @@
 import time
 import pandas as pd
+import threading
 
 import sys
 import os
@@ -14,14 +15,15 @@ from constants import *
 from helper_functions import hash_key
 
 
+# Builds a Pastry network and inserts all keys from the dataset
 def main():
-    print("Stage 1: Node Joining")
     print("=======================")
     print("Creating the Pastry network...")
     network = PastryNetwork()
+    print("Node Joining")
 
     # 12 Predefined node IDs. As many as the countries in the dataset
-    predefined_ids = ["4b12", "fa35", "19bd", "37de", "3722", "ca12", "cafe", "fb32", "20bc", "20bd", "3745", "d3ad", "67cb"]
+    predefined_ids = ["4b12", "fa35", "19bd", "37de", "3722", "ca12", "cafe", "fb32", "20bc", "20bd", "3745", "d3ad"]
 
     print(f"Adding {len(predefined_ids)} nodes to the network...")
     print("\n" + "-" * 100)
@@ -65,7 +67,10 @@ def main():
         response = first_node.insert_key(key, point, review, country)
         print(response)
 
+    # Run the gui main loop
+    network.gui.root.mainloop()
+
 
 if __name__ == "__main__":
     main()
-    input("Press Enter to exit...")
+    # input("Press Enter to exit...")

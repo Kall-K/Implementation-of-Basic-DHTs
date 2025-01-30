@@ -1,59 +1,115 @@
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Button
-from matplotlib.collections import PathCollection
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
-import time
 import tkinter as tk
+from tkinter import scrolledtext
+from matplotlib.collections import PathCollection
 
 from node import PastryNode
+
+
+WIDTH = 1680
+HEIGHT = 720
 
 
 class GUI:
     def __init__(self, network):
         self.network = network
+        self.root = tk.Tk()
+        self.root.title("Pastry GUI")
+        self.root.geometry(f"{WIDTH}x{HEIGHT}")
 
-        self.setup_plot()
+        # Ensure cleanup on close
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
-    def setup_plot(self):
-        # Initialize figure
-        WIDTH = 17
-        HEIGHT = 8
-        self.fig = plt.figure(figsize=(WIDTH, HEIGHT))
-        aspect_ratio = WIDTH / HEIGHT
+        # Setup main layout
+        self.setup_widgets()
 
-        # Create buttons
-        self.add_button_ax = self.fig.add_axes([0.025, 0.9, 0.1, 0.05])  # Button position on left
-        self.add_button = Button(self.add_button_ax, "Node Join")
+    def on_close(self):
+        """Shut down Pastry network before closing GUI."""
+        print("Shutting down network...")
+        for node in self.network.nodes.values():
+            node.running = False
 
-        # Connect buttons to functions
-        self.add_button.on_clicked(self.node_join_gui)
+        # Stop Tkinter main loop
+        self.root.quit()  # Exit the event loop
+        self.root.destroy()  # Destroy the GUI window
 
-        # Create main visualization (Pastry Ring)
-        self.ax_ring = self.fig.add_axes([0.15, 0.3, 0.7 / aspect_ratio, 0.65])  # [x, y, width, height]
-        self.ax_ring.set_xlim(-1.2, 1.2)
-        self.ax_ring.set_ylim(-1.2, 1.2)
-        self.ax_ring.set_xticks([])
-        self.ax_ring.set_yticks([])
-        self.ax_ring.set_title("Pastry Overlay Network Visualization")
+    def setup_widgets(self):
+        # Left frame for control buttons
+        control_width = WIDTH // 8
+        control_frame = tk.Frame(self.root, width=control_width, height=HEIGHT, bg="lightgray")
+        control_frame.pack(side=tk.LEFT, fill=tk.Y)
+        control_frame.pack_propagate(False)  # Prevents resizing
+
+        self.node_join_button = tk.Button(
+            control_frame,
+            text="Node Join",
+            command=self.node_join_gui,
+            width=15,
+            height=2,
+            font=("Arial", 14),
+        )
+        self.node_join_button.pack(pady=20, padx=10)
+
+        # Center frame for visualizations
+        viz_width = HEIGHT
+        viz_frame = tk.Frame(self.root, width=viz_width, height=HEIGHT)
+        viz_frame.pack(side=tk.LEFT, fill=tk.Y)
+
+        fig_width = viz_width / 100
+        fig_height = HEIGHT / 100
+        self.fig = plt.figure(figsize=(fig_width, fig_height))
 
         # Create topology visualization (Bottom)
-        self.ax_topology = self.fig.add_axes([0.15, 0.05, 0.75, 0.2])  # Bottom bar for topology
+        topology_pad = 0.05
+        topology_x = topology_pad
+        topology_y = topology_pad
+        topology_width = (
+            1 - topology_x - topology_pad
+        )  # 100% of the fig width - the padding left and right
+        topology_height = 1 / 4 - topology_y  # 1/4 of the fig height - the padding
+        self.ax_topology = self.fig.add_axes(
+            [topology_x, topology_y, topology_width, topology_height]
+        )
         self.ax_topology.set_xlim(0, 1)
         self.ax_topology.set_ylim(-0.1, 0.1)
         self.ax_topology.set_xticks(np.linspace(0, 1, 11))
         self.ax_topology.set_yticks([])
         self.ax_topology.set_title("Pastry Network Topology")
 
-        # Create node info panel (Right)
-        self.ax_info = self.fig.add_axes([0.50, 0.3, 0.4, 0.65])  # Right panel
-        self.ax_info.set_xticks([])
-        self.ax_info.set_yticks([])
-        self.ax_info.set_title("Node Information")
+        # Create main visualization (Pastry Ring)
+        ring_pad_bottom = 0.03
+        ring_pad_top = 0.05
+        topology_x_mid = (topology_x + (topology_x + topology_width)) / 2
+        topology_x_quarter = (topology_x + topology_x_mid) / 2
+        topology_x_eighth = (topology_x + topology_x_quarter) / 2
+        ring_x = (topology_x + topology_x_eighth) / 2
+        ring_x_width = ring_x - topology_x
+        ring_y = topology_y + topology_height + ring_pad_bottom
+        ring_width = topology_width - 2 * ring_x_width
+        ring_height = 1 - topology_height - topology_pad - ring_pad_bottom - ring_pad_top
+        self.ax_ring = self.fig.add_axes(
+            [ring_x, ring_y, ring_width, ring_height]
+        )  # [x, y, width, height]
+        self.ax_ring.set_xlim(-1.2, 1.2)
+        self.ax_ring.set_ylim(-1.2, 1.2)
+        self.ax_ring.set_xticks([])
+        self.ax_ring.set_yticks([])
+        self.ax_ring.set_title("Pastry Overlay Network Visualization")
 
-        # Connect the pick event
-        self.fig.canvas.mpl_connect("pick_event", self.on_node_pick)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=viz_frame)
+        self.canvas.get_tk_widget().pack(fill=tk.Y, expand=True)
+        self.canvas.mpl_connect("pick_event", self.on_node_pick)
 
-        plt.show(block=False)
+        # Right frame for node info
+        info_frame = tk.Frame(self.root)
+        info_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        info_frame.pack_propagate(False)  # Prevents resizing
+
+        tk.Label(info_frame, text="Node Information", font=("Arial", 14)).pack()
+        self.info_text = scrolledtext.ScrolledText(info_frame, wrap=tk.WORD, width=30, height=35)
+        self.info_text.pack(expand=True, fill=tk.BOTH)
 
     def visualize_network(self, threshold=0.3):
         """
@@ -70,11 +126,19 @@ class GUI:
         # Convert node IDs from hex to integers for sorting
         sorted_nodes = sorted(self.network.nodes.keys(), key=lambda x: int(x, 16))
 
-        self.ax_ring.clear()  # Clear the current figure instead of making a new one
-        self.ax_ring.set_xlim(-1.2, 1.2)
-        self.ax_ring.set_ylim(-1.2, 1.2)
+        self.ax_ring.clear()
+        self.ax_ring.set_title("Pastry Overlay Network Visualization")
+        self.ax_ring.spines["top"].set_visible(False)
+        self.ax_ring.spines["bottom"].set_visible(False)
+        self.ax_ring.spines["left"].set_visible(False)
+        self.ax_ring.spines["right"].set_visible(False)
 
-        # Draw the circular ring
+        self.ax_ring.set_xticks([])  # Remove x-axis ticks
+        self.ax_ring.set_yticks([])  # Remove y-axis ticks
+
+        if not self.network.nodes:
+            return
+
         radius = 1
         circle = plt.Circle((0, 0), radius, color="lightgray", fill=False)
         self.ax_ring.add_patch(circle)
@@ -107,7 +171,7 @@ class GUI:
             node_plot = self.ax_ring.scatter(base_x, base_y, color="lightblue", s=100, picker=True)
             node_plot.set_gid(node_id)  # Store the node ID in the plot
 
-            text_offset = 0.05  # 0.1
+            text_offset = 0.05
             text_x = (radius + text_offset) * np.sin(angle)
             text_y = (radius + text_offset) * np.cos(angle)
             ha = "center"
@@ -126,12 +190,7 @@ class GUI:
                 color="black",
             )
 
-        # Remove axis ticks and labels
-        self.ax_ring.set_xticks([])
-        self.ax_ring.set_yticks([])
-        self.ax_ring.set_title("Pastry Overlay Network Visualization")
-
-        plt.draw()
+        self.canvas.draw()
 
     def visualize_topology(self):
         """
@@ -141,10 +200,17 @@ class GUI:
         if not self.network.nodes:
             print("No nodes in the network to visualize.")
             return
-
+        # Draw a horizontal line to represent the topology
         self.ax_topology.clear()
+        self.ax_topology.plot([0, 1], [0, 0], color="gray", linestyle="--")
         self.ax_topology.set_xlim(0, 1)
         self.ax_topology.set_ylim(-0.1, 0.1)  # Small height since it's a 1D layout
+        self.ax_topology.set_xticks(np.linspace(0, 1, 11))
+        self.ax_topology.set_yticks([])
+        self.ax_topology.spines["top"].set_visible(False)
+        self.ax_topology.spines["left"].set_visible(False)
+        self.ax_topology.spines["right"].set_visible(False)
+        self.ax_topology.set_title("Pastry Network Topology")
 
         # Sort nodes by position for a structured layout
         sorted_nodes = sorted(self.network.nodes.values(), key=lambda node: node.position)
@@ -169,96 +235,62 @@ class GUI:
         # Draw a horizontal line to represent the topology
         self.ax_topology.plot([0, 1], [0, 0], color="gray", linestyle="--")
 
-        # Remove y-axis ticks and labels since it's a 1D layout
-        self.ax_topology.set_yticks([])
-        self.ax_topology.set_xticks(np.linspace(0, 1, 11))  # Tick marks at [0, 0.1, ..., 1]
-
-        self.ax_topology.set_title("Pastry Network Topology")
-
-        plt.draw()
+        self.canvas.draw()
 
     def on_node_pick(self, event):
-        """Handles a pick event when a node is clicked."""
-        artist = event.artist  # Get the picked object
-
-        if isinstance(artist, PathCollection):  # Ensure it's a scatter point
-            node_id = artist.get_gid()  # Get stored node ID
+        if isinstance(event.artist, PathCollection):
+            node_id = event.artist.get_gid()
             selected_node = self.network.nodes.get(node_id)
-
             if selected_node:
                 self.update_info_panel(selected_node)
 
     def update_info_panel(self, node):
         """Print node information in the right panel."""
-        self.ax_info.clear()
-        self.ax_info.set_xticks([])
-        self.ax_info.set_yticks([])
-        self.ax_info.set_title("Node Information")
+        self.info_text.config(state=tk.NORMAL)
+        self.info_text.delete(1.0, tk.END)
 
-        y_offset = 0.95
+        # Insert the formatted node state with monospace font
+        self.info_text.insert(tk.END, node.get_state())
 
-        text = node.get_state()  # Get multi-line text
+        # Ensure text uses a fixed-width font for proper alignment
+        self.info_text.config(font=("Courier", 11), state=tk.DISABLED)
 
-        lines = text.split("\n")  # Split into separate lines
-        for line in lines:
-            self.ax_info.text(0.02, y_offset, line, fontsize=9, verticalalignment="top", family="monospace")
-            y_offset -= 0.03  # Move down for the next line
-
-        plt.draw()
-
-    def node_join_gui(self, event=None):
-        """
-        Handles the GUI event for adding a new node when the 'Node Join' button is clicked.
-        """
-        """root = tk.Tk()
-        root.withdraw()  # Hide the main window
-        new_node_id = simpledialog.askstring("Node Join", "Enter the new node ID (4-digit hex):")"""
-
-        def submit(*args):
+    def node_join_gui(self):
+        def submit(event=None):  # Accept event argument for key binding
             nonlocal new_node_id
             new_node_id = entry.get().strip().lower()
-            root.destroy()  # Close the window
+            join_window.destroy()
 
-        root = tk.Tk()
-        root.title("Node Join")
-        root.geometry("400x150")  # Set a wider window size
-        root.resizable(False, False)
-        root.lift()
-        root.attributes("-topmost", True)  # Keep window on top
+        join_window = tk.Toplevel(self.root)
+        join_window.title("Node Join")
+        join_window.geometry("300x150")
 
-        tk.Label(root, text="Enter the new node ID (4-digit hex):", font=("Arial", 12)).pack(pady=10)
+        tk.Label(join_window, text="Enter 4-digit hex ID:", font=("Arial", 14)).pack(pady=10)
 
-        entry = tk.Entry(root, font=("Arial", 12), width=20)
-        entry.pack(pady=5)
-        root.focus_force()
-        entry.focus_set()  # Automatically focus the input field
-
-        tk.Button(root, text="Submit", font=("Arial", 12), command=submit).pack(pady=10)
+        entry = tk.Entry(join_window, width=20)
+        entry.pack(pady=2)
+        entry.focus_set()  # Set focus to the entry field
 
         # Bind Enter key to submit function
         entry.bind("<Return>", submit)
 
+        tk.Button(join_window, text="Submit", command=submit, font=("Arial", 12)).pack(pady=10)
+
         new_node_id = None
-        root.wait_window(root)
+
+        join_window.grab_set()
+        self.root.wait_window(join_window)
 
         if not new_node_id:
             print("\nNode join canceled.")
             return
 
         if len(new_node_id) != 4 or not all(c in "0123456789abcdefABCDEF" for c in new_node_id):
-            print("\nInvalid Node ID. Must be a 4-digit hexadecimal value.")
+            print("Invalid Node ID.")
             return
 
         node = PastryNode(self.network, node_id=new_node_id)
-        print(f"Adding Node: ID = {node.node_id}")
         node.start_server()
-        time.sleep(0.1)  # Allow the server to start
-        response = self.network.node_join(node)
-
-        if response and response["status"] == "success":
-            print(f"\nNode Added: ID = {node.node_id}, Position = {node.position}")
-            print("\n" + "-" * 100)
-
-            # Update visualizations
-            self.visualize_network()
-            self.visualize_topology()
+        self.network.node_join(node)
+        self.visualize_network()
+        self.visualize_topology()
