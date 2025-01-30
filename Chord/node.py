@@ -610,8 +610,10 @@ class ChordNode:
 
     # Βρίσκει τη θέση του κόμβου
     def find_node_place(self, pre_id, suc_id):
-        self.request_set_successor(self.node_id, pre_id) # pre.finger_table[0] = self.node_id, pre.successor = self.node_id
-        self.request_set_predecessor(self.node_id, suc_id) #suc.predecessor = self.node_id
+        # set the successor of the predecessor to self's id
+        self.request_set_successor(self.node_id, pre_id)
+        # set the predecessor of the successor to self's id
+        self.request_set_predecessor(self.node_id, suc_id)
         self.finger_table[0] = suc_id
         self.successors[0] = suc_id
         self.predecessor = pre_id
@@ -627,7 +629,9 @@ class ChordNode:
         pre_id = self.predecessor
         suc_id = self.get_successor()
 
+        # set the successor of the predecessor to self's successor
         self.request_set_successor(suc_id, pre_id) # self.predecessor.successor = self.successor, self.predecessor.fingers_table[0] = self.successor
+        # set the predecessor of the successor to self's predecessor
         self.request_set_predecessor(pre_id, suc_id) # self.successor.predecessor = self.predecessor
 
         # # Transfer keys to successor
@@ -636,7 +640,7 @@ class ChordNode:
 
 
     #############################
-    ###### Get Successors #######
+    ###### Get Successor #######
     #############################
 
     def get_successor(self, from_idx=0):
@@ -644,6 +648,10 @@ class ChordNode:
             if self.network.nodes[self.successors[i]].running:
                 return self.successors[i]
         return -1
+    
+    #############################
+    #### Update Successors ######
+    #############################
     
     def update_successors_on_join(self):
         # Find node to insert node
