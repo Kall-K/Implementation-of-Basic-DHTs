@@ -23,7 +23,20 @@ def main():
     print("Node Joining")
 
     # 12 Predefined node IDs. As many as the countries in the dataset
-    predefined_ids = ["4b12", "fa35", "19bd", "37de", "3722", "ca12", "cafe", "fb32", "20bc", "20bd", "3745", "d3ad"]
+    predefined_ids = [
+        "4b12",
+        "fa35",
+        "19bd",
+        "37de",
+        "3722",
+        "ca12",
+        "cafe",
+        "fb32",
+        "20bc",
+        "20bd",
+        "3745",
+        "d3ad",
+    ]
 
     print(f"Adding {len(predefined_ids)} nodes to the network...")
     print("\n" + "-" * 100)
@@ -31,7 +44,7 @@ def main():
         node = PastryNode(network, node_id=node_id)
         print(f"Adding Node: ID = {node.node_id}")
         node.start_server()
-        time.sleep(0.1)  # Allow the server to start
+        # time.sleep(0.1)  # Allow the server to start
         network.node_join(node)
         print(f"\nNode Added: ID = {node.node_id}, Position = {node.position}")
         print("\n" + "-" * 100)
@@ -73,4 +86,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # input("Press Enter to exit...")

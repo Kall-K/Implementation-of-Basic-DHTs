@@ -15,6 +15,7 @@ HEIGHT = 720
 class GUI:
     def __init__(self, network):
         self.network = network
+        self.selected_node = None
         self.root = tk.Tk()
         self.root.title("Pastry GUI")
         self.root.geometry(f"{WIDTH}x{HEIGHT}")
@@ -42,6 +43,29 @@ class GUI:
         control_frame.pack(side=tk.LEFT, fill=tk.Y)
         control_frame.pack_propagate(False)  # Prevents resizing
 
+        # Show Pastry button
+        self.show_pastry_button = tk.Button(
+            control_frame,
+            text="Show Pastry",
+            command=self.show_pastry_gui,
+            width=15,
+            height=2,
+            font=("Arial", 14),
+        )
+        self.show_pastry_button.pack(pady=10, padx=10)
+
+        # Show KD Tree button
+        self.show_kd_tree_button = tk.Button(
+            control_frame,
+            text="Show KD Tree",
+            command=self.show_kd_tree_gui,
+            width=15,
+            height=2,
+            font=("Arial", 14),
+        )
+        self.show_kd_tree_button.pack(pady=10, padx=10)
+
+        # Node join button
         self.node_join_button = tk.Button(
             control_frame,
             text="Node Join",
@@ -50,12 +74,12 @@ class GUI:
             height=2,
             font=("Arial", 14),
         )
-        self.node_join_button.pack(pady=20, padx=10)
+        self.node_join_button.pack(pady=10, padx=10)
 
         # Center frame for visualizations
         viz_width = HEIGHT
-        viz_frame = tk.Frame(self.root, width=viz_width, height=HEIGHT)
-        viz_frame.pack(side=tk.LEFT, fill=tk.Y)
+        self.viz_frame = tk.Frame(self.root, width=viz_width, height=HEIGHT)
+        self.viz_frame.pack(side=tk.LEFT, fill=tk.Y)
 
         fig_width = viz_width / 100
         fig_height = HEIGHT / 100
@@ -63,15 +87,17 @@ class GUI:
 
         # Create topology visualization (Bottom)
         topology_pad = 0.05
-        topology_x = topology_pad
-        topology_y = topology_pad
-        topology_width = (
-            1 - topology_x - topology_pad
+
+        self.topology_x = topology_pad
+        self.topology_y = topology_pad
+        self.topology_width = (
+            1 - self.topology_x - topology_pad
         )  # 100% of the fig width - the padding left and right
-        topology_height = 1 / 4 - topology_y  # 1/4 of the fig height - the padding
+        self.topology_height = 1 / 4 - self.topology_y  # 1/4 of the fig height - the padding
         self.ax_topology = self.fig.add_axes(
-            [topology_x, topology_y, topology_width, topology_height]
+            [self.topology_x, self.topology_y, self.topology_width, self.topology_height]
         )
+
         self.ax_topology.set_xlim(0, 1)
         self.ax_topology.set_ylim(-0.1, 0.1)
         self.ax_topology.set_xticks(np.linspace(0, 1, 11))
@@ -81,26 +107,29 @@ class GUI:
         # Create main visualization (Pastry Ring)
         ring_pad_bottom = 0.03
         ring_pad_top = 0.05
-        topology_x_mid = (topology_x + (topology_x + topology_width)) / 2
-        topology_x_quarter = (topology_x + topology_x_mid) / 2
-        topology_x_eighth = (topology_x + topology_x_quarter) / 2
-        ring_x = (topology_x + topology_x_eighth) / 2
-        ring_x_width = ring_x - topology_x
-        ring_y = topology_y + topology_height + ring_pad_bottom
-        ring_width = topology_width - 2 * ring_x_width
-        ring_height = 1 - topology_height - topology_pad - ring_pad_bottom - ring_pad_top
+        topology_x_mid = (self.topology_x + (self.topology_x + self.topology_width)) / 2
+        topology_x_quarter = (self.topology_x + topology_x_mid) / 2
+        topology_x_eighth = (self.topology_x + topology_x_quarter) / 2
+
+        self.ring_x = (self.topology_x + topology_x_eighth) / 2
+        ring_x_width = self.ring_x - self.topology_x
+        self.ring_y = self.topology_y + self.topology_height + ring_pad_bottom
+        self.ring_width = self.topology_width - 2 * ring_x_width
+        self.ring_height = 1 - self.topology_height - topology_pad - ring_pad_bottom - ring_pad_top
+
         self.ax_ring = self.fig.add_axes(
-            [ring_x, ring_y, ring_width, ring_height]
-        )  # [x, y, width, height]
+            [self.ring_x, self.ring_y, self.ring_width, self.ring_height]
+        )
+
         self.ax_ring.set_xlim(-1.2, 1.2)
         self.ax_ring.set_ylim(-1.2, 1.2)
         self.ax_ring.set_xticks([])
         self.ax_ring.set_yticks([])
         self.ax_ring.set_title("Pastry Overlay Network Visualization")
 
-        self.canvas = FigureCanvasTkAgg(self.fig, master=viz_frame)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.viz_frame)
         self.canvas.get_tk_widget().pack(fill=tk.Y, expand=True)
-        self.canvas.mpl_connect("pick_event", self.on_node_pick)
+        self.pastry_node_pick_event_id = self.canvas.mpl_connect("pick_event", self.on_node_pick)
 
         # Right frame for node info
         info_frame = tk.Frame(self.root)
@@ -207,9 +236,10 @@ class GUI:
         self.ax_topology.set_ylim(-0.1, 0.1)  # Small height since it's a 1D layout
         self.ax_topology.set_xticks(np.linspace(0, 1, 11))
         self.ax_topology.set_yticks([])
-        self.ax_topology.spines["top"].set_visible(False)
-        self.ax_topology.spines["left"].set_visible(False)
-        self.ax_topology.spines["right"].set_visible(False)
+        self.ax_topology.spines["top"].set_visible(True)
+        self.ax_topology.spines["bottom"].set_visible(True)
+        self.ax_topology.spines["left"].set_visible(True)
+        self.ax_topology.spines["right"].set_visible(True)
         self.ax_topology.set_title("Pastry Network Topology")
 
         # Sort nodes by position for a structured layout
@@ -242,6 +272,7 @@ class GUI:
             node_id = event.artist.get_gid()
             selected_node = self.network.nodes.get(node_id)
             if selected_node:
+                self.selected_node = selected_node
                 self.update_info_panel(selected_node)
 
     def update_info_panel(self, node):
@@ -294,3 +325,113 @@ class GUI:
         self.network.node_join(node)
         self.visualize_network()
         self.visualize_topology()
+
+    def show_pastry_gui(self):
+        """Displays the Pastry ring and topology."""
+        # Remove the temporary KD-Tree plot if it exists
+        if hasattr(self, "ax_kd_tree"):
+            self.ax_kd_tree.remove()
+            del self.ax_kd_tree
+
+        # Disconnect the KD-Tree pick event if active
+        if hasattr(self, "kd_tree_pick_event_id"):
+            self.canvas.mpl_disconnect(self.kd_tree_pick_event_id)
+            del self.kd_tree_pick_event_id  # Remove reference
+
+        # Clear all widgets from the root window
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        # Reinitialize the GUI
+        self.setup_widgets()
+
+        # Redraw both visualizations
+        self.visualize_network()
+        self.visualize_topology()
+
+    def show_kd_tree_gui(self):
+        """Displays the KD Tree of the selected node if available."""
+        if self.selected_node is None:
+            print("No node selected.")
+            return
+
+        # Check if KD Tree already exists and is displayed
+        if hasattr(self, "ax_kd_tree"):
+            print("KD Tree is already displayed.")
+            return
+
+        if hasattr(self.selected_node, "kd_tree") and self.selected_node.kd_tree:
+            # Open a dialog box to let the user select a unique country
+            def on_select(event=None):
+                nonlocal selected_country
+                selected_country = country_var.get()
+                if selected_country:
+                    selection_window.unbind("<Return>")
+                    selection_window.destroy()
+
+            selection_window = tk.Toplevel(self.root)
+            selection_window.title("Select Country")
+            selection_window.geometry("300x200")
+
+            tk.Label(selection_window, text="Select a country:", font=("Arial", 14)).pack(pady=10)
+
+            country_var = tk.StringVar(selection_window)
+
+            unique_countries, counts = np.unique(
+                self.selected_node.kd_tree.countries, return_counts=True
+            )
+
+            dropdown = tk.OptionMenu(selection_window, country_var, *unique_countries)
+            dropdown.pack(pady=5)
+
+            # Add a button to confirm selection
+            tk.Button(selection_window, text="OK", command=on_select, font=("Arial", 12)).pack(
+                pady=10
+            )
+
+            # Bind Enter key to select action
+            selection_window.bind("<Return>", on_select)
+
+            selected_country = None
+
+            selection_window.grab_set()
+            self.root.wait_window(selection_window)
+
+            if not selected_country:
+                print("Country selection canceled.")
+                return
+
+            print(f"Node {self.selected_node.node_id}: Visualizing KD Tree for {selected_country}.")
+
+            # TODO: Na kanw visualize to kd tree mono gia to selected country
+            # prepei na vrw ta indices gia to selected country
+            # kai na perasw stin visualize ta points, reviews se auta ta indices
+
+            # Clear the ring plot
+            self.ax_ring.clear()
+            self.ax_ring.set_xticks([])
+            self.ax_ring.set_yticks([])
+
+            # Clear the topology plot
+            self.ax_topology.clear()
+            self.ax_topology.set_xticks([])
+            self.ax_topology.set_yticks([])
+            self.ax_topology.spines["top"].set_visible(False)
+            self.ax_topology.spines["bottom"].set_visible(False)
+            self.ax_topology.spines["left"].set_visible(False)
+            self.ax_topology.spines["right"].set_visible(False)
+
+            self.ax_kd_tree = self.fig.add_subplot(111, projection="3d")
+
+            # Disconnect Pastry pick event
+            self.canvas.mpl_disconnect(self.pastry_node_pick_event_id)
+
+            # Connect KD-Tree pick event and store ID
+            self.kd_tree_pick_event_id = self.canvas.mpl_connect(
+                "pick_event", self.selected_node.kd_tree.on_pick
+            )
+
+            # Visualize the KD Tree
+            self.selected_node.kd_tree.visualize(ax=self.ax_kd_tree, canvas=self.canvas)
+        else:
+            print(f"Node {self.selected_node.node_id} does not have a KD Tree.")

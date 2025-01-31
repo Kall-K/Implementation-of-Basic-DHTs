@@ -119,7 +119,9 @@ class KDTree:
 
             # Match additional criteria if provided
             if criteria:
-                match = all(point[CRITERIA_MAPPING[key]] == value for key, value in criteria.items())
+                match = all(
+                    point[CRITERIA_MAPPING[key]] == value for key, value in criteria.items()
+                )
                 if not match:
                     continue
 
@@ -192,7 +194,10 @@ class KDTree:
 
         for idx in indices:
             point = self.points[idx]
-            if all(lower_bounds[i] <= point[i] <= upper_bounds[i] for i in range(3)) and self.country_keys[idx] == country_key:
+            if (
+                all(lower_bounds[i] <= point[i] <= upper_bounds[i] for i in range(3))
+                and self.country_keys[idx] == country_key
+            ):
                 matching_points.append(point)
                 matching_reviews.append(self.reviews[idx])
 
@@ -223,14 +228,25 @@ class KDTree:
             )
             print(f"\nPoint: {point}\nReview: {review}\nCountry: {country}")
 
-    def visualize(self, points, reviews):
+    def visualize(self, ax, canvas, points=None, reviews=None):
         """
-        Visualize the points in a 3D scatter plot.
-        """
-        fig = plt.figure(figsize=(10, 7))
-        ax = fig.add_subplot(111, projection="3d")
+        Visualize the points in a 3D scatter plot on the provided Axes object.
+        If points and reviews are None, visualize all stored points.
 
-        # Scatter plot the points
+        Args:
+            ax (Axes): The Matplotlib Axes object to plot on.
+            canvas (FigureCanvasTkAgg): The Tkinter canvas for displaying the plot.
+            points (numpy array, optional): Array of data points. If None, use all stored points.
+            reviews (numpy array, optional): Array of reviews. If None, use all stored reviews.
+        """
+        if points is None or reviews is None:
+            if self.points is None or self.reviews is None or len(self.points) == 0:
+                print("No points available for visualization.")
+                return
+            points = self.points
+            reviews = self.reviews
+
+        # Create a 3D scatter plot
         ax.scatter(points[:, 0], points[:, 1], points[:, 2], c="blue", marker="o", picker=True)
 
         # Label axes
@@ -241,16 +257,14 @@ class KDTree:
         # Add title
         ax.set_title("3D Scatter Plot of Coffee Review Points")
 
-        def on_pick(event):
-            """Handle the pick event to display the associated review."""
-            ind = event.ind[0]  # Index of the picked point
-            review = reviews[ind]
-            print(f"\nReview for selected point ({points[ind]}):\n{review}")
+        # Redraw the canvas
+        canvas.draw()
 
-        # Connect the pick event
-        fig.canvas.mpl_connect("pick_event", on_pick)
-
-        plt.show()
+    def on_pick(self, event):
+        """Handle the pick event to display the associated review."""
+        ind = event.ind[0]  # Index of the picked point
+        review = self.reviews[ind]
+        print(f"\nReview for selected point ({self.points[ind]}):\n{review}")
 
 
 # Map criteria keys to point array indices
