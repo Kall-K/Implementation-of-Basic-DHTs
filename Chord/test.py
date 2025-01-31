@@ -28,7 +28,7 @@ def main():
     # Load dataset
     dataset_path = "../Coffee_Reviews_Dataset/simplified_coffee.csv"
     df = pd.read_csv(dataset_path)
-    df = df[:10]
+    df = df[:15]
     # print(df)
     # Keep only the year from the review_date column
     df["review_date"] = pd.to_datetime(df["review_date"], format="%B %Y").dt.year
@@ -67,20 +67,33 @@ def main():
     print("\nKey Insertions")
     print("=======================")
     insert_keys(network, keys, points, reviews, countries, names)
+
     # country = "United States"
     # name = "Greg's Coffee"
     # key = hash_key(country)
     # point = [2018, 94, 5.5]
     # review = "Very delicate and sweet. Lemon verbena, dried persimmon, dogwood, baker's chocolate in aroma and cup. Balanced, sweet-savory structure; velvety-smooth mouthfeel. The sweetly herb-toned finish centers on notes of lemon verbena and dried persimmon wrapped in baker's chocolate."
-    
-    # insert_key(first_node, key, point, review, country, name)
-    
+
+    # print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
+    # network.insert_key(key, point, review, country)
+
     # Key Deletion
     print("\nKey Deletion")
     print("=======================")
-    network.delete_key('372a')
-    network.delete_key('372b')
-    
+    # network.delete_key('372a')
+    # network.delete_key('372b')
+
+    key = '372b'
+    # Parallel Deletion
+    delete_thread = threading.Thread(target=network.delete_key, args=(key,))
+    delete_thread2 = threading.Thread(target=network.delete_key, args=(key,))
+
+    delete_thread.start()
+    delete_thread2.start()
+
+    delete_thread.join()
+    delete_thread2.join()
+
     # Key Update
     print("\nKey Update")
     print("=======================")
@@ -103,7 +116,18 @@ def main():
     update_fields = {
         "review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."
     }
-    network.update_key(key=taiwan_country_key, updated_data=update_fields)
+    update_fields2 = {
+        "review": "An updated review2 for Taiwan's coffee: crisp and fruity with a lingering sweetness."
+    }
+    # network.update_key(key=taiwan_country_key, updated_data=update_fields)
+
+    update_thread1 = threading.Thread(target=network.update_key, args=(taiwan_country_key, update_fields,))
+    update_thread2 = threading.Thread(target=network.update_key, args=(taiwan_country_key, update_fields2,))
+    update_thread2.start()
+    update_thread1.start()
+
+    update_thread1.join()
+    update_thread2.join()
 
     # Update based on specific attributes and modify multiple fields
     print("\nUpdating specific attributes for Taiwan:\n")
