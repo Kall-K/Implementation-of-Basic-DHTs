@@ -37,10 +37,13 @@ class ChordNode:
         # self.successor = self.node_id
         self.predecessor = self.node_id
         self.finger_table = [self.node_id] * M
+
         self.successors = [self.node_id] * S
         self.running = True
 
         self.data = {}  # For storing key-value pairs
+
+        self.lock = threading.Lock()  # Lock for thread safety
 
         # Create a thread pool for handling requests to limit the number of concurrent threads
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
@@ -338,35 +341,36 @@ class ChordNode:
         del request["key"]
         del request["operation"]
 
-        if key in self.data.keys():
-            self.data[key].append(request)
-        else:
-            self.data[key] = []
-            self.data[key].append(request)
+        with self.lock:
+            if key in self.data.keys():
+                self.data[key].append(request)
+            else:
+                self.data[key] = []
+                self.data[key].append(request)
 
-        if self.kd_tree == None:
-            # Initialize KDTree with the first point
-            self.kd_tree = KDTree(
-                points=np.array([point]),
-                reviews=np.array([review]),
-                country_keys=np.array([country_key]),
-                countries=np.array([country]),
-            )
-        else:
-            # Add point to the existing KDTree
-            self.kd_tree.add_point(point, review, country)
+            if self.kd_tree == None:
+                # Initialize KDTree with the first point
+                self.kd_tree = KDTree(
+                    points=np.array([point]),
+                    reviews=np.array([review]),
+                    country_keys=np.array([country_key]),
+                    countries=np.array([country]),
+                )
+            else:
+                # Add point to the existing KDTree
+                self.kd_tree.add_point(point, review, country)
 
-        # # Print the point and review directly after adding
-        # print(f"\nInserted Key: {key}")
-        # print(f"Point: {point}")
-        # print(f"Review: {review}")
-        # print(f"Routed and stored at Node ID: {self.node_id}")
-        # print("")
-        return {
-            "status": "success",
-            "message": f"Key {key} stored at {self.node_id}",
-            "hops": hops
-        }
+            # # Print the point and review directly after adding
+            # print(f"\nInserted Key: {key}")
+            # print(f"Point: {point}")
+            # print(f"Review: {review}")
+            # print(f"Routed and stored at Node ID: {self.node_id}")
+            # print("")
+            return {
+                "status": "success",
+                "message": f"Key {key} stored at {self.node_id}",
+                "hops": hops
+            }
     
     def _handle_delete_key_request(self, request):
         """
@@ -375,17 +379,18 @@ class ChordNode:
         key = request["key"]
         hops = request["hops"]
 
-        if key in self.data.keys():
-            del self.data[key]
-            if key in self.kd_tree.country_keys:
-                print(f"\nNode {self.node_id}: Deleted Key {key}.")
-                self.kd_tree.delete_points(key)
+        with self.lock:
+            if key in self.data.keys():
+                    del self.data[key]
+                    if key in self.kd_tree.country_keys:
+                        print(f"\nNode {self.node_id}: Deleted Key {key}.")
+                        self.kd_tree.delete_points(key)
+                    else:
+                        print(f"\nNode {self.node_id}: No data for key {key}.\n")
+                        return {"status": "failure", "message": f"No data for key {key} on kdtree."}
             else:
                 print(f"\nNode {self.node_id}: No data for key {key}.\n")
-                return {"status": "failure", "message": f"No data for key {key} on kdtree."}
-        else:
-            print(f"\nNode {self.node_id}: No data for key {key}.\n")
-            return {"status": "failure", "message": f"No data for key {key}."}
+                return {"status": "failure", "message": f"No data for key {key}."}
 
         return {"status": "success", "message": f"Deleted Key {key}.", "hops": hops}
 
@@ -397,24 +402,25 @@ class ChordNode:
         criteria = request.get("criteria", None)  # Optional criteria to filter
         update_fields = request["data"]  # Update fields for the KDTree
         hops = request.get("hops", [])
-
-        if key in self.data.keys():
-            # Check if the key exists in this node's data structure
-            if self.kd_tree and key in self.kd_tree.country_keys:
-                # Update the data in the KDTree
-                self.kd_tree.update_points(
-                    country_key=key,
-                    criteria=criteria,
-                    update_fields=update_fields,
-                )
-                print(f"Node {self.node_id}: Key {key} updated successfully.")
-                return {
-                    "status": "success",
-                    "message": f"Key {key} updated successfully.",
-                    "hops": hops,
-                }
-        else:
-            return {"status": "failure", "message": f"Key {key} not found.", "hops": hops}
+        
+        with self.lock:
+            if key in self.data.keys():
+                # Check if the key exists in this node's data structure
+                if self.kd_tree and key in self.kd_tree.country_keys:
+                    # Update the data in the KDTree
+                    self.kd_tree.update_points(
+                        country_key=key,
+                        criteria=criteria,
+                        update_fields=update_fields,
+                    )
+                    print(f"Node {self.node_id}: Key {key} updated successfully.")
+                    return {
+                        "status": "success",
+                        "message": f"Key {key} updated successfully.",
+                        "hops": hops,
+                    }
+            else:
+                return {"status": "failure", "message": f"Key {key} not found.", "hops": hops}
     
     def _handle_lookup_request(self, request): 
         """
@@ -426,7 +432,7 @@ class ChordNode:
         N = request["N"]
         hops = request.get("hops", [])  # Retrieve the current hops list
 
-
+        # with self.lock():
         if key in self.data.keys():
             print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
 
