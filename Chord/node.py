@@ -122,7 +122,6 @@ class ChordNode:
                 return port
 
     # State Inspection
-
     def print_state(self):
         """
         Print the state of the node (ID, Address, Data Structures).
@@ -310,7 +309,7 @@ class ChordNode:
         request["hops"].append(self.node_id)
         if self.node_id == key:
             return self.node_id, request["hops"]
-        if self.distance(self.node_id, key) <= self.distance(self.get_successor(), key):
+        if distance(self.node_id, key) <= distance(self.get_successor(), key):
             return self.get_successor(), request["hops"]
         else:
             closest_preceding_node_id = self.closest_preceding_node(self, key)
@@ -320,7 +319,7 @@ class ChordNode:
     def _handle_delete_successor_keys(self, request):
         keys = request["keys"]
         for key in keys:
-            del self.data[key]
+            self.kd_tree.delete_points(key)
         return 0
 
     def _handle_set_successor(self, request):
@@ -590,21 +589,17 @@ class ChordNode:
 
 
     #############################
-    ###### Find Successor #######
+    ## Closest Preceding Node ###
     #############################
 
     def closest_preceding_node(self, node, h_key):
         for i in range(len(node.finger_table)-1, 0, -1):
-            if self.distance(node.finger_table[i-1], h_key) < self.distance(node.finger_table[i], h_key):
+            if distance(node.finger_table[i-1], h_key) < distance(node.finger_table[i], h_key):
                 if self.network.nodes[node.finger_table[i-1]].running: # skip non-running nodes
                     return node.finger_table[i-1]
 
         return node.finger_table[-1]
-        
-    def distance(self, hex1, hex2):
-        [n1, n2] = [int(str(hex1), 16), int(str(hex2), 16)]
-        if n1 <= n2: return n2 - n1
-        else: return R - n1 + n2
+
 
     #############################
     ######## Node Join ##########
@@ -614,8 +609,35 @@ class ChordNode:
         suc_id = successor_node.node_id
         pre_id = successor_node.predecessor
         
-        self.find_node_place(pre_id, suc_id)
+        # set the successor of the predecessor to self's id
+        self.request_set_successor(self.node_id, pre_id)
+        # set the predecessor of the successor to self's id
+        self.request_set_predecessor(self.node_id, suc_id)
+        self.finger_table[0] = suc_id
+        self.successors[0] = suc_id
+        self.predecessor = pre_id
+
         self.update_finger_table()
+        
+        if self.network.nodes[self.get_successor()].kd_tree == None:
+            return
+
+        # Get keys from successor
+        keys = {key for key in sorted(successor_node.kd_tree.country_keys)
+                if (distance(self.node_id, key) < distance(self.get_successor(), key))}
+        
+        # Insert keys and data to self's kdtree
+        for key in keys:
+            review = successor_node.kd_tree.reviews[successor_node.kd_tree.country_keys == key][0]
+            country = successor_node.kd_tree.countries[successor_node.kd_tree.country_keys == key][0]
+            point = successor_node.kd_tree.points[successor_node.kd_tree.country_keys == key][0]
+            self.kd_tree.add_point(point, review, country)
+
+        # Delete keys and data from successor
+        self.request_delete_successor_keys(keys, suc_id)
+
+
+
 
         # # Get keys from successor
         # self.data = {key: successor_node.data[key] for key in sorted(
@@ -628,17 +650,6 @@ class ChordNode:
         
         # # Delete keys
         # self.request_delete_successor_keys(keys_to_delete_from_successor, suc_id)
-
-
-    # Βρίσκει τη θέση του κόμβου
-    def find_node_place(self, pre_id, suc_id):
-        # set the successor of the predecessor to self's id
-        self.request_set_successor(self.node_id, pre_id)
-        # set the predecessor of the successor to self's id
-        self.request_set_predecessor(self.node_id, suc_id)
-        self.finger_table[0] = suc_id
-        self.successors[0] = suc_id
-        self.predecessor = pre_id
 
 
     #############################
@@ -664,6 +675,7 @@ class ChordNode:
     #############################
     ####### Get Successor #######
     #############################
+
     # Get first running successor
     def get_successor(self):
         for i in range(len(self.successors)):
