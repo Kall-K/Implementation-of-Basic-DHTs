@@ -71,5 +71,10 @@ def hex_compare(id1, id2, equality=True):
     else:
         return False
     
+def distance(hex1, hex2):
+    [n1, n2] = [int(str(hex1), 16), int(str(hex2), 16)]
+    if n1 <= n2: return n2 - n1
+    else: return R - n1 + n2
+    
 def int_to_hex(num):
     return hex(num)[2:].rjust(4, "0")
