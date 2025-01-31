@@ -34,9 +34,11 @@ class ChordNode:
         )
         self.kd_tree = None  # Centralized KD-Tree
         
-        self.successor = self.node_id
+        # self.successor = self.node_id
         self.predecessor = self.node_id
         self.finger_table = [self.node_id] * M
+
+        self.successors = [self.node_id] * S
         self.running = True
 
         self.data = {}  # For storing key-value pairs
@@ -150,14 +152,28 @@ class ChordNode:
         server_thread = threading.Thread(target=self._server, daemon=True)
         server_thread.start()
 
-        self.thread_pool.submit(self._update_scheduler)
+        self.thread_pool.submit(self._update_finger_table_scheduler)
+        self.thread_pool.submit(self._update_successors_scheduler)
     
-    def _update_scheduler(self):
+    def _update_finger_table_scheduler(self):
         interval = 5  # seconds
         while True:
+            if not self.running:
+                break
             time.sleep(interval)
             self.update_finger_table()
             print("Updated Finger Table of Node:", self.node_id)
+    
+    def _update_successors_scheduler(self):
+        interval = 0.1  # seconds
+        while True:
+            if not self.running:
+                break
+            time.sleep(interval)
+            self.update_successors_on_join()
+            self.update_successors_on_leave()
+            print(".", end="", flush=True)
+
 
     def _server(self):
         """
@@ -185,7 +201,7 @@ class ChordNode:
 
     def _handle_request(self, conn):
         try:
-            data = conn.recv(1024)  # Read up to 1024 bytes of data
+            data = conn.recv(1024*1024)  # Read up to 1024*1024 bytes of data
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
             # print(f"Node {self.node_id}: Handling Request: {request}")
@@ -199,8 +215,6 @@ class ChordNode:
                 response = self._handle_set_successor(request)
             if operation == "SET_PREDECESSOR":
                 response = self._handle_set_predecessor(request)
-            if operation == "FIND_KEY_SUCCESSOR":
-                response = self._handle_find_key_successor(request)
             if operation == "INSERT_KEY":
                 response = self._handle_insert_key_request(request)
             if operation == "DELETE_KEY":
@@ -230,7 +244,7 @@ class ChordNode:
             try:
                 s.connect(connect_address)  # Connect using loopback
                 s.sendall(pickle.dumps(request))  # Serialize and send the request
-                response = s.recv(1024)  # Receive the response
+                response = s.recv(1024*1024)  # Receive the response
             except Exception as e:
                 print(f"Error connecting to {connect_address}: {e}")
                 return None
@@ -241,18 +255,9 @@ class ChordNode:
     ######### Requests ##########
     #############################
     
-    def request_find_successor(self, key, node):
+    def request_find_successor(self, key, node, hops):
         get_successor_request = {
             "operation": "FIND_SUCCESSOR",
-            "key": key,
-        }
-        # Get the possition on the ring
-        successor_id = self.send_request(node, get_successor_request)
-        return successor_id
-    
-    def request_find_key_successor(self, key, node, hops):
-        get_successor_request = {
-            "operation": "FIND_KEY_SUCCESSOR",
             "key": key,
             "hops": hops
         }
@@ -295,28 +300,18 @@ class ChordNode:
     #############################
     ######### Handlers ##########
     #############################
-    def _handle_find_successor(self, request):
-        key = request["key"]
-        if self.node_id == key:
-            return self.node_id
-        if self.distance(self.node_id, key) <= self.distance(self.successor, key):
-            return self.successor
-        else:
-            closest_preceding_node_id = self.closest_preceding_node(self, key)
-            closest_preceding_node = self.network.nodes[closest_preceding_node_id]
-            return self.request_find_successor(key, closest_preceding_node)
     
-    def _handle_find_key_successor(self, request):
+    def _handle_find_successor(self, request):
         key = request["key"]
         request["hops"].append(self.node_id)
         if self.node_id == key:
             return self.node_id, request["hops"]
-        if self.distance(self.node_id, key) <= self.distance(self.successor, key):
-            return self.successor, request["hops"]
+        if self.distance(self.node_id, key) <= self.distance(self.get_successor(), key):
+            return self.get_successor(), request["hops"]
         else:
             closest_preceding_node_id = self.closest_preceding_node(self, key)
             closest_preceding_node = self.network.nodes[closest_preceding_node_id]
-            return self.request_find_key_successor(key, closest_preceding_node, request["hops"])
+            return self.request_find_successor(key, closest_preceding_node, request["hops"])
     
     def _handle_delete_successor_keys(self, request):
         keys = request["keys"]
@@ -327,7 +322,7 @@ class ChordNode:
     def _handle_set_successor(self, request):
         successor_id = request["successor"]
         self.finger_table[0] = successor_id
-        self.successor = successor_id
+        self.successors[0] = successor_id
         return 0
     
     def _handle_set_predecessor(self, request):
@@ -499,7 +494,7 @@ class ChordNode:
             "country": country,
             "hops": [],  # Initialize hops tracking
         }
-        successor_id, hops = self._handle_find_key_successor(request)
+        successor_id, hops = self._handle_find_successor(request)
         request["hops"] = len(hops)-1
         successor = self.network.nodes[successor_id]
         
@@ -514,7 +509,7 @@ class ChordNode:
             "key": key,
             "hops": [],  # Initialize hops tracking
         }
-        successor_id, hops = self._handle_find_key_successor(request)
+        successor_id, hops = self._handle_find_successor(request)
         request["hops"] = len(hops)-1
         successor = self.network.nodes[successor_id]
 
@@ -541,7 +536,7 @@ class ChordNode:
             "hops": [],  # Initialize hops tracking
         }
         # print(f"Node {self.node_id}: Handling Update Request: {request}")
-        successor_id, hops = self._handle_find_key_successor(request)
+        successor_id, hops = self._handle_find_successor(request)
         request["hops"] = len(hops)-1
         successor = self.network.nodes[successor_id]
 
@@ -559,7 +554,7 @@ class ChordNode:
             "N": N,
             "hops": [],
         }
-        successor_id, hops = self._handle_find_key_successor(request)
+        successor_id, hops = self._handle_find_successor(request)
         request["hops"] = len(hops)-1
         successor = self.network.nodes[successor_id]
 
@@ -569,12 +564,12 @@ class ChordNode:
     #### Update Finger Table ####
     #############################
 
-    def update_finger_table(self):
+    def update_finger_table(self, hops=[]):
         for i in range(1, len(self.finger_table)):
-            key = hex((int(self.node_id, 16) + 2 ** i) % R)[2:].rjust(4, "0")
-            temp_node = self.request_find_successor(key, self)
+            key = int_to_hex((int(self.node_id, 16) + 2 ** i) % R)
+            temp_node = self.request_find_successor(key, self, hops)[0]
             while self.network.nodes[temp_node].running == False:
-                temp_node = self.request_find_successor(temp_node)
+                temp_node = self.request_find_successor(int_to_hex((int(temp_node, 16) + 1) % R), self, hops)[0]
             self.finger_table[i] = temp_node
 
 
@@ -585,9 +580,9 @@ class ChordNode:
     def closest_preceding_node(self, node, h_key):
         for i in range(len(node.finger_table)-1, 0, -1):
             if self.distance(node.finger_table[i-1], h_key) < self.distance(node.finger_table[i], h_key):
-                if self.network.nodes[node.finger_table[i-1]].running: # this is extra line
+                if self.network.nodes[node.finger_table[i-1]].running: # skip non-running nodes
                     return node.finger_table[i-1]
-                
+
         return node.finger_table[-1]
         
     def distance(self, hex1, hex2):
@@ -606,27 +601,27 @@ class ChordNode:
         self.find_node_place(pre_id, suc_id)
         self.update_finger_table()
 
-        # Get keys from successor
-        self.data = {key: successor_node.data[key] for key in sorted(
-            successor_node.data.keys()) if key <= self.node_id}
+        # # Get keys from successor
+        # self.data = {key: successor_node.data[key] for key in sorted(
+        #     successor_node.data.keys()) if key <= self.node_id}
 
-        keys_to_delete_from_successor = []
-        for key in sorted(self.data.keys()):
-            if key in successor_node.data:
-                keys_to_delete_from_successor.append(key)
+        # keys_to_delete_from_successor = []
+        # for key in sorted(self.data.keys()):
+        #     if key in successor_node.data:
+        #         keys_to_delete_from_successor.append(key)
         
-        # Delete keys
-        self.request_delete_successor_keys(keys_to_delete_from_successor, suc_id)
-
-        # TODO: Update finger tables
+        # # Delete keys
+        # self.request_delete_successor_keys(keys_to_delete_from_successor, suc_id)
 
 
     # Βρίσκει τη θέση του κόμβου
     def find_node_place(self, pre_id, suc_id):
-        self.request_set_successor(self.node_id, pre_id) # pre.finger_table[0] = self.node_id, pre.successor = self.node_id
-        self.request_set_predecessor(self.node_id, suc_id) #suc.predecessor = self.node_id
+        # set the successor of the predecessor to self's id
+        self.request_set_successor(self.node_id, pre_id)
+        # set the predecessor of the successor to self's id
+        self.request_set_predecessor(self.node_id, suc_id)
         self.finger_table[0] = suc_id
-        self.successor = suc_id
+        self.successors[0] = suc_id
         self.predecessor = pre_id
 
 
@@ -637,79 +632,71 @@ class ChordNode:
     def leave(self):
         self.running = False
 
-        pre_id = self.predecessor
-        suc_id = self.successor
-        # Correct successor and predecessor
-        self.request_set_successor(self.successor, pre_id) # self.predecessor.successor = self.successor, self.predecessor.fingers_table[0] = self.successor
-        self.request_set_predecessor(self.predecessor, suc_id) # self.successor.predecessor = self.predecessor
+        # pre_id = self.predecessor
+        # suc_id = self.get_successor()
 
-        # Transfer keys to successor
-        for key in sorted(self.data.keys()):
-            self.successor.data[key] = self.data[key]
+        # # set the successor of the predecessor to self's successor
+        # self.request_set_successor(suc_id, pre_id)
+        # # set the predecessor of the successor to self's predecessor
+        # self.request_set_predecessor(pre_id, suc_id)
 
-        # TODO: Update finger tables
+        # # Transfer keys to successor
+        # for key in sorted(self.data.keys()):
+        #     self.successor.data[key] = self.data[key]
 
 
     #############################
-    ########### DATA ############
+    ###### Get Successor #######
     #############################
 
-    # Data Structure Updates
-    def update_routing_table(self, row_idx, received_row):
-        """
-        Update the routing table of the current node with the received row.
-        """
-        for col_idx in range(len(received_row)):
-            entry = received_row[col_idx]
-            if entry is None:
-                continue
-            # Skip if the entry's hex digit at row_idx matches this node's ID at the same index.
-            # This avoids conflicts in the routing table.
-            if entry[row_idx] == self.node_id[row_idx]:
-                continue
-            # Update the routing table with the received entry if the current entry is empty
-            if self.routing_table[row_idx][col_idx] is None:
-                self.routing_table[row_idx][col_idx] = received_row[col_idx]
+    def get_successor(self, from_idx=0):
+        for i in range(from_idx, len(self.successors)):
+            if self.network.nodes[self.successors[i]].running:
+                return self.successors[i]
+        return -1
+    
+    #############################
+    #### Update Successors ######
+    #############################
+    
+    def update_successors_on_join(self):
+        # Find node to insert node
+        index_to_insert_node = -1
+        node_id = ""
+        
+        for i in range(len(self.successors)-1):
+            successor_of_successor = self.network.nodes[self.successors[i]].get_successor()
+            if successor_of_successor != self.successors[i+1]:
+                index_to_insert_node = i + 1
+                node_id = successor_of_successor
+                break
 
+        if index_to_insert_node == -1:
+            return
 
-    def _update_presence(self, key):
-        """
-        Update the presence of a node in all the data structures of this node.
-        """
-        # Neighborhood Set (M)
-        if key not in self.neighborhood_set:
-            self._update_neighborhood_set(key)
+        # Insert node
+        for i in range(index_to_insert_node, len(self.successors)-1):
+            self.successors[i+1] = self.successors[i]
+        self.successors[index_to_insert_node] = node_id
 
-        # Routing Table (R)
-        # Find the length of the common prefix between the key and the current node's ID
-        idx = common_prefix_length(key, self.node_id)
+    def update_successors_on_leave(self):
+        # Find index of the node that left
+        index_of_node_that_left = -1
+        for i in range(len(self.successors)):
+            if not self.network.nodes[self.successors[i]].running:
+                index_of_node_that_left = i
+                break
 
-        # If the entry in the routing table is empty, update it with the key
-        if self.routing_table[idx][int(key[idx], 16)] is None:
-            self.routing_table[idx][int(key[idx], 16)] = key
+        if index_of_node_that_left == -1:
+            return
+        
+        # For each index in the successors list
+        for i in range(index_of_node_that_left, len(self.successors)-1):
+            self.successors[i] = self.successors[i+1]
+        
+        # Request is not necessary
+        self.successors[-1] = self.request_find_successor(int_to_hex((int(self.successors[-2], 16)+1) % R), self.successors[-2], [])[0]
 
-        """Giati to ekana auto!! na to psaksw an xreiazetai"""
-        # If the entry in the routing table of the node corresponding to the key
-        # is empty, update it with the current node's ID
-        if (
-            self.network.nodes[key].routing_table[idx][int(self.node_id[idx], 16)]
-            is None
-        ):
-            self.network.nodes[key].routing_table[idx][
-                int(self.node_id[idx], 16)
-            ] = self.node_id
+        # Recursively update successors
+        self.update_successors_on_leave()
 
-        # Leaf Set (Lmin, Lmax)
-        # If key >= this node's ID, update Lmax
-        if hex_compare(key, self.node_id):
-            if key not in self.Lmax:
-                self._update_leaf_list(self.Lmax, key)
-        # Else update Lmin
-        else:
-            if key not in self.Lmin:
-                self._update_leaf_list(self.Lmin, key)
-
-    # Helper Methods
-
-
-   

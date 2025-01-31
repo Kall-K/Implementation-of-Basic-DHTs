@@ -29,7 +29,7 @@ class ChordNetwork:
             self.successor = self
             return
 
-        successor_id = new_node.request_find_successor(node_id, ChordNetwork.bootstrap_node)
+        successor_id, hops = new_node.request_find_successor(node_id, ChordNetwork.bootstrap_node, [])
         # new_node joins on successor
         new_node.join(self.nodes[successor_id])
 

@@ -70,3 +70,6 @@ def hex_compare(id1, id2, equality=True):
         return True
     else:
         return False
+    
+def int_to_hex(num):
+    return hex(num)[2:].rjust(4, "0")
