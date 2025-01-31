@@ -41,7 +41,7 @@ class ChordNode:
         self.successors = [self.node_id] * S
         self.running = True
 
-        self.data = {}  # For storing key-value pairs
+        self.back_up = None  # For storing key-value pairs
 
         self.lock = threading.Lock()  # Lock for thread safety
 
@@ -121,12 +121,6 @@ class ChordNode:
                 self.network.used_ports.append(port)
                 return port
 
-    # Stop running
-
-    def stop(self):
-        """Stop the node server."""
-        self.running = False
-
     # State Inspection
 
     def print_state(self):
@@ -162,7 +156,7 @@ class ChordNode:
                 break
             time.sleep(interval)
             self.update_finger_table()
-            print("Updated Finger Table of Node:", self.node_id)
+            print("\nUpdated Finger Table of Node:", self.node_id)
     
     def _update_successors_scheduler(self):
         interval = 0.1  # seconds
@@ -173,7 +167,6 @@ class ChordNode:
             self.update_successors_on_join()
             self.update_successors_on_leave()
             print(".", end="", flush=True)
-
 
     def _server(self):
         """
@@ -223,6 +216,8 @@ class ChordNode:
                 response = self._handle_update_key_request(request)
             if operation == "LOOKUP":
                 response = self._handle_lookup_request(request)
+            if operation == "RESTORATION":
+                response = self._handle_restore_request(request)
 
             # Add more operations here as needed
 
@@ -254,7 +249,7 @@ class ChordNode:
     #############################
     ######### Requests ##########
     #############################
-    
+
     def request_find_successor(self, key, node, hops):
         get_successor_request = {
             "operation": "FIND_SUCCESSOR",
@@ -297,6 +292,15 @@ class ChordNode:
         status = self.send_request(node, set_predecessor)
         return status
 
+    def request_restoration(self, successor_id):
+        node = self.network.nodes[successor_id]
+        restoration = {
+            "operation": "RESTORATION",
+            "sender_id": self.node_id
+        }
+        status = self.send_request(node, restoration)
+        return status
+    
     #############################
     ######### Handlers ##########
     #############################
@@ -330,6 +334,18 @@ class ChordNode:
         self.predecessor = predecessor_id
         return 0
     
+    def _handle_restoration_request(self, request):
+        # Set new predecessor
+        self.predecessor = request["sender_id"]
+
+        # Merge back up kdtree
+        keys = self.back_up.country_keys
+        points = self.back_up.points
+        reviews = self.back_up.reviews
+        countries = self.back_up.countries
+        for key, point, review, country in zip(keys, points, reviews, countries):
+            self._handle_insert_key_request(key, point, review, country) 
+
     #############################
     ####### KEY Handlers ########
     #############################
@@ -646,11 +662,11 @@ class ChordNode:
 
 
     #############################
-    ###### Get Successor #######
+    ####### Get Successor #######
     #############################
-
-    def get_successor(self, from_idx=0):
-        for i in range(from_idx, len(self.successors)):
+    # Get first running successor
+    def get_successor(self):
+        for i in range(len(self.successors)):
             if self.network.nodes[self.successors[i]].running:
                 return self.successors[i]
         return -1
@@ -690,11 +706,33 @@ class ChordNode:
         if index_of_node_that_left == -1:
             return
         
+        if index_of_node_that_left == 0:
+            succ_of_succ = self.successors[1]
+            
+            if succ_of_succ.running == False:
+                print('UNHANDLED CONDITION')
+            
+            # # the following process should take place on the new seccesor, 
+            # # so i have to send request on succ_of_succ
+            # # request = {
+            # #     operation:
+            # #     sender_id:
+            # #     receiver_id:
+            # # }
+            # self.predecessor = sender_id
+            # # merge backup
+            # keys = self.back_up.country_keys
+            # points = self.back_up.points
+            # reviews = self.back_up.reviews
+            # countries = self.back_up.countries
+            # for key, point, review, country in zip(keys, points, reviews, countries)
+            #     self._handle_insert_key_request(key, point, review, country) 
+
         # For each index in the successors list
         for i in range(index_of_node_that_left, len(self.successors)-1):
             self.successors[i] = self.successors[i+1]
-        
-        # Request is not necessary
+
+        # update last position because its empty
         self.successors[-1] = self.request_find_successor(int_to_hex((int(self.successors[-2], 16)+1) % R), self.successors[-2], [])[0]
 
         # Recursively update successors
