@@ -14,8 +14,8 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
-from constants import *
-from helper_functions import *
+from .constants import *
+from .helper_functions import *
 
 
 from Multidimensional_Data_Structures.kd_tree import KDTree

@@ -1,6 +1,6 @@
 import hashlib
 import matplotlib.pyplot as plt
-from constants import *
+from .constants import *
 
 """---Helper function for the Pasrty Implementation---"""
 
@@ -62,6 +62,7 @@ def hex_compare(id1, id2, equality=True):
     else:
         return False
 
+
 def plot_hops(hops_counts):
     """
     Plot a bar graph for hops in different operations.
@@ -78,4 +79,3 @@ def plot_hops(hops_counts):
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
     plt.show()
-

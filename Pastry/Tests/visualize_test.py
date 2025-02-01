@@ -9,10 +9,10 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
-from network import PastryNetwork
-from node import PastryNode
-from constants import *
-from helper_functions import hash_key
+from ..network import PastryNetwork
+from ..node import PastryNode
+from ..constants import *
+from ..helper_functions import hash_key
 
 
 # Builds a Pastry network and inserts all keys from the dataset

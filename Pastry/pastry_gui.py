@@ -5,16 +5,17 @@ import tkinter as tk
 from tkinter import scrolledtext
 from matplotlib.collections import PathCollection
 
-from node import PastryNode
+from .node import PastryNode
 
 
 WIDTH = 1680
 HEIGHT = 720
 
 
-class GUI:
-    def __init__(self, network):
+class PastryDashboard:
+    def __init__(self, network, main_window):
         self.network = network
+        self.main_window = main_window
         self.selected_node = None
         self.root = tk.Tk()
         self.root.title("Pastry GUI")
@@ -35,6 +36,7 @@ class GUI:
         # Stop Tkinter main loop
         self.root.quit()  # Exit the event loop
         self.root.destroy()  # Destroy the GUI window
+        self.main_window.deiconify()  # Show the main window again
 
     def setup_widgets(self):
         # Left frame for control buttons
@@ -75,6 +77,19 @@ class GUI:
             font=("Arial", 14),
         )
         self.node_join_button.pack(pady=10, padx=10)
+
+        # -------------------------------
+        # Back button
+        back_button = tk.Button(
+            control_frame,
+            text="Back",
+            command=self.on_close,
+            width=15,
+            height=2,
+            font=("Arial", 14),
+        )
+        back_button.pack(side=tk.BOTTOM, pady=10, padx=10)
+        # -------------------------------
 
         # Center frame for visualizations
         viz_width = HEIGHT
@@ -328,6 +343,8 @@ class GUI:
 
     def show_pastry_gui(self):
         """Displays the Pastry ring and topology."""
+        self.selected_node = None
+
         # Remove the temporary KD-Tree plot if it exists
         if hasattr(self, "ax_kd_tree"):
             self.ax_kd_tree.remove()
@@ -372,6 +389,15 @@ class GUI:
             selection_window = tk.Toplevel(self.root)
             selection_window.title("Select Country")
             selection_window.geometry("300x200")
+
+            # Make the selection window appear above the main window
+            selection_window.transient(self.root)
+
+            # Make the selection window modal so that it captures all input
+            selection_window.grab_set()
+
+            # Direct the keyboard focus to the selection window
+            selection_window.focus_set()
 
             tk.Label(selection_window, text="Select a country:", font=("Arial", 14)).pack(pady=10)
 

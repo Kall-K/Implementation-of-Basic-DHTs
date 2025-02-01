@@ -289,7 +289,7 @@ class KDTree:
         if country_key is None or country is None:
             ax.set_title("3D Scatter Plot of Coffee Review Points")
 
-        ax.set_title(f"3D Scatter Plot of Coffee Review Points from {country} - {country_key}")
+        ax.set_title(f"3D Scatter Plot of Coffee Review Points from {country} - key: {country_key}")
 
         # Redraw the canvas
         canvas.draw()

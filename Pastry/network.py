@@ -1,20 +1,25 @@
 import numpy as np
+import pandas as pd
 
-from helper_functions import *
-from gui import GUI
-
-evenly_spaced_nodes = 16
-positions = positions = np.linspace(0, 1, evenly_spaced_nodes)  # Generates evenly spaced points
+from .node import PastryNode
+from .constants import *
+from .helper_functions import *
+from .pastry_gui import PastryDashboard
 
 
 class PastryNetwork:
-    def __init__(self):
+    def __init__(self, main_window=None):
         self.nodes = {}  # Dictionary. Keys are node IDs, values are Node objects
         self.node_ports = {}  # Dictionary. Keys are node IDs, values are ports
         self.used_ports = []
-        self.used_positions = list(positions)
 
-        self.gui = GUI(self)  # Initialize the GUI
+        EVENLY_SPACED_NODES = 16
+        # Generates evenly spaced points
+        self.positions = np.linspace(0, 1, EVENLY_SPACED_NODES)
+
+        self.used_positions = list(self.positions)
+
+        self.gui = PastryDashboard(self, main_window=main_window)  # Initialize the Pastry GUI
 
     def node_join(self, new_node):
         """
@@ -228,3 +233,53 @@ class PastryNetwork:
                 closest_neighborhood_set = neighborhood_set
                 min_distance = distance
         return closest_node_id, closest_neighborhood_set
+
+    def build(self, predefined_ids):
+        """
+        Build the Pastry network with the specified number of nodes.
+        """
+        print("Node Arrivals")
+        print("=======================")
+        print(f"Adding {len(predefined_ids)} nodes to the network...")
+        print("\n" + "-" * 100)
+        for node_id in predefined_ids:
+            node = PastryNode(self, node_id=node_id)
+            print(f"Adding Node: ID = {node.node_id}")
+            node.start_server()
+            self.node_join(node)
+            print(f"\nNode Added: ID = {node.node_id}, Position = {node.position}")
+            print("\n" + "-" * 100)
+        print("\nAll nodes have successfully joined the network.\n")
+
+        # Insert keys
+        # Load dataset
+        dataset_path = "Coffee_Reviews_Dataset/simplified_coffee.csv"
+        df = pd.read_csv(dataset_path)
+
+        # Keep only the year from the review_date column
+        df["review_date"] = pd.to_datetime(df["review_date"], format="%B %Y").dt.year
+
+        # Extract loc_country as keys
+        keys = df["loc_country"].apply(hash_key)
+
+        # Extract data points (review_date, rating, 100g_USD)
+        points = df[["review_date", "rating", "100g_USD"]].to_numpy()
+
+        # Extract reviews and other details
+        reviews = df["review"].to_numpy()
+        countries = df["loc_country"].to_numpy()
+        names = df["name"].to_numpy()
+
+        print("Key Insertions")
+        print("=======================")
+        print("\nInserting data into the network...")
+        first_node = list(self.nodes.values())[0]
+
+        # Insert all entries
+        for key, point, review, country, name in zip(keys, points, reviews, countries, names):
+            print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
+            response = first_node.insert_key(key, point, review, country)
+            print(response)
+
+        # Run the gui main loop
+        self.gui.root.mainloop()
