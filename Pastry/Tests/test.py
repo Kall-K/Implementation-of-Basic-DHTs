@@ -147,8 +147,6 @@ def main():
     else:
         print(f"Failed to retrieve hops for DELETE_KEY {delete_key}.")
 
-    first_node.delete_key("6073")
-    first_node.delete_key("4ca4")
     first_node.delete_key("aaaa")  # Delete a key that does not exist
 
     # Lookup the United States key again to see if it was deleted
@@ -208,6 +206,158 @@ def main():
         print(f"Hops during NODE_LEAVE for {node_to_leave}: {len(leave_response['hops'])}")
     else:
         print(f"Failed to retrieve hops for NODE_LEAVE {node_to_leave}.")
+
+    print("\nStage 7: Unexpected Node Failure")
+    print("=======================")
+
+    # Choose a random node to fail unexpectedly
+    unexpected_failure_node = "4b12"  # Replace with any node ID
+    print(f"\nSimulating unexpected failure of Node {unexpected_failure_node}...\n")
+
+    # Trigger unexpected failure
+    unexpected_leave_response = network.leave_unexpected(unexpected_failure_node)
+
+    # Print available nodes
+    available_nodes = list(network.nodes.keys())
+    print(f"Available nodes now: {available_nodes}")
+
+    # If the failed node was the first node, update first_node
+    if unexpected_failure_node == first_node.node_id:
+        if available_nodes:  # Ensure there are remaining nodes
+            first_node = list(network.nodes.values())[0]  # Set to the first available node
+            print(f"Updated first_node to: {first_node.node_id}")
+        else:
+            first_node = None  # No nodes left in the network
+            print("No nodes left in the network.")
+
+    if unexpected_leave_response["status"] == "success":
+        print(f"Node {unexpected_failure_node} has failed unexpectedly.")
+    else:
+        print(f"Failed to simulate unexpected failure for Node {unexpected_failure_node}.")
+
+    # # Uncomment to test Insert after node departured unexpectedly : use node 20bd above
+    # print("\nAttempting to INSERT a key after unexpected failure...\n")
+    # country = "Germany"
+    # key = hash_key(country)
+    # print(f"key is: {key}")
+    # point = [2020, 85, 3.5]
+    # review = "Testing repair after unexpected failure."
+    # insert_response = first_node.insert_key(key, point, review, country)
+
+    # if insert_response and "hops" in insert_response:
+    #     print(f"Hops during INSERT_KEY after unexpected failure: {len(insert_response['hops'])}")
+    #     print(f"Full Hops List: {insert_response['hops']}")
+    # else:
+    #     print("INSERT_KEY Operation failed after unexpected failure.")
+
+    # # Verify repair by performing a LOOKUP
+    # print(f"\nAttempting to LOOKUP the inserted key {key} after unexpected failure...\n")
+    # lookup_response = first_node.lookup(key, lower_bounds=[2019, 80, 3.0], upper_bounds=[2021, 90, 4.0],N=1)
+
+    # if lookup_response and "hops" in lookup_response:
+    #     print(f"Hops during LOOKUP after unexpected failure: {len(lookup_response['hops'])}")
+    #     print(f"Full Hops List: {lookup_response['hops']}")
+    # else:
+    #     print("LOOKUP Operation failed after unexpected failure.")
+
+    # # # # # # # # # #  # # # # #  # # # # # # # # # # # # # # # # # #
+
+    # # Uncomment to test Delete after node departured unexpectedly : use node 4b12 above
+    # country_to_delete = "Hawai'i"
+    # key_to_delete = hash_key(country_to_delete)
+    # print(f"\nDeleting key associated with country: {country_to_delete} (Key: {key_to_delete})\n")
+
+    # # Step 3: Perform DELETE_KEY operation
+    # delete_response = first_node.delete_key(key_to_delete)
+
+    # # Step 4: Check if the key was successfully deleted
+    # if delete_response and "hops" in delete_response:
+    #     print(f"Hops during DELETE_KEY after unexpected failure: {len(delete_response['hops'])}")
+    #     print(f"Full Hops List: {delete_response['hops']}")
+    #     print("DELETE_KEY Operation completed successfully.")
+    # else:
+    #     print("DELETE_KEY Operation failed after unexpected failure.")
+
+    # # Step 5: Verify repair by performing a LOOKUP on "Australia"
+    # print(f"\nAttempting to LOOKUP the deleted key {key_to_delete} after unexpected failure...\n")
+    # lookup_response = first_node.lookup(key_to_delete, lower_bounds=[2019, 80, 3.0], upper_bounds=[2021, 90, 4.0], N=1)
+
+    # if lookup_response and "hops" in lookup_response:
+    #     print(f"Hops during LOOKUP after DELETE_KEY: {len(lookup_response['hops'])}")
+    #     print(f"Full Hops List: {lookup_response['hops']}")
+    #     if lookup_response.get("reviews_len", 0) == 0:
+    #         print("LOOKUP confirmed: The key was successfully deleted!")
+    #     else:
+    #         print("LOOKUP failed: The key was NOT deleted correctly.")
+    # else:
+    #     print("LOOKUP Operation failed after DELETE_KEY.")
+
+    # # # # # # # # # #  # # # # #  # # # # # # # # # # # # # # # # # #
+
+    # # Uncomment to test UPDATE_KEY after a node departs unexpectedly : use node 20bc above
+    # country_to_update = "Canada"
+    # key_to_update = hash_key(country_to_update)
+
+    # print(f"\nUpdating key associated with country: {country_to_update} (Key: {key_to_update})\n")
+
+    # # Step 3: Perform UPDATE_KEY operation based on criteria
+    # criteria = {"review_date": 2020, "rating": 94}  # Example criteria for matching entries
+    # update_fields = {"review": "Updated review after unexpected failure."}  # New data to apply
+
+    # update_response = first_node.update_key(key=key_to_update, updated_data=update_fields, criteria=criteria)
+
+    # # Step 4: Check if the key was successfully updated
+    # if update_response and "hops" in update_response:
+    #     print(f"Hops during UPDATE_KEY after unexpected failure: {len(update_response['hops'])}")
+    #     print(f"Full Hops List: {update_response['hops']}")
+    #     print("UPDATE_KEY Operation completed successfully.")
+    # else:
+    #     print("UPDATE_KEY Operation failed after unexpected failure.")
+
+    # # Step 5: Verify repair by performing a LOOKUP
+    # lower_bounds = [2019, 90, 5.0]
+    # upper_bounds = [2021, 97, 7.0]
+
+    # print(f"\nAttempting to LOOKUP the updated key {key_to_update} after unexpected failure...\n")
+    # lookup_response = first_node.lookup(key_to_update, lower_bounds, upper_bounds, N=5)
+
+    # if lookup_response and "hops" in lookup_response:
+    #     print(f"Hops during LOOKUP after UPDATE_KEY: {len(lookup_response['hops'])}")
+    #     print(f"Full Hops List: {lookup_response['hops']}")
+    # else:
+    #     print("LOOKUP Operation failed after UPDATE_KEY.")
+
+    # # # # # # # # # #  # # # # #  # # # # # # # # # # # # # # # # # #
+
+    # # Choose a key to look up after failure use node 4b12 above
+    # country_to_lookup = "Taiwan"
+    # key_to_lookup = hash_key(country_to_lookup)
+
+    # # Step 3: Perform LOOKUP operation
+    # lower_bounds = [2018, 90, 30.0]
+    # upper_bounds = [2020, 100, 40.0]
+
+    # print(f"\nAttempting to LOOKUP key {key_to_lookup} after unexpected failure of {unexpected_failure_node}...\n")
+    # lookup_response = first_node.lookup(key_to_lookup, lower_bounds, upper_bounds, N=5)
+
+    # # Step 4: Check if the key was successfully found
+    # if lookup_response and "hops" in lookup_response:
+    #     print(f"Hops during LOOKUP after unexpected failure: {len(lookup_response['hops'])}")
+    #     print(f"Full Hops List: {lookup_response['hops']}")
+
+    #     if lookup_response.get("reviews_len", 0) > 0:
+    #         print("LOOKUP confirmed: The key was successfully found after failure!")
+    #     else:
+    #         print("LOOKUP failed: The key was NOT found after failure.")
+    # else:
+    #     print("LOOKUP Operation failed after unexpected failure.")
+
+    # Track hops for NODE_JOIN
+    new_node_id = "6ad2"
+    new_node = PastryNode(network, node_id=new_node_id)
+    new_node.start_server()
+    time.sleep(0.1)  # Allow the server to start
+    response = network.node_join(new_node)
 
     # Verify the state of the network after the node leaves
     print("\nInspecting the state of the network after the node leaves:")

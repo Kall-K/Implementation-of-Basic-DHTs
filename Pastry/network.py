@@ -53,6 +53,13 @@ class PastryNetwork:
 
         # Find the closest node to the new using its position
         closest_node_id, closest_neighborhood_set = self._find_topologically_closest_node(new_node)
+        print(f"the topological closer is {closest_node_id}")
+        print(f"the topological closer neigborhood is {closest_neighborhood_set}")
+
+        # Filter out failed nodes, preserving the original size by replacing them with None
+        closest_neighborhood_set = [
+            node if node in self.nodes else None for node in closest_neighborhood_set
+        ]
 
         # Initialize the new nodes Neighborhood Set of the new node
         print(f"\nInitializing Neighborhood Set of the new node {new_node_id}...")
@@ -206,6 +213,25 @@ class PastryNetwork:
             "message": f"Node {leaving_node_id} has left the network.",
             "hops": hops,
         }
+
+    def leave_unexpected(self, failing_node_id):
+        """
+        Simulates an unexpected failure of a node.
+        The node is removed without notifying other nodes, requiring later repair.
+        """
+        print(f"Network: Unexpected failure of Node {failing_node_id}.")
+
+        if failing_node_id not in self.nodes:
+            print(f"Network: Node {failing_node_id} does not exist.")
+            return {"status": "failure", "message": f"Node {failing_node_id} not found."}
+
+        # Remove the node from the network **without notifying others**
+        del self.nodes[failing_node_id]
+        del self.node_ports[failing_node_id]
+
+        print(f"Network: Node {failing_node_id} has failed unexpectedly. No notifications sent.")
+
+        return {"status": "success", "message": f"Node {failing_node_id} has failed unexpectedly."}
 
     def _find_topologically_closest_node(self, new_node):
         """
