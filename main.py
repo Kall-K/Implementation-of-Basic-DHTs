@@ -20,7 +20,7 @@ class MainLauncher(tk.Tk):
 
         # Create a label or any instructions you like
         label = tk.Label(self, text="Select which DHT to build:", font=("Arial", 30))
-        label.pack(pady=20)
+        label.pack(pady=30)
 
         # 12 Predefined node IDs.
         predefined_ids = [
@@ -45,7 +45,7 @@ class MainLauncher(tk.Tk):
             command=lambda: self.launch_pastry(predefined_ids),
             font=("Arial", 20),
         )
-        btn_pastry.pack(pady=30)
+        btn_pastry.pack(pady=20)
 
         btn_chord = tk.Button(
             self,

@@ -6,6 +6,7 @@ from tkinter import scrolledtext
 from matplotlib.collections import PathCollection
 
 from .node import PastryNode
+from .helper_functions import hash_key
 
 
 WIDTH = 1680
@@ -78,9 +79,65 @@ class PastryDashboard:
         )
         self.node_join_button.pack(pady=10, padx=10)
 
-        # -------------------------------
+        # Node leave button
+        self.node_leave_button = tk.Button(
+            control_frame,
+            text="Node Leave",
+            command=self.node_leave_gui,
+            width=15,
+            height=2,
+            font=("Arial", 14),
+        )
+        self.node_leave_button.pack(pady=10, padx=10)
+
+        # Node leave unexpected button
+        self.node_leave_unexpected_button = tk.Button(
+            control_frame,
+            text="Node Leave Unexpected",
+            command=self.node_leave_unexpected_gui,
+            width=15,
+            height=2,
+            font=("Arial", 14),
+            wraplength=150,
+            justify=tk.CENTER,
+        )
+        self.node_leave_unexpected_button.pack(pady=10, padx=10)
+
+        # Insert key button
+        self.insert_key_button = tk.Button(
+            control_frame,
+            text="Insert Key",
+            command=self.insert_key_gui,
+            width=15,
+            height=2,
+            font=("Arial", 14),
+        )
+        self.insert_key_button.pack(pady=10, padx=10)
+
+        # Update key button
+        self.update_key_button = tk.Button(
+            control_frame,
+            text="Update Key",
+            command=self.update_key_gui,
+            width=15,
+            height=2,
+            font=("Arial", 14),
+        )
+        self.update_key_button.pack(pady=10, padx=10)
+
+        # Delete key button
+        self.delete_key_button = tk.Button(
+            control_frame,
+            text="Delete Key",
+            command=self.delete_key_gui,
+            width=15,
+            height=2,
+            font=("Arial", 14),
+        )
+        self.delete_key_button.pack(pady=10, padx=10)
+
         # Back button
-        back_button = tk.Button(
+        """back_button = tk.Button(
             control_frame,
             text="Exit",
             command=self.on_close,
@@ -88,8 +145,7 @@ class PastryDashboard:
             height=2,
             font=("Arial", 14),
         )
-        back_button.pack(side=tk.BOTTOM, pady=10, padx=10)
-        # -------------------------------
+        back_button.pack(side=tk.BOTTOM, pady=10, padx=10)"""
 
         # Center frame for visualizations
         viz_width = HEIGHT
@@ -341,6 +397,35 @@ class PastryDashboard:
         self.visualize_network()
         self.visualize_topology()
 
+    def node_leave_gui(self):
+        if self.selected_node is None:
+            print("No node selected.")
+            return
+
+        print("Node is leaving gracefully...")
+
+        leaving_node_id = self.selected_node.node_id
+
+        leave_response = self.network.leave(leaving_node_id)
+        if leave_response and "hops" in leave_response:
+            print(f"Hops during NODE_LEAVE for {leaving_node_id}: {len(leave_response['hops'])}")
+        else:
+            print(f"Failed to retrieve hops for NODE_LEAVE {leaving_node_id}.")
+
+        self.show_pastry_gui()
+
+    def node_leave_unexpected_gui(self):
+        if self.selected_node is None:
+            print("No node selected.")
+            return
+
+        print("Node left unexpectedly.")
+        leaving_node_id = self.selected_node.node_id
+
+        self.network.leave_unexpected(leaving_node_id)
+
+        self.show_pastry_gui()
+
     def show_pastry_gui(self):
         """Displays the Pastry ring and topology."""
         self.selected_node = None
@@ -495,3 +580,109 @@ class PastryDashboard:
 
         else:
             print(f"Node {self.selected_node.node_id} does not have a KD Tree.")
+
+    def insert_key_gui(self):
+        """Insert a new key into the network."""
+        if self.selected_node is None:
+            print("No node selected.")
+            return
+
+        # Create a new window for inserting a new coffee shop key
+        insert_window = tk.Toplevel(self.root)
+        insert_window.title("Insert New Coffee Shop")
+        # Increase the height slightly to accommodate the review field
+        insert_window.geometry("400x350")
+
+        # Create labels and entry fields using grid layout
+        tk.Label(insert_window, text="Name:", font=("Arial", 12)).grid(
+            row=0, column=0, padx=10, pady=5, sticky="e"
+        )
+        name_entry = tk.Entry(insert_window, font=("Arial", 12))
+        name_entry.grid(row=0, column=1, padx=10, pady=5)
+
+        tk.Label(insert_window, text="Country:", font=("Arial", 12)).grid(
+            row=1, column=0, padx=10, pady=5, sticky="e"
+        )
+        country_entry = tk.Entry(insert_window, font=("Arial", 12))
+        country_entry.grid(row=1, column=1, padx=10, pady=5)
+
+        tk.Label(insert_window, text="Year:", font=("Arial", 12)).grid(
+            row=2, column=0, padx=10, pady=5, sticky="e"
+        )
+        year_entry = tk.Entry(insert_window, font=("Arial", 12))
+        year_entry.grid(row=2, column=1, padx=10, pady=5)
+
+        tk.Label(insert_window, text="Rating:", font=("Arial", 12)).grid(
+            row=3, column=0, padx=10, pady=5, sticky="e"
+        )
+        rating_entry = tk.Entry(insert_window, font=("Arial", 12))
+        rating_entry.grid(row=3, column=1, padx=10, pady=5)
+
+        tk.Label(insert_window, text="Price (100g USD):", font=("Arial", 12)).grid(
+            row=4, column=0, padx=10, pady=5, sticky="e"
+        )
+        price_entry = tk.Entry(insert_window, font=("Arial", 12))
+        price_entry.grid(row=4, column=1, padx=10, pady=5)
+
+        tk.Label(insert_window, text="Review:", font=("Arial", 12)).grid(
+            row=5, column=0, padx=10, pady=5, sticky="ne"
+        )
+        # Use a Text widget for multi-line review input
+        review_text = tk.Text(insert_window, font=("Arial", 12), width=30, height=4)
+        review_text.grid(row=5, column=1, padx=10, pady=5)
+
+        def submit():
+            name = name_entry.get().strip()
+            country = country_entry.get().strip()
+            year_str = year_entry.get().strip()
+            rating_str = rating_entry.get().strip()
+            price_str = price_entry.get().strip()
+            review = review_text.get("1.0", tk.END).strip()
+
+            # Validate that all fields are filled
+            if not (name and country and year_str and rating_str and price_str and review):
+                print("All fields are required.")
+                return
+
+            try:
+                year = float(year_str)
+            except ValueError:
+                print("Year must be a number.")
+                return
+
+            try:
+                rating = float(rating_str)
+            except ValueError:
+                print("Rating must be a number.")
+                return
+
+            try:
+                price = float(price_str)
+            except ValueError:
+                print("Price must be a number.")
+                return
+
+            print("Inserting new coffee shop:")
+            print(
+                f"Name: {name}, Country: {country}, Year: {year}, Rating: {rating}, Price: {price}, Review: {review}"
+            )
+
+            # Generate a key for the country (adjust this if needed)
+            key = hash_key(country)
+            point = [year, rating, price]
+            # Insert the new key into the selected node
+            self.selected_node.insert_key(key, point, review, country)
+
+            # Close the insert window and update visualizations
+            insert_window.destroy()
+            self.show_pastry_gui()
+
+        submit_button = tk.Button(insert_window, text="Submit", command=submit, font=("Arial", 12))
+        submit_button.grid(row=6, column=0, columnspan=2, pady=10)
+        insert_window.bind("<Return>", lambda event: submit())
+
+    def update_key_gui(self):
+        pass
+
+    def delete_key_gui(self):
+        pass

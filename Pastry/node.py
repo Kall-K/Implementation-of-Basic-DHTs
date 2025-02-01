@@ -190,13 +190,6 @@ class PastryNode:
         server_thread = threading.Thread(target=self._server, daemon=True)
         server_thread.start()
 
-    # def stop_server(self):
-    #     """
-    #     Start the server thread to listen for incoming requests.
-    #     """
-    #     server_thread = threading.Thread(target=self._server, daemon=True)
-    #     server_thread.()
-
     def _server(self):
         """
         Set up a socket server to handle incoming requests.
@@ -246,7 +239,7 @@ class PastryNode:
 
             # print(f"Node {self.node_id}: Handling Request: {request}")
             response = None
-            
+
             # Append the current node to the hops list only in main operations
             if operation in main_operations:
                 hops.append(self.node_id)
@@ -282,15 +275,19 @@ class PastryNode:
                     "hops": hops,
                 }
             elif operation == "GET_LEAF_SET":
-                response = {"status": "success", "leaf_set": {"Lmin": self.Lmin, "Lmax": self.Lmax}, "hops": hops}
+                response = {
+                    "status": "success",
+                    "leaf_set": {"Lmin": self.Lmin, "Lmax": self.Lmax},
+                    "hops": hops,
+                }
             elif operation == "GET_NEIGHBORHOOD_SET":  # New operation
                 response = self._handle_get_neighborhood_set(request)
-                
+
                 print(response)
             elif operation == "REQUEST_NEXT_HOP":
                 failed_node_id = request["failed_node_id"]
-                next_hop = self._find_next_hop(failed_node_id)  # Perform find_next_hop   
-                response = {"status": "success" if next_hop else "failure","next_hop": next_hop}
+                next_hop = self._find_next_hop(failed_node_id)  # Perform find_next_hop
+                response = {"status": "success" if next_hop else "failure", "next_hop": next_hop}
             elif operation == "GET_POSITION":
                 response = {"status": "success", "position": self.position}
             elif operation == "GET_KEYS":
@@ -318,7 +315,7 @@ class PastryNode:
         except (socket.error, EOFError, pickle.PickleError):
             print(f"Network: Detected failure of node at port {port}. Initiating repair...")
             return self.repair_node_failure(request)
-        
+
     def repair_node_failure(self, failed_node_id):
         """
         Repair the network after detecting a failed node.
@@ -328,10 +325,13 @@ class PastryNode:
 
         # Find the closest alive node to the failed node
         closest_node_id = self._find_closest_alive_node(failed_node_id)
-        
+
         if not closest_node_id:
             print(f"Node {self.node_id}: No available nodes to repair {failed_node_id}.")
-            return {"status": "failure", "message": f"No available nodes to repair {failed_node_id}."}
+            return {
+                "status": "failure",
+                "message": f"No available nodes to repair {failed_node_id}.",
+            }
 
         # Inform the closest node to begin repair
         repair_request = {
@@ -343,7 +343,10 @@ class PastryNode:
 
         # Ensure a structured response is always returned
         if response is None:
-            return {"status": "failure", "message": f"Repair attempt for {failed_node_id} failed due to no response."}
+            return {
+                "status": "failure",
+                "message": f"Repair attempt for {failed_node_id} failed due to no response.",
+            }
         return response
 
     def _handle_get_neighborhood_set(self, request):
@@ -368,7 +371,9 @@ class PastryNode:
         Repair a missing routing table entry for a failed node.
         Ensures that the replacement has the same prefix length as the failed node.
         """
-        print(f"Node {self.node_id}: Repairing routing table entry for failed node {failed_node_id}.")
+        print(
+            f"Node {self.node_id}: Repairing routing table entry for failed node {failed_node_id}."
+        )
         repair_hops = []  # Track hops specific to the repair process
 
         row_idx = common_prefix_length(self.node_id, failed_node_id)
@@ -381,19 +386,30 @@ class PastryNode:
         for entry in self.routing_table[row_idx]:
             if entry and entry != failed_node_id:
                 try:
-                    request = {"operation": "GET_ROUTING_TABLE_ENTRY", "row_idx": row_idx, "col_idx": col_idx}
+                    request = {
+                        "operation": "GET_ROUTING_TABLE_ENTRY",
+                        "row_idx": row_idx,
+                        "col_idx": col_idx,
+                    }
                     response = self.send_request(self.network.node_ports[entry], request)
                     if response["status"] == "success" and response.get("entry"):
                         replacement = response["entry"]
-                        
-                        if replacement != failed_node_id and common_prefix_length(self.node_id, replacement) == row_idx:
+
+                        if (
+                            replacement != failed_node_id
+                            and common_prefix_length(self.node_id, replacement) == row_idx
+                        ):
                             self.routing_table[row_idx][col_idx] = replacement
                             repair_hops.append(entry)  # Add hop to repair_hops
-                            print(f"Node {self.node_id}: Repaired routing table entry {failed_node_id} using {replacement}.")
+                            print(
+                                f"Node {self.node_id}: Repaired routing table entry {failed_node_id} using {replacement}."
+                            )
                             print(f"Repair Hops: {repair_hops}")  # Log repair hops
                             return replacement
                 except Exception as e:
-                    print(f"Node {self.node_id}: Error contacting {entry} for routing table repair: {e}")
+                    print(
+                        f"Node {self.node_id}: Error contacting {entry} for routing table repair: {e}"
+                    )
 
         # Step 3: Attempt progressive repair using _find_next_hop
         visited_nodes = set()
@@ -413,28 +429,32 @@ class PastryNode:
 
                 if replacement != failed_node_id:
                     replacement_prefix_length = common_prefix_length(self.node_id, replacement)
-                    
+
                     if replacement_prefix_length == row_idx:  # Ensure prefix length matches row
                         if row_idx == 0:  # If first digit (row 0), match based on column directly
                             if int(replacement[0], 16) == col_idx:
                                 self.routing_table[row_idx][col_idx] = replacement
-                                print(f"Node {self.node_id}: Successfully repaired routing table with {replacement}.")
+                                print(
+                                    f"Node {self.node_id}: Successfully repaired routing table with {replacement}."
+                                )
                                 print(f"Repair Hops: {repair_hops}")  # Log repair hops
                                 return replacement
                         else:  # For deeper rows, ensure the replacement's next hex digit matches column
                             if int(replacement[row_idx], 16) == col_idx:
                                 self.routing_table[row_idx][col_idx] = replacement
-                                print(f"Node {self.node_id}: Successfully repaired routing table with {replacement}.")
+                                print(
+                                    f"Node {self.node_id}: Successfully repaired routing table with {replacement}."
+                                )
                                 print(f"Repair Hops: {repair_hops}")  # Log repair hops
                                 return replacement
-
-
 
                 # Continue searching if no valid replacement is found
                 next_hop_id = response.get("next_hop", None)
 
             except Exception as e:
-                print(f"Node {self.node_id}: Failed to request routing repair from {next_hop_id}: {e}")
+                print(
+                    f"Node {self.node_id}: Failed to request routing repair from {next_hop_id}: {e}"
+                )
                 next_hop_id = None  # Break out of the loop on failure
 
         # Step 4: If no replacement is found, leave the entry as None
@@ -449,7 +469,9 @@ class PastryNode:
         Expands through both neighborhood sets and leaf sets.
         Finds the closest nodes to the current node based on position.
         """
-        print(f"Node {self.node_id}: Repairing neighborhood set after detecting failed node {failed_node_id}.")
+        print(
+            f"Node {self.node_id}: Repairing neighborhood set after detecting failed node {failed_node_id}."
+        )
 
         # Step 1: Check if the failed node was in the neighborhood set
         was_in_neighborhood_set = failed_node_id in self.neighborhood_set
@@ -457,11 +479,15 @@ class PastryNode:
 
         # Remove the failed node from the neighborhood set
         if was_in_neighborhood_set:
-            self.neighborhood_set = [node for node in self.neighborhood_set if node != failed_node_id]
+            self.neighborhood_set = [
+                node for node in self.neighborhood_set if node != failed_node_id
+            ]
 
         # If the failed node was not in the neighborhood set, no further action needed
         if not was_in_neighborhood_set:
-            print(f"Node {self.node_id}: Failed node {failed_node_id} was not in the neighborhood set. No repair needed.")
+            print(
+                f"Node {self.node_id}: Failed node {failed_node_id} was not in the neighborhood set. No repair needed."
+            )
             return
 
         # Step 2: Discover all nodes using BFS-like expansion
@@ -480,24 +506,35 @@ class PastryNode:
                     position_request = {"operation": "GET_POSITION"}
 
                     # Get neighborhood set
-                    neighbor_response = self.send_request(self.network.node_ports[current_node], neighbor_request)
+                    neighbor_response = self.send_request(
+                        self.network.node_ports[current_node], neighbor_request
+                    )
                     if neighbor_response["status"] == "success":
                         neighbors = neighbor_response["neighborhood_set"]
                         nodes_to_visit.extend(neighbors)  # Expand search through neighbors
 
                     # Get leaf set
-                    leafset_response = self.send_request(self.network.node_ports[current_node], leafset_request)
+                    leafset_response = self.send_request(
+                        self.network.node_ports[current_node], leafset_request
+                    )
                     if leafset_response["status"] == "success":
-                        leaf_nodes = leafset_response["leaf_set"]["Lmin"] + leafset_response["leaf_set"]["Lmax"]
+                        leaf_nodes = (
+                            leafset_response["leaf_set"]["Lmin"]
+                            + leafset_response["leaf_set"]["Lmax"]
+                        )
                         nodes_to_visit.extend(leaf_nodes)
 
                     # Get position of the current node
-                    position_response = self.send_request(self.network.node_ports[current_node], position_request)
+                    position_response = self.send_request(
+                        self.network.node_ports[current_node], position_request
+                    )
                     if position_response["status"] == "success":
                         all_candidates[current_node] = position_response["position"]
 
                 except Exception as e:
-                    print(f"Node {self.node_id}: Error querying {current_node} for neighborhood or leaf set: {e}")
+                    print(
+                        f"Node {self.node_id}: Error querying {current_node} for neighborhood or leaf set: {e}"
+                    )
 
         # Step 3: Remove self and failed node from candidates
         if self.node_id in all_candidates:
@@ -528,7 +565,9 @@ class PastryNode:
         Find the closest alive node to the given failed_node_id.
         """
         if not isinstance(failed_node_id, str):
-            print(f"Node {self.node_id}: Invalid failed_node_id: {failed_node_id}. Expected a string.")
+            print(
+                f"Node {self.node_id}: Invalid failed_node_id: {failed_node_id}. Expected a string."
+            )
             return None  # Gracefully handle invalid input
 
         min_distance = float("inf")
@@ -548,12 +587,13 @@ class PastryNode:
                 print(f"Node {self.node_id}: Failed to compute distance for node_id {node_id}: {e}")
 
         if closest_node_id:
-            print(f"Node {self.node_id}: Closest alive node to {failed_node_id} is {closest_node_id}.")
+            print(
+                f"Node {self.node_id}: Closest alive node to {failed_node_id} is {closest_node_id}."
+            )
         else:
             print(f"Node {self.node_id}: No alive node found to repair {failed_node_id}.")
         return closest_node_id
 
-    
     # Node Joining and Routing
 
     def _handle_join_request(self, request):
@@ -618,39 +658,48 @@ class PastryNode:
         # Step 1: Detect if the next hop is missing
         if next_hop_id and next_hop_id not in self.network.node_ports:
             print(f"Node {self.node_id}: Detected failed node {next_hop_id}. Initiating repair...")
-            
+
             # Repair routing table before proceeding
             self._repair_routing_table_entry(next_hop_id)
             self._repair_leaf_set(next_hop_id)
             self._repair_neighborhood_set(next_hop_id)
-            
+
             # After repair, find a new next hop
             next_hop_id = self._find_next_hop(key)
-            
 
         # Step 2: If this node is responsible for storing the key, insert it
         if self._in_leaf_set(key) or next_hop_id == self.node_id:
-            
+
             if not self.kd_tree:
-                
-                print(f"The country is :{request["country"]} and the key is : {hash_key(request["country"])}")
-                self.kd_tree = KDTree(points=np.array([request["point"]]),
-                                    reviews=np.array([request["review"]]),
-                                    country_keys=np.array([hash_key(request["country"])]),
-                                    countries=np.array([request["country"]]))
+
+                print(
+                    f"The country is: {request['country']} and the key is: {hash_key(request['country'])}"
+                )
+                self.kd_tree = KDTree(
+                    points=np.array([request["point"]]),
+                    reviews=np.array([request["review"]]),
+                    country_keys=np.array([hash_key(request["country"])]),
+                    countries=np.array([request["country"]]),
+                )
             else:
-                
+
                 self.kd_tree.add_point(request["point"], request["review"], request["country"])
-                print(f"Node {self.node_id}: Inserted {key} into KDTree. Points now: {self.kd_tree.points.shape}")
+                print(
+                    f"Node {self.node_id}: Inserted {key} into KDTree. Points now: {self.kd_tree.points.shape}"
+                )
 
             print(f"\nInserted Key: {key}")
             print(f"Point: {request['point']}")
             print(f"Review: {request['review']}")
             print(f"Routed and stored at Node ID: {self.node_id}")
-            print(f"country is {request["country"]}")
+            print(f"Country is {request['country']}")
             print(f"Hops: {hops}")
 
-            return {"status": "success", "message": f"Key {key} stored at {self.node_id}", "hops": hops}
+            return {
+                "status": "success",
+                "message": f"Key {key} stored at {self.node_id}",
+                "hops": hops,
+            }
 
         # Step 3: If forwarding, inform upstream node about the missing entry
         if next_hop_id:
@@ -659,11 +708,14 @@ class PastryNode:
 
             # If the downstream node finds a replacement, update the routing table
             if response and response.get("replacement"):
-                self.routing_table[common_prefix_length(self.node_id, next_hop_id)][int(next_hop_id[0], 16)] = response["replacement"]
-                print(f"Node {self.node_id}: Updated routing table with replacement from {next_hop_id}.")
+                self.routing_table[common_prefix_length(self.node_id, next_hop_id)][
+                    int(next_hop_id[0], 16)
+                ] = response["replacement"]
+                print(
+                    f"Node {self.node_id}: Updated routing table with replacement from {next_hop_id}."
+                )
 
             return response
-
 
     def _handle_delete_key_request(self, request):
         """
@@ -677,16 +729,15 @@ class PastryNode:
         # Step 1: Detect if the next hop is missing
         if next_hop_id and next_hop_id not in self.network.node_ports:
             print(f"Node {self.node_id}: Detected failed node {next_hop_id}. Initiating repair...")
-            
+
             # Repair routing table before proceeding
             self._repair_routing_table_entry(next_hop_id)
             self._repair_leaf_set(next_hop_id)
             self._repair_neighborhood_set(next_hop_id)
-            
+
             # After repair, find a new next hop
             next_hop_id = self._find_next_hop(key)
 
-        
         # If the key belongs to this node (based on leaf set), delete it from the KDTree
         if self._in_leaf_set(key) or next_hop_id == self.node_id:
             with self.lock:
@@ -733,17 +784,18 @@ class PastryNode:
 
             # Step 1: Detect if the next hop is missing
             if next_hop_id and next_hop_id not in self.network.node_ports:
-                print(f"Node {self.node_id}: Detected failed node {next_hop_id}. Initiating repair...")
-                
+                print(
+                    f"Node {self.node_id}: Detected failed node {next_hop_id}. Initiating repair..."
+                )
+
                 # Repair routing table before proceeding
                 self._repair_routing_table_entry(next_hop_id)
                 self._repair_leaf_set(next_hop_id)
                 self._repair_neighborhood_set(next_hop_id)
-                
+
                 # After repair, find a new next hop
                 next_hop_id = self._find_next_hop(key)
 
-            
             # If this key is found in the leaf set or the next hop is the current node, the lookup is successful
             if self._in_leaf_set(key) or next_hop_id == self.node_id:
                 print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
@@ -755,9 +807,10 @@ class PastryNode:
                 # KD-Tree Range Search
                 points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
                 print(f"Node {self.node_id}: Found {len(points)} matching points.")
-                print(f"Node {self.node_id}: Searching in KDTree. Query bounds: {lower_bounds} - {upper_bounds}")
+                print(
+                    f"Node {self.node_id}: Searching in KDTree. Query bounds: {lower_bounds} - {upper_bounds}"
+                )
                 print(f"Stored points: {self.kd_tree.points}")
-
 
                 if len(reviews) == 0:
                     print(f"Node {self.node_id}: No reviews found within the specified range.")
@@ -819,20 +872,18 @@ class PastryNode:
 
         next_hop_id = self._find_next_hop(key)
 
-
         # Step 1: Detect if the next hop is missing
         if next_hop_id and next_hop_id not in self.network.node_ports:
             print(f"Node {self.node_id}: Detected failed node {next_hop_id}. Initiating repair...")
-            
+
             # Repair routing table before proceeding
             self._repair_routing_table_entry(next_hop_id)
             self._repair_leaf_set(next_hop_id)
             self._repair_neighborhood_set(next_hop_id)
-            
+
             # After repair, find a new next hop
             next_hop_id = self._find_next_hop(key)
 
-        
         # If this node is responsible for the key
         if self._in_leaf_set(key) or next_hop_id == self.node_id:
             # Check if the key exists in this node's data structure
@@ -860,13 +911,14 @@ class PastryNode:
         # Ensure the hops list is returned in the response
         return response
 
-
     def _repair_leaf_set(self, failed_node_id):
         """
         Repair the leaf set by querying all nodes in the current leaf set and
         updating Lmin or Lmax only if the failed node was part of the respective set.
         """
-        print(f"Node {self.node_id}: Repairing leaf set after detecting failed node {failed_node_id}.")
+        print(
+            f"Node {self.node_id}: Repairing leaf set after detecting failed node {failed_node_id}."
+        )
 
         # Step 1: Determine if the failed node was in Lmin or Lmax
         was_in_lmin = failed_node_id in self.Lmin
@@ -880,7 +932,9 @@ class PastryNode:
 
         # Step 2: If the node was not in either set, no further action is needed
         if not was_in_lmin and not was_in_lmax:
-            print(f"Node {self.node_id}: Failed node {failed_node_id} was not in the leaf set. No repair needed.")
+            print(
+                f"Node {self.node_id}: Failed node {failed_node_id} was not in the leaf set. No repair needed."
+            )
             return
 
         # Step 3: Query all nodes in the current leaf set (Lmin or Lmax) for their leaf sets
@@ -902,7 +956,9 @@ class PastryNode:
         all_candidates.extend(leaf_set_to_query)  # Include existing leaf set
         all_candidates = list(set(all_candidates))  # Remove duplicates
         all_candidates = [
-            node for node in all_candidates if node and node != self.node_id and node != failed_node_id
+            node
+            for node in all_candidates
+            if node and node != self.node_id and node != failed_node_id
         ]  # Exclude self and failed node
 
         # Sort candidates by numerical distance to the current node ID
@@ -910,11 +966,11 @@ class PastryNode:
 
         # Step 5: Rebuild the relevant set (Lmin or Lmax)
         if was_in_lmin:
-            self.Lmin = [node for node in all_candidates if node < self.node_id][:L // 2]
+            self.Lmin = [node for node in all_candidates if node < self.node_id][: L // 2]
             self.Lmin += [None] * (L // 2 - len(self.Lmin))  # Pad with None if not enough nodes
             print(f"Node {self.node_id}: Rebuilt Lmin: {self.Lmin}")
         if was_in_lmax:
-            self.Lmax = [node for node in all_candidates if node > self.node_id][:L // 2]
+            self.Lmax = [node for node in all_candidates if node > self.node_id][: L // 2]
             self.Lmax += [None] * (L // 2 - len(self.Lmax))  # Pad with None if not enough nodes
             print(f"Node {self.node_id}: Rebuilt Lmax: {self.Lmax}")
 
@@ -1331,8 +1387,6 @@ class PastryNode:
             if node_id in self.network.node_ports:  # Ensure node is alive
                 __update_presence(node_id)
 
-
-                
     # Data Structure Updates
 
     def update_routing_table_row(self, request):
@@ -1464,7 +1518,6 @@ class PastryNode:
             # Else update Lmin
             self._update_leaf_list(self.Lmin, key)
 
-    
     def _handle_update_presence_request(self, request):
         """
         Update the presence of a node in all the data structures of this node.
@@ -1501,8 +1554,6 @@ class PastryNode:
             self._update_leaf_list(self.Lmax, key)
         else:
             self._update_leaf_list(self.Lmin, key)
-
-
 
     # Helper Methods
 
