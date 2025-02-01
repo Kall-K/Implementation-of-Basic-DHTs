@@ -82,7 +82,7 @@ class PastryDashboard:
         # Back button
         back_button = tk.Button(
             control_frame,
-            text="Back",
+            text="Exit",
             command=self.on_close,
             width=15,
             height=2,
@@ -345,6 +345,9 @@ class PastryDashboard:
         """Displays the Pastry ring and topology."""
         self.selected_node = None
 
+        if hasattr(self, "has_more_countries"):
+            del self.has_more_countries
+
         # Remove the temporary KD-Tree plot if it exists
         if hasattr(self, "ax_kd_tree"):
             self.ax_kd_tree.remove()
@@ -372,8 +375,8 @@ class PastryDashboard:
             print("No node selected.")
             return
 
-        # Check if KD Tree already exists and is displayed
-        if hasattr(self, "ax_kd_tree"):
+        # If the node has only one country, don't show the country selection window
+        if hasattr(self, "has_more_countries") and not self.has_more_countries:
             print("KD Tree is already displayed.")
             return
 
@@ -383,6 +386,13 @@ class PastryDashboard:
                 nonlocal selected_country
                 selected_country = country_var.get()
                 if selected_country:
+                    if hasattr(self, "ax_kd_tree"):
+                        self.ax_kd_tree.clear()
+                        self.ax_kd_tree.set_xticks([])
+                        self.ax_kd_tree.set_yticks([])
+                        self.ax_kd_tree.set_zticks([])
+                        self.canvas.mpl_disconnect(self.kd_tree_pick_event_id)
+                        del self.kd_tree_pick_event_id  # Remove reference
                     selection_window.unbind("<Return>")
                     selection_window.destroy()
 
@@ -405,6 +415,14 @@ class PastryDashboard:
             unique_country_keys, unique_countries = self.network.nodes[
                 self.selected_node.node_id
             ].kd_tree.get_unique_country_keys()
+
+            # If there are more than 2 unique countries, update the "Show KD Tree" button
+            if len(unique_countries) >= 2:
+                self.show_kd_tree_button.config(text="Choose Country")
+                self.has_more_countries = True
+            else:
+                self.show_kd_tree_button.config(text="Show KD Tree")
+                self.has_more_countries = False
 
             country_var = tk.StringVar(selection_window)
             if unique_countries:
@@ -474,5 +492,6 @@ class PastryDashboard:
                 selected_country_key,
                 selected_country,
             )
+
         else:
             print(f"Node {self.selected_node.node_id} does not have a KD Tree.")

@@ -4,13 +4,13 @@ import sys
 import os
 
 # Add the parent directory to sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 
-from network import PastryNetwork
-from node import PastryNode
-from constants import *
-from helper_functions import *
+from Pastry.network import PastryNetwork
+from Pastry.node import PastryNode
+from Pastry.constants import *
+from Pastry.helper_functions import *
 
 
 def main():
@@ -50,7 +50,7 @@ def main():
         "fb32",
         "20bc",
         "20bd",
-        "3745"
+        "3745",
     ]
 
     print(f"Adding {len(predefined_ids)} nodes to the network...")
@@ -63,13 +63,13 @@ def main():
     print("\nAll nodes have successfully joined the network.\n")
 
     hops_counts = {
-    "NODE_JOIN": [],
-    "INSERT_KEY": [],
-    "LOOKUP": [],
-    "DELETE_KEY": [],
-    "UPDATE_KEY": [],
-    "NODE_LEAVE": []
-}
+        "NODE_JOIN": [],
+        "INSERT_KEY": [],
+        "LOOKUP": [],
+        "DELETE_KEY": [],
+        "UPDATE_KEY": [],
+        "NODE_LEAVE": [],
+    }
 
     # Track hops for NODE_JOIN
     new_node_id = "d3ad"
@@ -98,14 +98,13 @@ def main():
     point = [2018, 94, 5.5]
     review = "Very delicate and sweet. Lemon verbena, dried persimmon, dogwood, baker's chocolate in aroma and cup. Balanced, sweet-savory structure; velvety-smooth mouthfeel. The sweetly herb-toned finish centers on notes of lemon verbena and dried persimmon wrapped in baker's chocolate."
     print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
-    
+
     insert_response = first_node.insert_key(key, point, review, country)
     if insert_response and "hops" in insert_response:
         hops_counts["INSERT_KEY"].append(len(insert_response["hops"]))
         print(f"Hops during INSERT_KEY for {country}: {len(insert_response['hops'])}")
     else:
         print(f"Failed to retrieve hops for INSERT_KEY {country}.")
-
 
     # Insert all entries
     for key, point, review, country, name in zip(keys, points, reviews, countries, names):
@@ -128,7 +127,7 @@ def main():
 
     print(f"\nLooking up Key: {lookup_key}")
     lookup_response = first_node.lookup(lookup_key, lower_bounds, upper_bounds, N=5)
-    
+
     if lookup_response and "hops" in lookup_response:
         hops_counts["LOOKUP"].append(len(lookup_response["hops"]))
         print(f"Hops during LOOKUP for {lookup_key}: {len(lookup_response['hops'])}")
@@ -139,15 +138,15 @@ def main():
 
     print("\nStage 4: Key Deletion")
     print("=======================")
-    delete_key="372b"
+    delete_key = "372b"
     delete_response = first_node.delete_key(delete_key)
-    
+
     if delete_response and "hops" in delete_response:
         hops_counts["DELETE_KEY"].append(len(delete_response["hops"]))
         print(f"Hops during DELETE_KEY for {delete_key}: {len(delete_response['hops'])}")
     else:
         print(f"Failed to retrieve hops for DELETE_KEY {delete_key}.")
-    
+
     first_node.delete_key("6073")
     first_node.delete_key("4ca4")
     first_node.delete_key("aaaa")  # Delete a key that does not exist
@@ -173,8 +172,10 @@ def main():
 
     # Update only the review for Taiwan
     print("\nUpdating only the review for Taiwan:\n")
-    update_fields = {"review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."}
-    
+    update_fields = {
+        "review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."
+    }
+
     update_response = first_node.update_key(taiwan_country_key, updated_data=update_fields)
     if update_response and "hops" in update_response:
         hops_counts["UPDATE_KEY"].append(len(update_response["hops"]))
@@ -198,11 +199,10 @@ def main():
     print("\nStage 6: Node Leave")
     print("=======================")
     # Trigger a node leave operation using the network
-    
-    node_to_leave="3722"
+
+    node_to_leave = "3722"
     leave_response = network.leave(node_to_leave)
-    
-    
+
     if leave_response and "hops" in leave_response:
         hops_counts["NODE_LEAVE"].append(len(leave_response["hops"]))
         print(f"Hops during NODE_LEAVE for {node_to_leave}: {len(leave_response['hops'])}")
@@ -213,11 +213,13 @@ def main():
     print("\nInspecting the state of the network after the node leaves:")
     for node in network.nodes.values():
         node.print_state()
-    
 
-    plot_hops(hops_counts)   
+    plot_hops(hops_counts)
     print(hops_counts)
+
+    # Run the gui main loop
+    network.gui.root.mainloop()
 
 
 if __name__ == "__main__":
-    main()	
+    main()

@@ -5,13 +5,13 @@ import sys
 import os
 
 # Add the parent directory to sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 
-from network import PastryNetwork
-from node import PastryNode
-from constants import *
-from helper_functions import hash_key
+from Pastry.network import PastryNetwork
+from Pastry.node import PastryNode
+from Pastry.constants import *
+from Pastry.helper_functions import hash_key
 
 
 def main():
@@ -112,6 +112,9 @@ def main():
     print(f"\nLooking up Key: {lookup_key}")
     response = first_node.lookup(lookup_key, lower_bounds, upper_bounds, N=5)
     print(response)
+
+    # Run the gui main loop
+    network.gui.root.mainloop()
 
 
 if __name__ == "__main__":
