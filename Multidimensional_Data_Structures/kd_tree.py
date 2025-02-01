@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.neighbors import KDTree as sk_KDTree
-import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import sys
 import os
 import hashlib
@@ -207,6 +207,27 @@ class KDTree:
 
         return matching_points, matching_reviews
 
+    def get_unique_country_keys(self):
+        """Return tuple of lists with the unique country keys and their assosiated countries."""
+        unique_country_keys = np.unique(self.country_keys)
+        unique_countries = []
+        for key in unique_country_keys:
+            for country in self.countries:
+                if key == hashlib.sha1(country.encode()).hexdigest()[-4:]:
+                    unique_countries.append(country)
+                    break
+        return list(unique_country_keys), unique_countries
+
+    def get_points(self, country_key):
+        """Return the points and reviews for a specific country key."""
+        points = []
+        reviews = []
+        for idx, key in enumerate(self.country_keys):
+            if key == country_key:
+                points.append(self.points[idx].tolist())
+                reviews.append(self.reviews[idx].tolist())
+        return np.array(points), np.array(reviews)
+
     def print_search_results(self, matching_points, matching_reviews):
         """Prints the search results, including the associated country."""
         print(f"\nFound {len(matching_points)} points within the specified ranges:")
@@ -228,7 +249,7 @@ class KDTree:
             )
             print(f"\nPoint: {point}\nReview: {review}\nCountry: {country}")
 
-    def visualize(self, ax, canvas, points=None, reviews=None):
+    def visualize(self, ax, canvas, points=None, reviews=None, country_key=None, country=None):
         """
         Visualize the points in a 3D scatter plot on the provided Axes object.
         If points and reviews are None, visualize all stored points.
@@ -239,6 +260,7 @@ class KDTree:
             points (numpy array, optional): Array of data points. If None, use all stored points.
             reviews (numpy array, optional): Array of reviews. If None, use all stored reviews.
         """
+        # If to points and reviews are provided, use all stored points and reviews
         if points is None or reviews is None:
             if self.points is None or self.reviews is None or len(self.points) == 0:
                 print("No points available for visualization.")
@@ -254,17 +276,29 @@ class KDTree:
         ax.set_ylabel("Rating")
         ax.set_zlabel("Price (100g USD)")
 
+        # Set integer year ticks
+        ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+
+        # If there's only one point, narrow the x-axis range
+        if points.shape[0] == 1:
+            year = points[0, 0]
+            ax.set_xlim(year - 1, year + 1)  # 1 year margin on each side
+            ax.set_xticks([year])
+
         # Add title
-        ax.set_title("3D Scatter Plot of Coffee Review Points")
+        if country_key is None or country is None:
+            ax.set_title("3D Scatter Plot of Coffee Review Points")
+
+        ax.set_title(f"3D Scatter Plot of Coffee Review Points from {country} - {country_key}")
 
         # Redraw the canvas
         canvas.draw()
 
-    def on_pick(self, event):
+    def on_pick(self, event, points, reviews):
         """Handle the pick event to display the associated review."""
         ind = event.ind[0]  # Index of the picked point
-        review = self.reviews[ind]
-        print(f"\nReview for selected point ({self.points[ind]}):\n{review}")
+        # review = self.reviews[ind]
+        print(f"\nReview for selected point ({points[ind]}):\n{reviews[ind]}")
 
 
 # Map criteria keys to point array indices

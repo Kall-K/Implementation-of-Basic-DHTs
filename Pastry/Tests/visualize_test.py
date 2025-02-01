@@ -44,7 +44,6 @@ def main():
         node = PastryNode(network, node_id=node_id)
         print(f"Adding Node: ID = {node.node_id}")
         node.start_server()
-        # time.sleep(0.1)  # Allow the server to start
         network.node_join(node)
         print(f"\nNode Added: ID = {node.node_id}, Position = {node.position}")
         print("\n" + "-" * 100)

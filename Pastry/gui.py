@@ -375,13 +375,18 @@ class GUI:
 
             tk.Label(selection_window, text="Select a country:", font=("Arial", 14)).pack(pady=10)
 
-            country_var = tk.StringVar(selection_window)
+            # Get unique countries from the KD Tree of the selected node
+            unique_country_keys, unique_countries = self.network.nodes[
+                self.selected_node.node_id
+            ].kd_tree.get_unique_country_keys()
 
-            unique_countries, counts = np.unique(
-                self.selected_node.kd_tree.countries, return_counts=True
-            )
+            country_var = tk.StringVar(selection_window)
+            if unique_countries:
+                country_var.set(unique_countries[0])  # First country as default
 
             dropdown = tk.OptionMenu(selection_window, country_var, *unique_countries)
+            dropdown.config(font=("Arial", 12))
+            dropdown["menu"].config(font=("Arial", 12))
             dropdown.pack(pady=5)
 
             # Add a button to confirm selection
@@ -401,11 +406,13 @@ class GUI:
                 print("Country selection canceled.")
                 return
 
-            print(f"Node {self.selected_node.node_id}: Visualizing KD Tree for {selected_country}.")
+            # Get the key for the selected country
+            selected_country_key = unique_country_keys[unique_countries.index(selected_country)]
 
-            # TODO: Na kanw visualize to kd tree mono gia to selected country
-            # prepei na vrw ta indices gia to selected country
-            # kai na perasw stin visualize ta points, reviews se auta ta indices
+            # Get points and reviews for the selected country
+            points, reviews = self.network.nodes[self.selected_node.node_id].kd_tree.get_points(
+                selected_country_key
+            )
 
             # Clear the ring plot
             self.ax_ring.clear()
@@ -428,10 +435,18 @@ class GUI:
 
             # Connect KD-Tree pick event and store ID
             self.kd_tree_pick_event_id = self.canvas.mpl_connect(
-                "pick_event", self.selected_node.kd_tree.on_pick
+                "pick_event",
+                lambda event: self.selected_node.kd_tree.on_pick(event, points, reviews),
             )
 
             # Visualize the KD Tree
-            self.selected_node.kd_tree.visualize(ax=self.ax_kd_tree, canvas=self.canvas)
+            self.selected_node.kd_tree.visualize(
+                self.ax_kd_tree,
+                self.canvas,
+                points,
+                reviews,
+                selected_country_key,
+                selected_country,
+            )
         else:
             print(f"Node {self.selected_node.node_id} does not have a KD Tree.")
