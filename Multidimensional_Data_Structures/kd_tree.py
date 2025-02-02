@@ -46,14 +46,13 @@ class KDTree:
         # Append the new point and review to the existing data
         self.points = np.vstack([self.points, new_point])
         self.reviews = np.append(self.reviews, new_review)
-
         # Hash the country and append to country_keys
         new_country_key = hashlib.sha1(new_country.encode()).hexdigest()[-4:]
         self.country_keys = np.append(self.country_keys, new_country_key)
-
         # Append the original country to the countries list
+        # self.countries.tolist()
+        # print(self.countries)
         self.countries.append(new_country)
-
         # Rebuild the KD-Tree with the updated points
         self.build(self.points)
 
@@ -75,7 +74,7 @@ class KDTree:
         self.points = np.delete(self.points, indices_to_delete, axis=0)
         self.reviews = np.delete(self.reviews, indices_to_delete)
         self.country_keys = np.delete(self.country_keys, indices_to_delete)
-        self.countries = np.delete(self.countries, indices_to_delete)
+        self.countries = list(np.delete(self.countries, indices_to_delete))
 
         # Rebuild the KD-Tree with the updated points
         if self.points.size > 0:

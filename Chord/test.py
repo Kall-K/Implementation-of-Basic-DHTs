@@ -28,7 +28,7 @@ def main():
     # Load dataset
     dataset_path = "../Coffee_Reviews_Dataset/simplified_coffee.csv"
     df = pd.read_csv(dataset_path)
-    df = df[:15]
+    df = df[:75]
     # print(df)
     # Keep only the year from the review_date column
     df["review_date"] = pd.to_datetime(df["review_date"], format="%B %Y").dt.year
@@ -142,17 +142,14 @@ def main():
     network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
 
     # network.visualize_network()
-    time.sleep(2)
-    for i in network.nodes.keys():
-        print(i)
-        network.nodes[i].print_successors_list()
 
+    time.sleep(2)
     print("Node left")
     network.nodes["19bd"].leave()
     network.nodes["4c12"].leave()
 
-    time.sleep(1)
-    network.nodes["cafe"].leave()
+    # time.sleep(1)
+    # network.nodes["cafe"].leave()
     # network.nodes["4c12"].leave()
 
     running = True
