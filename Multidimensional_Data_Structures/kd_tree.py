@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.neighbors import KDTree as sk_KDTree
 import matplotlib.ticker as ticker
+import tkinter as tk
 import sys
 import os
 import hashlib
@@ -83,7 +84,7 @@ class KDTree:
         else:
             self.tree = None
 
-        print(f"Deleted {len(indices_to_delete)} points with country key: {country_key}")
+        print(f"Deleted {len(indices_to_delete)} points with country key: {country_key}\n")
 
     def print_countries(self):
         """
@@ -294,11 +295,15 @@ class KDTree:
         # Redraw the canvas
         canvas.draw()
 
-    def on_pick(self, event, points, reviews):
+    def on_pick(self, event, points, reviews, review_text):
         """Handle the pick event to display the associated review."""
         ind = event.ind[0]  # Index of the picked point
-        # review = self.reviews[ind]
-        print(f"\nReview for selected point ({points[ind]}):\n{reviews[ind]}")
+        review_text.config(state=tk.NORMAL)
+        review_text.delete(1.0, tk.END)
+
+        text = f"Point: {points[ind]}\nReview: {reviews[ind]}"
+        review_text.insert(tk.END, text)
+        review_text.config(font=("Courier", 11), state=tk.DISABLED)
 
 
 # Map criteria keys to point array indices

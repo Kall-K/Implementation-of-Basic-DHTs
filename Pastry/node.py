@@ -668,7 +668,7 @@ class PastryNode:
             next_hop_id = self._find_next_hop(key)
 
         # Step 2: If this node is responsible for storing the key, insert it
-        if self._in_leaf_set(key) or next_hop_id == self.node_id:
+        if next_hop_id == self.node_id:
 
             if not self.kd_tree:
 
@@ -1172,7 +1172,7 @@ class PastryNode:
 
         # Check if any country_keys should be moved to the requesting node
         for country_key in np.unique(self.kd_tree.country_keys):
-            l = common_prefix_length(self.node_id, country_key)  # Use the correct key
+            l = common_prefix_length(self.node_id, country_key)
             if self._is_closer_node(request_node_id, country_key, l, self.node_id):
                 keys_to_move.append(country_key)
 
@@ -1198,16 +1198,21 @@ class PastryNode:
                     "hops": [],
                 }
                 self.send_request(self.network.node_ports[request_node_id], insert_request)
-                print(f"Node {self.node_id}: Moved Key {country_key} to {request_node_id}.")
+                print(
+                    f"Node {self.node_id}: Moved Key {country_key} with Point {point} to {request_node_id}."
+                )
 
             # Remove the key and data from the current node's KDTree
-            print(f"Node {self.node_id}: Deleted Key {country_key}.")
+            print(f"Node {self.node_id}: Deleting Key {country_key} from KDTree.")
             self.kd_tree.delete_points(country_key)
 
-        print(f"\nNode {self.node_id}: Moved {len(keys_to_move)} keys to {request_node_id}.")
+        if len(keys_to_move) > 0:
+            print(f"Node {self.node_id}: Moved keys {keys_to_move} to {request_node_id}.\n")
+        else:
+            print(f"\nNode {self.node_id}: Moved no keys to {request_node_id}.")
         return {
             "status": "success",
-            "message": f"Moved {len(keys_to_move)} keys to {request_node_id}.",
+            "message": f"Moved keys {keys_to_move} to {request_node_id}.",
         }
 
     def insert_key(self, key, point, review, country):
@@ -1321,13 +1326,13 @@ class PastryNode:
         for node_id in self.Lmin + self.Lmax:
             if node_id is not None:
                 request = {"operation": "GET_KEYS", "node_id": self.node_id, "hops": []}
-                self.send_request(self.network.node_ports[node_id], request)
+                response = self.send_request(self.network.node_ports[node_id], request)
 
     def _find_next_hop(self, key):
         """
         Find the next hop to forward a request based on the node ID.
         """
-        # Check if the key is in the leaf set
+        # Check if the key is in the leaf set range
         if self._in_leaf_set(key):
             # If the node_id is in the leaf set
             closest_leaf_id = self._find_closest_leaf_id(key)
@@ -1336,15 +1341,19 @@ class PastryNode:
         # If the key is not in the leaf set, check the routing table
         else:
             i = common_prefix_length(self.node_id, key)
-            next_hop = self.routing_table[i][int(key[i], 16)]
+            if i < HASH_HEX_DIGITS:
+                next_hop = self.routing_table[i][int(key[i], 16)]
 
-            if next_hop is not None:
-                return next_hop
-            # If the routing table entry is empty,
-            # scan all the nodes in the network
-            else:
-                next_hop = self._find_closest_node_id_all(key)
-                return next_hop
+                if next_hop is not None:
+                    return next_hop
+                # If the routing table entry is empty,
+                # scan all the nodes in the network
+                else:
+                    next_hop = self._find_closest_node_id_all(key)
+                    return next_hop
+            # If the common prefix length is equal to the length of the node_id,
+            # the key is stored at this node
+            return self.node_id
 
     def transmit_state(self):
         """
@@ -1432,7 +1441,7 @@ class PastryNode:
 
         # Insert the close node aswell if there is space
         print(
-            f"Node {self.node_id}: Adding Node close node {close_node_id} to the neighborhood set aswell..."
+            f"Node {self.node_id}: Adding Close Node {close_node_id} to the neighborhood set aswell..."
         )
         for i in range(len(self.neighborhood_set)):
             if self.neighborhood_set[i] is None:
@@ -1557,14 +1566,44 @@ class PastryNode:
 
     # Helper Methods
 
-    def _in_leaf_set(self, node_id):
+    def _in_leaf_set(self, key):
         """
-        Check if a node ID is in the leaf set.
+        Check if a key is in the range of the leaf set.
         """
-        if node_id in self.Lmin or node_id in self.Lmax:
-            return True
+        # Get the biggest node in Lmax
+        lmax_max = self.Lmax[0]
+        if lmax_max is not None:
+            for node_id in self.Lmax:
+                if node_id is not None:
+                    if hex_compare(node_id, lmax_max):
+                        lmax_max = node_id
         else:
-            return False
+            # If lmax_max is None we need to check Lmin for the biggest node
+            lmax_max = self.Lmin[0]
+            for node_id in self.Lmin:
+                if node_id is not None:
+                    if hex_compare(node_id, lmax_max):
+                        lmax_max = node_id
+
+        # Get the smallest node in Lmin
+        lmin_min = self.Lmin[0]
+        if lmin_min is not None:
+            for node_id in self.Lmin:
+                if node_id is not None:
+                    if hex_compare(lmin_min, node_id):
+                        lmin_min = node_id
+        else:
+            # If lmin_min is None we need to check Lmax for the smallest node
+            if lmin_min is None:
+                lmin_min = self.Lmax[0]
+                for node_id in self.Lmax:
+                    if node_id is not None:
+                        if hex_compare(lmin_min, node_id):
+                            lmin_min = node_id
+
+        # Check if the key is between lmin_min and lmax_max
+        if lmin_min is not None and lmax_max is not None:
+            return hex_compare(key, lmin_min) and hex_compare(lmax_max, key)
 
     def _find_closest_leaf_id(self, key):
         closest_diff_dig_idx, closest_dist = hex_distance(self.node_id, key)

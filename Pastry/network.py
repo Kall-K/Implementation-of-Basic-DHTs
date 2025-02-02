@@ -47,14 +47,12 @@ class PastryNetwork:
 
         if len(self.nodes) == 1:
             print("The network is empty. The new node is the first node.")
-            self.gui.visualize_network()
-            self.gui.visualize_topology()
             return
 
         # Find the closest node to the new using its position
         closest_node_id, closest_neighborhood_set = self._find_topologically_closest_node(new_node)
-        print(f"the topological closer is {closest_node_id}")
-        print(f"the topological closer neigborhood is {closest_neighborhood_set}")
+        print(f"The topologically closest node is {closest_node_id}")
+        print(f"The topologically closest neigborhood is {closest_neighborhood_set}")
 
         # Filter out failed nodes, preserving the original size by replacing them with None
         closest_neighborhood_set = [
@@ -87,11 +85,8 @@ class PastryNetwork:
         new_node.transmit_state()
 
         # Move any keys that should be stored in the new node
+        print(f"\nMoving keys from neighboring nodes to the new node {new_node_id}...")
         new_node.get_keys()
-
-        # Visualize the network after the new node joins
-        self.gui.visualize_network()
-        self.gui.visualize_topology()
 
         return response
 
@@ -307,5 +302,6 @@ class PastryNetwork:
             response = first_node.insert_key(key, point, review, country)
             print(response)
 
+        self.gui.show_pastry_gui()
         # Run the gui main loop
         self.gui.root.mainloop()
