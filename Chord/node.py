@@ -47,6 +47,7 @@ class ChordNode:
 
         # Create a thread pool for handling requests to limit the number of concurrent threads
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
+        self.stop_event = threading.Event() # event to stop while 
 
     # Initialization Methods
 
@@ -142,11 +143,13 @@ class ChordNode:
         """
         Start the server thread to listen for incoming requests.
         """
-        server_thread = threading.Thread(target=self._server, daemon=True)
-        server_thread.start()
-
-        self.thread_pool.submit(self._update_finger_table_scheduler)
+        # server_thread = threading.Thread(target=self._server, daemon=True)
+        # server_thread.start()
+        self.thread_pool.submit(self._server)
         self.thread_pool.submit(self._update_successors_scheduler)
+        self.thread_pool.submit(self._update_finger_table_scheduler)
+        
+        
     
     def _update_finger_table_scheduler(self):
         interval = 5  # seconds
@@ -158,14 +161,16 @@ class ChordNode:
             print("\nUpdated Finger Table of Node:", self.node_id)
     
     def _update_successors_scheduler(self):
-        interval = 0.1  # seconds
+        interval = 0.5  # seconds
         while True:
             if not self.running:
                 break
             time.sleep(interval)
             self.update_successors_on_join()
             self.update_successors_on_leave()
-            print(".", end="", flush=True)
+            print(".", end=" ", flush=True)
+            # if self.node_id == "4bde": print("\nReturned")
+
 
     def _server(self):
         """
@@ -186,10 +191,14 @@ class ChordNode:
             s.listen()
             print(f"Node {self.node_id} listening on {self.address} (bound to {bind_address})")
 
-            while True:
+            while not self.stop_event.is_set():
                 conn, addr = s.accept()  # Accept incoming connection
                 # Submit the connection to the thread pool for handling
-                self.thread_pool.submit(self._handle_request, conn)
+                try:
+                    self.thread_pool.submit(self._handle_request, conn)
+                except RuntimeError as e:
+                    # print("Thread pool is shutting down.")
+                    return None
 
     def _handle_request(self, conn):
         try:
@@ -216,7 +225,12 @@ class ChordNode:
             if operation == "LOOKUP":
                 response = self._handle_lookup_request(request)
             if operation == "RESTORATION":
-                response = self._handle_restore_request(request)
+                print(operation)
+                response = self._handle_restoration_request(request)
+            if operation == "GET_SUCCESSOR":
+                response = self._handle_get_successor_request()
+            if operation == "GET_STATUS":
+                response = self._handle_get_status_request()
 
             # Add more operations here as needed
 
@@ -240,7 +254,8 @@ class ChordNode:
                 s.sendall(pickle.dumps(request))  # Serialize and send the request
                 response = s.recv(1024*1024)  # Receive the response
             except Exception as e:
-                print(f"Error connecting to {connect_address}: {e}")
+                # print(f"Error connecting to {connect_address}: {e}")
+                # print(connect_address, request)
                 return None
 
         return pickle.loads(response)  # Deserialize the response
@@ -255,7 +270,7 @@ class ChordNode:
             "key": key,
             "hops": hops
         }
-        # Get the possition on the ring
+        # Get the position on the ring
         return self.send_request(node, get_successor_request)
     
     def request_delete_successor_keys(self, keys, successor_id):
@@ -295,11 +310,27 @@ class ChordNode:
         node = self.network.nodes[successor_id]
         restoration = {
             "operation": "RESTORATION",
-            "sender_id": self.node_id
+            "sender_id": self.node_id # In case of change of predecessor value
         }
         status = self.send_request(node, restoration)
         return status
     
+    def request_get_successor(self, node_id):
+        node = self.network.nodes[node_id]
+        get_successor = {
+            "operation": "GET_SUCCESSOR"
+        }
+        status = self.send_request(node, get_successor)
+        return status
+    
+    def request_status_running(self, node_id):
+        node = self.network.nodes[node_id]
+        get_status = {
+            "operation": "GET_STATUS"
+        }
+        status = self.send_request(node, get_status)
+        return status
+
     #############################
     ######### Handlers ##########
     #############################
@@ -342,9 +373,18 @@ class ChordNode:
         points = self.back_up.points
         reviews = self.back_up.reviews
         countries = self.back_up.countries
+        print(type(keys),type(points),type(reviews),type(countries))
+
         for key, point, review, country in zip(keys, points, reviews, countries):
             self._handle_insert_key_request(key, point, review, country) 
+        
+        print("Data Inserted")
+    
+    def _handle_get_successor_request(self):
+        return self.get_successor()
 
+    def _handle_get_status_request(self):
+        return self.running
     #############################
     ####### KEY Handlers ########
     #############################
@@ -364,11 +404,11 @@ class ChordNode:
         del request["operation"]
 
         with self.lock:
-            if key in self.data.keys():
-                self.data[key].append(request)
-            else:
-                self.data[key] = []
-                self.data[key].append(request)
+            # if key in self.data.keys():
+            #     self.data[key].append(request)
+            # else:
+            #     self.data[key] = []
+            #     self.data[key].append(request)
 
             if self.kd_tree == None:
                 # Initialize KDTree with the first point
@@ -402,17 +442,17 @@ class ChordNode:
         hops = request["hops"]
 
         with self.lock:
-            if key in self.data.keys():
-                    del self.data[key]
-                    if key in self.kd_tree.country_keys:
-                        print(f"\nNode {self.node_id}: Deleted Key {key}.")
-                        self.kd_tree.delete_points(key)
-                    else:
-                        print(f"\nNode {self.node_id}: No data for key {key}.\n")
-                        return {"status": "failure", "message": f"No data for key {key} on kdtree."}
+            # if key in self.data.keys():
+            #         del self.data[key]
+            if self.kd_tree and key in self.kd_tree.country_keys:
+                print(f"\nNode {self.node_id}: Deleted Key {key}.")
+                self.kd_tree.delete_points(key)
             else:
                 print(f"\nNode {self.node_id}: No data for key {key}.\n")
                 return {"status": "failure", "message": f"No data for key {key}."}
+            # else:
+            #     print(f"\nNode {self.node_id}: No data for key {key}.\n")
+            #     return {"status": "failure", "message": f"No data for key {key}."}
 
         return {"status": "success", "message": f"Deleted Key {key}.", "hops": hops}
 
@@ -426,21 +466,21 @@ class ChordNode:
         hops = request.get("hops", [])
         
         with self.lock:
-            if key in self.data.keys():
-                # Check if the key exists in this node's data structure
-                if self.kd_tree and key in self.kd_tree.country_keys:
-                    # Update the data in the KDTree
-                    self.kd_tree.update_points(
-                        country_key=key,
-                        criteria=criteria,
-                        update_fields=update_fields,
-                    )
-                    print(f"Node {self.node_id}: Key {key} updated successfully.")
-                    return {
-                        "status": "success",
-                        "message": f"Key {key} updated successfully.",
-                        "hops": hops,
-                    }
+            # if key in self.data.keys():
+            #     # Check if the key exists in this node's data structure
+            if self.kd_tree and key in self.kd_tree.country_keys:
+                # Update the data in the KDTree
+                self.kd_tree.update_points(
+                    country_key=key,
+                    criteria=criteria,
+                    update_fields=update_fields,
+                )
+                print(f"Node {self.node_id}: Key {key} updated successfully.")
+                return {
+                    "status": "success",
+                    "message": f"Key {key} updated successfully.",
+                    "hops": hops,
+                }
             else:
                 return {"status": "failure", "message": f"Key {key} not found.", "hops": hops}
     
@@ -455,43 +495,44 @@ class ChordNode:
         hops = request.get("hops", [])  # Retrieve the current hops list
 
         # with self.lock():
-        if key in self.data.keys():
-            print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
+        # if key in self.data.keys():
+        # If the KDTree is not initialized or has no data, return a failure message
+        if key not in self.kd_tree.country_keys or not self.kd_tree or self.kd_tree.points.size == 0:
+            print(f"Node {self.node_id}: No data for key {key}.")
+            return {"status": "failure", "message": f"No data for key {key}."}
+        
+        print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
 
-            # If the KDTree is not initialized or has no data, return a failure message
-            if not self.kd_tree or self.kd_tree.points.size == 0:
-                print(f"Node {self.node_id}: No data for key {key}.")
-                return {"status": "failure", "message": f"No data for key {key}."}
+        # KDTree Range Search
+        points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
+        print(f"Node {self.node_id}: Found {len(points)} matching points.")
 
-            # KDTree Range Search
-            points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
-            print(f"Node {self.node_id}: Found {len(points)} matching points.")
+        if len(reviews) == 0:
+            print(f"Node {self.node_id}: No reviews found within the specified range.")
+            return {"status": "success", "points": [], "reviews": [], "hops": hops}
 
-            if len(reviews) == 0:
-                print(f"Node {self.node_id}: No reviews found within the specified range.")
-                return {"status": "success", "points": [], "reviews": [], "hops": hops}
+        # LSH Similarity Search
+        vectorizer = TfidfVectorizer()
+        doc_vectors = vectorizer.fit_transform(reviews).toarray()
 
-            # LSH Similarity Search
-            vectorizer = TfidfVectorizer()
-            doc_vectors = vectorizer.fit_transform(reviews).toarray()
+        lsh = LSH(num_bands=4, num_rows=5)
+        for vector in doc_vectors:
+            lsh.add_document(vector)
 
-            lsh = LSH(num_bands=4, num_rows=5)
-            for vector in doc_vectors:
-                lsh.add_document(vector)
+        similar_pairs = lsh.find_similar_pairs(N)
+        similar_docs = lsh.find_similar_docs(similar_pairs, reviews, N)
 
-            similar_pairs = lsh.find_similar_pairs(N)
-            similar_docs = lsh.find_similar_docs(similar_pairs, reviews, N)
+        print(f"\nThe {N} Most Similar Reviews:\n")
+        for i, doc in enumerate(similar_docs, 1):
+            print(f"{i}. {doc}\n")
 
-            print(f"\nThe {N} Most Similar Reviews:\n")
-            for i, doc in enumerate(similar_docs, 1):
-                print(f"{i}. {doc}\n")
-
-            return {
-                "status": "success",
-                "message": f"Found {len(points)} matching points.",
-            }
-        else:
-            return {"status": "failure", "message": f"Key {key} not found.", "hops": hops}
+        return {
+            "status": "success",
+            "message": f"Found {len(points)} matching points.",
+            "hops": hops
+        }
+        # else:
+            # return {"status": "failure", "message": f"Key {key} not found.", "hops": hops}
     
     #############################
     ###### KEY operations #######
@@ -619,7 +660,9 @@ class ChordNode:
 
         self.update_finger_table()
         
-        if self.network.nodes[self.get_successor()].kd_tree == None:
+        # simply successor_node instead self.get_successor()
+        # if self.network.nodes[self.get_successor()].kd_tree == None:
+        if successor_node.kd_tree == None:
             return
 
         # Get keys from successor
@@ -636,41 +679,15 @@ class ChordNode:
         # Delete keys and data from successor
         self.request_delete_successor_keys(keys, suc_id)
 
-
-
-
-        # # Get keys from successor
-        # self.data = {key: successor_node.data[key] for key in sorted(
-        #     successor_node.data.keys()) if key <= self.node_id}
-
-        # keys_to_delete_from_successor = []
-        # for key in sorted(self.data.keys()):
-        #     if key in successor_node.data:
-        #         keys_to_delete_from_successor.append(key)
-        
-        # # Delete keys
-        # self.request_delete_successor_keys(keys_to_delete_from_successor, suc_id)
-
-
     #############################
     ######## NODE LEAVE #########
     #############################
 
     def leave(self):
         self.running = False
-
-        # pre_id = self.predecessor
-        # suc_id = self.get_successor()
-
-        # # set the successor of the predecessor to self's successor
-        # self.request_set_successor(suc_id, pre_id)
-        # # set the predecessor of the successor to self's predecessor
-        # self.request_set_predecessor(pre_id, suc_id)
-
-        # # Transfer keys to successor
-        # for key in sorted(self.data.keys()):
-        #     self.successor.data[key] = self.data[key]
-
+        self.stop_event.set()
+        self.thread_pool.shutdown(wait=False)
+        print("Nodeleft ",self.node_id)
 
     #############################
     ####### Get Successor #######
@@ -678,7 +695,7 @@ class ChordNode:
 
     # Get first running successor
     def get_successor(self):
-        for i in range(len(self.successors)):
+        for i in range(len(self.successors)-1):
             if self.network.nodes[self.successors[i]].running:
                 return self.successors[i]
         return -1
@@ -706,8 +723,10 @@ class ChordNode:
         for i in range(index_to_insert_node, len(self.successors)-1):
             self.successors[i+1] = self.successors[i]
         self.successors[index_to_insert_node] = node_id
+        self.update_successors_on_join()
 
     def update_successors_on_leave(self):
+        # if self.node_id == '4bde': print(self.successors, "inserted")
         # Find index of the node that left
         index_of_node_that_left = -1
         for i in range(len(self.successors)):
@@ -716,37 +735,106 @@ class ChordNode:
                 break
 
         if index_of_node_that_left == -1:
-            return
-        
-        if index_of_node_that_left == 0:
-            succ_of_succ = self.successors[1]
-            
-            if succ_of_succ.running == False:
-                print('UNHANDLED CONDITION')
-            
-            # # the following process should take place on the new seccesor, 
-            # # so i have to send request on succ_of_succ
-            # # request = {
-            # #     operation:
-            # #     sender_id:
-            # #     receiver_id:
-            # # }
-            # self.predecessor = sender_id
-            # # merge backup
-            # keys = self.back_up.country_keys
-            # points = self.back_up.points
-            # reviews = self.back_up.reviews
-            # countries = self.back_up.countries
-            # for key, point, review, country in zip(keys, points, reviews, countries)
-            #     self._handle_insert_key_request(key, point, review, country) 
+            # if self.node_id == '4bde': print(self.node_id, self.successors)
 
+            return
+                    
+        if index_of_node_that_left == 0:
+            new_successor = self.get_successor()
+            response = self.request_restoration(new_successor)
+            print(response)
+            
         # For each index in the successors list
         for i in range(index_of_node_that_left, len(self.successors)-1):
             self.successors[i] = self.successors[i+1]
+        
+        # if self.node_id == '4bde': 
+        #     print(self.successors, "1")
 
         # update last position because its empty
-        self.successors[-1] = self.request_find_successor(int_to_hex((int(self.successors[-2], 16)+1) % R), self.successors[-2], [])[0]
-
+        self.successors[-1] = self.request_get_successor(self.successors[-2])
+        # if self.node_id == '4bde': print("2")
         # Recursively update successors
         self.update_successors_on_leave()
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        # # Find index of the node that left
+        # if self.node_id == "4bde":
+        #     print("\nArray: ",self.successors)
+
+        # index_of_node_that_left = -1
+        # indeces = []
+        # for i in self.successors:
+        #     # ping node to get know if its alive
+        #     # if not self.request_status_running(i):
+
+        #     print(self.network.nodes[self.successors[i]].running, i, "\n")
+        #     if not self.network.nodes[self.successors[i]].running:
+        #         index_of_node_that_left = i
+        #         indeces.append(i)
+        #         # break
+
+        # if not indeces:
+        #     return 1
+        
+        # # This part notifies the new successor that his predecessor has left. 
+        # # if 0 in indeces:
+        # #     print("HERE0")
+        # #     # Here it gets the first running successor. 
+        # #     # If there are inactive nodes in between, they will be ignored.
+        # #     # Also if the successor of the node that left has also left, its backup cant be retrieved. :(
+        # #     new_successor = self.get_successor(self)
+        # #     print("HERE1: ", new_successor)
+        # #     response = self.request_restoration(new_successor)
+        # #     print("HERE response: ",response)
+        # if self.node_id == "4bde": print("\nindeces: ",indeces)
+
+        # r = 0
+        # for idx in indeces:
+        #     idx = idx-r
+        #     self.successors[idx] = self.successors[idx+1]
+        #     index_of_node_that_left = idx
+        # # For each index in the successors list
+        #     for i in range(index_of_node_that_left, len(self.successors)-1):
+        #         self.successors[i] = self.successors[i+1]
+        #     r = r + 1
+
+        # if self.node_id == "4bde": print("\nshift: ",self.successors)
+
+        # for i in range(len(indeces)):
+        #     # update last position because its empty
+        #     # self.successors[-i] = self.find_successor(int_to_hex((int(self.successors[-(i-1)], 16)+1) % R), self.successors[-(i-1)], [])[0]
+        #     self.successors[-i-1] = self.request_get_successor(self.successors[-i-2])
+        #     if self.node_id == "4bde":
+        #         print("\n",i,"returnvalue",self.successors[-i-1])
+
+        # if self.node_id == "4bde": print("\nArray After: ",self.successors)
+        
+        # return 2
+        
+        # Recursively update successors
+        # self.update_successors_on_leave()
+
+
+
+    def print_successors_list(self):
+        print(self.successors)

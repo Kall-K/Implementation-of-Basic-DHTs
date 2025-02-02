@@ -141,9 +141,19 @@ def main():
     print("\nVerifying updates through lookup:\n")
     network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
 
-    network.visualize_network()
+    # network.visualize_network()
+    time.sleep(2)
+    for i in network.nodes.keys():
+        print(i)
+        network.nodes[i].print_successors_list()
 
+    print("Node left")
     network.nodes["19bd"].leave()
+    network.nodes["4c12"].leave()
+
+    time.sleep(1)
+    network.nodes["cafe"].leave()
+    # network.nodes["4c12"].leave()
 
     running = True
     while running:
