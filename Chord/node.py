@@ -227,6 +227,8 @@ class ChordNode:
             if operation == "RESTORATION":
                 print(operation)
                 response = self._handle_restoration_request(request)
+            if operation == "SET_BACKUP":
+                response = self._handle_set_backup(request)
             if operation == "GET_SUCCESSOR":
                 response = self._handle_get_successor_request()
             if operation == "GET_STATUS":
@@ -330,6 +332,15 @@ class ChordNode:
         }
         status = self.send_request(node, get_status)
         return status
+    
+    def request_set_backup(self, backup, node_id):
+        node = self.network.nodes[node_id]
+        set_backup = {
+            "operation": "SET_BACKUP",
+            "backup": backup
+        }
+        status = self.send_request(node, set_backup)
+        return status
 
     #############################
     ######### Handlers ##########
@@ -351,6 +362,7 @@ class ChordNode:
         keys = request["keys"]
         for key in keys:
             self.kd_tree.delete_points(key)
+        self.request_set_backup(self.kd_tree, self.get_successor())
         return 0
 
     def _handle_set_successor(self, request):
@@ -379,6 +391,10 @@ class ChordNode:
             self._handle_insert_key_request(key, point, review, country) 
         
         print("Data Inserted")
+
+    def _handle_set_backup(self, request):
+        self.back_up = request["backup"]
+        return 0
     
     def _handle_get_successor_request(self):
         return self.get_successor()
@@ -654,30 +670,36 @@ class ChordNode:
         self.request_set_successor(self.node_id, pre_id)
         # set the predecessor of the successor to self's id
         self.request_set_predecessor(self.node_id, suc_id)
+
         self.finger_table[0] = suc_id
         self.successors[0] = suc_id
         self.predecessor = pre_id
 
         self.update_finger_table()
         
-        # simply successor_node instead self.get_successor()
-        # if self.network.nodes[self.get_successor()].kd_tree == None:
-        if successor_node.kd_tree == None:
+        if successor_node.kd_tree != None:
+            # Get keys from successor
+            keys = {key for key in sorted(successor_node.kd_tree.country_keys)
+                    if (distance(self.node_id, key) < distance(self.get_successor(), key))}
+            
+            # 1. Insert keys and data to self's kdtree
+            for key in keys:
+                review = successor_node.kd_tree.reviews[successor_node.kd_tree.country_keys == key][0]
+                country = successor_node.kd_tree.countries[successor_node.kd_tree.country_keys == key][0]
+                point = successor_node.kd_tree.points[successor_node.kd_tree.country_keys == key][0]
+                self.kd_tree.add_point(point, review, country)
+
+            # 2. Delete keys and data from successor
+            self.request_delete_successor_keys(keys, suc_id)
+
+            # 3. Update successor's backup with self's kd_tree
+            self.request_set_backup(self.kd_tree, suc_id)
+
+        # 4. Update backup from predecessor's kd_tree
+        if (self.network.nodes[pre_id].running == False) or (self.network.nodes[pre_id] == self.node_id):
             return
-
-        # Get keys from successor
-        keys = {key for key in sorted(successor_node.kd_tree.country_keys)
-                if (distance(self.node_id, key) < distance(self.get_successor(), key))}
-        
-        # Insert keys and data to self's kdtree
-        for key in keys:
-            review = successor_node.kd_tree.reviews[successor_node.kd_tree.country_keys == key][0]
-            country = successor_node.kd_tree.countries[successor_node.kd_tree.country_keys == key][0]
-            point = successor_node.kd_tree.points[successor_node.kd_tree.country_keys == key][0]
-            self.kd_tree.add_point(point, review, country)
-
-        # Delete keys and data from successor
-        self.request_delete_successor_keys(keys, suc_id)
+        predecessor_node = self.network.nodes[pre_id]
+        self.back_up = predecessor_node.kd_tree
 
     #############################
     ######## NODE LEAVE #########
