@@ -136,17 +136,6 @@ class PastryDashboard:
         )
         self.delete_key_button.pack(pady=10, padx=10)
 
-        # Back button
-        """back_button = tk.Button(
-            control_frame,
-            text="Exit",
-            command=self.on_close,
-            width=15,
-            height=2,
-            font=("Arial", 14),
-        )
-        back_button.pack(side=tk.BOTTOM, pady=10, padx=10)"""
-
         # Center frame for visualizations
         viz_width = HEIGHT
         self.viz_frame = tk.Frame(self.root, width=viz_width, height=HEIGHT)
@@ -156,7 +145,7 @@ class PastryDashboard:
         fig_height = HEIGHT / 100
         self.fig = plt.figure(figsize=(fig_width, fig_height))
 
-        # Create topology visualization (Bottom)
+        # Topology visualization (Bottom)
         topology_pad = 0.05
 
         self.topology_x = topology_pad
@@ -203,13 +192,19 @@ class PastryDashboard:
         self.pastry_node_pick_event_id = self.canvas.mpl_connect("pick_event", self.on_node_pick)
 
         # Right frame for node info
-        info_frame = tk.Frame(self.root)
-        info_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
-        info_frame.pack_propagate(False)  # Prevents resizing
+        self.info_frame = tk.Frame(self.root)
+        self.info_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        # Configure a grid layout: row 0 for node info, row 1 for the review panel
+        self.info_frame.grid_rowconfigure(0, weight=3)
+        self.info_frame.grid_rowconfigure(1, weight=1)
+        self.info_frame.grid_columnconfigure(0, weight=1)
 
-        tk.Label(info_frame, text="Node Information", font=("Arial", 14)).pack()
-        self.info_text = scrolledtext.ScrolledText(info_frame, wrap=tk.WORD, width=30, height=35)
-        self.info_text.pack(expand=True, fill=tk.BOTH)
+        node_info_label = tk.Label(self.info_frame, text="Node Information", font=("Arial", 14))
+        node_info_label.grid(row=0, column=0, sticky="n", padx=5, pady=5)
+        self.info_text = scrolledtext.ScrolledText(
+            self.info_frame, wrap=tk.WORD, width=30, height=50
+        )
+        self.info_text.grid(row=0, column=0, sticky="nsew", padx=5, pady=(35, 0))
 
     def visualize_network(self, threshold=0.3):
         """
@@ -392,10 +387,10 @@ class PastryDashboard:
             return
 
         node = PastryNode(self.network, node_id=new_node_id)
+        print(f"\nAdding new node with ID: {node.node_id} to the network.")
         node.start_server()
         self.network.node_join(node)
-        self.visualize_network()
-        self.visualize_topology()
+        self.show_pastry_gui()
 
     def node_leave_gui(self):
         if self.selected_node is None:
@@ -428,7 +423,6 @@ class PastryDashboard:
 
     def show_pastry_gui(self):
         """Displays the Pastry ring and topology."""
-        self.selected_node = None
 
         if hasattr(self, "has_more_countries"):
             del self.has_more_countries
@@ -443,6 +437,10 @@ class PastryDashboard:
             self.canvas.mpl_disconnect(self.kd_tree_pick_event_id)
             del self.kd_tree_pick_event_id  # Remove reference
 
+        if hasattr(self, "review_text"):
+            self.review_text.destroy()
+            del self.review_text
+
         # Clear all widgets from the root window
         for widget in self.root.winfo_children():
             widget.destroy()
@@ -453,6 +451,13 @@ class PastryDashboard:
         # Redraw both visualizations
         self.visualize_network()
         self.visualize_topology()
+        if self.selected_node and self.selected_node in self.network.nodes.values():
+            self.update_info_panel(self.selected_node)
+        else:
+            # Clear the info panel text
+            self.info_text.config(state=tk.NORMAL)
+            self.info_text.delete(1.0, tk.END)
+            self.info_text.config(state=tk.DISABLED)
 
     def show_kd_tree_gui(self):
         """Displays the KD Tree of the selected node if available."""
@@ -533,6 +538,7 @@ class PastryDashboard:
 
             if not selected_country:
                 print("Country selection canceled.")
+                del self.has_more_countries
                 return
 
             # Get the key for the selected country
@@ -557,6 +563,27 @@ class PastryDashboard:
             self.ax_topology.spines["left"].set_visible(False)
             self.ax_topology.spines["right"].set_visible(False)
 
+            # Create a scrollable review panel below the node information panel
+            if not hasattr(self, "review_text"):
+                # Decrease node info panel height
+                self.info_text.config(height=25)
+
+                # Setup review panel
+                review_label = tk.Label(
+                    self.info_frame, text="Review for selected point", font=("Arial", 14)
+                )
+                review_label.grid(row=1, column=0, sticky="n", padx=5, pady=5)
+                self.review_text = scrolledtext.ScrolledText(
+                    self.info_frame, wrap=tk.WORD, width=30, height=5
+                )
+                self.review_text.grid(row=1, column=0, sticky="nsew", padx=5, pady=(35, 0))
+
+            else:
+                # If the review panel already exists, clear it
+                self.review_text.config(state=tk.NORMAL)
+                self.review_text.delete(1.0, tk.END)
+                self.review_text.config(state=tk.DISABLED)
+
             self.ax_kd_tree = self.fig.add_subplot(111, projection="3d")
 
             # Disconnect Pastry pick event
@@ -565,7 +592,9 @@ class PastryDashboard:
             # Connect KD-Tree pick event and store ID
             self.kd_tree_pick_event_id = self.canvas.mpl_connect(
                 "pick_event",
-                lambda event: self.selected_node.kd_tree.on_pick(event, points, reviews),
+                lambda event: self.selected_node.kd_tree.on_pick(
+                    event, points, reviews, self.review_text
+                ),
             )
 
             # Visualize the KD Tree
@@ -662,7 +691,7 @@ class PastryDashboard:
                 print("Price must be a number.")
                 return
 
-            print("Inserting new coffee shop:")
+            print("\nInserting a new Coffee Shop Review:")
             print(
                 f"Name: {name}, Country: {country}, Year: {year}, Rating: {rating}, Price: {price}, Review: {review}"
             )

@@ -40,8 +40,8 @@ def hex_distance(id1, id2):
         if id1[i] != id2[i]:
             # Return the index of the first differing character and the absolute difference between the two IDs
             return i, abs(int(id1[i:], 16) - int(id2[i:], 16))
-    # If the IDs are identical, return the length of the IDs and 0
-    return -1, 0
+    # If the IDs are identical, the different digit is set to len(id1) and the distance is 0
+    return len(id1), 0
 
 
 def hex_compare(id1, id2, equality=True):
