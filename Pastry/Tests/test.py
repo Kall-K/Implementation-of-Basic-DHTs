@@ -159,22 +159,22 @@ def main():
 
     # Update all points for Taiwan
     print("\nUpdating all points for Taiwan:\n")
-    update_fields = {"attributes": {"price": 35.0}}
-    first_node.update_key(key=taiwan_country_key, updated_data=update_fields)
+    update_to = {"attributes": {"price": 35.0}}
+    first_node.update_key(key=taiwan_country_key, updated_data=update_to)
 
     # Update a specific point for Taiwan
     print("\nUpdating a specific point for Taiwan:\n")
-    criteria = {"review_date": 2019, "rating": 94, "price": 35.0}
-    update_fields = {"attributes": {"price": 36.0}}
-    first_node.update_key(key=taiwan_country_key, updated_data=update_fields, criteria=criteria)
+    update_feilds_that_have = {"review_date": 2019, "rating": 94, "price": 35.0}
+    update_to = {"attributes": {"price": 36.0}}
+    first_node.update_key(key=taiwan_country_key, updated_data=update_to, criteria=update_feilds_that_have)
 
     # Update only the review for Taiwan
     print("\nUpdating only the review for Taiwan:\n")
-    update_fields = {
+    update_to = {
         "review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."
     }
 
-    update_response = first_node.update_key(taiwan_country_key, updated_data=update_fields)
+    update_response = first_node.update_key(taiwan_country_key, updated_data=update_to)
     if update_response and "hops" in update_response:
         hops_counts["UPDATE_KEY"].append(len(update_response["hops"]))
         print(f"Hops during UPDATE_KEY for {taiwan_country_key}: {len(update_response['hops'])}")
@@ -183,13 +183,13 @@ def main():
 
     # Update based on specific attributes and modify multiple fields
     print("\nUpdating specific attributes for Taiwan:\n")
-    criteria = {"review_date": 2019, "rating": 94}
-    update_fields = {"attributes": {"price": 37.0, "rating": 95}}
-    first_node.update_key(key=taiwan_country_key, updated_data=update_fields, criteria=criteria)
+    update_feilds_that_have = {"review_date": 2019, "rating": 94}
+    update_to = {"point": [2018,93,None]}
+    first_node.update_key(key=taiwan_country_key, updated_data=update_to, criteria=update_feilds_that_have)
 
     # Verify all updates
-    lower_bounds = [2018, 90, 30.0]
-    upper_bounds = [2019, 95, 40.0]
+    lower_bounds = [2018, 92, 33.0]
+    upper_bounds = [2019, 95, 37.0]
     print("\nVerifying updates through lookup:\n")
     response = first_node.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
     print(response)
@@ -301,10 +301,10 @@ def main():
     # print(f"\nUpdating key associated with country: {country_to_update} (Key: {key_to_update})\n")
 
     # # Step 3: Perform UPDATE_KEY operation based on criteria
-    # criteria = {"review_date": 2020, "rating": 94}  # Example criteria for matching entries
-    # update_fields = {"review": "Updated review after unexpected failure."}  # New data to apply
+    # update_feilds_that_have = {"review_date": 2020, "rating": 94}  # Example criteria for matching entries
+    # update_to = {"review": "Updated review after unexpected failure."}  # New data to apply
 
-    # update_response = first_node.update_key(key=key_to_update, updated_data=update_fields, criteria=criteria)
+    # update_response = first_node.update_key(key=key_to_update, updated_data=update_to, criteria=update_feilds_that_have)
 
     # # Step 4: Check if the key was successfully updated
     # if update_response and "hops" in update_response:

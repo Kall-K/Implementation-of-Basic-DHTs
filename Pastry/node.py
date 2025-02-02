@@ -565,16 +565,14 @@ class PastryNode:
         Find the closest alive node to the given failed_node_id.
         """
         if not isinstance(failed_node_id, str):
-            print(
-                f"Node {self.node_id}: Invalid failed_node_id: {failed_node_id}. Expected a string."
-            )
+            print(f"Node {self.node_id}: Invalid failed_node_id: {failed_node_id}. Expected a string.")
             return None  # Gracefully handle invalid input
 
         min_distance = float("inf")
         closest_node_id = None
 
         # Iterate through all known nodes
-        for node_id in self.routing_table:  # Replace with actual available nodes logic
+        for node_id in self.network.node_ports.keys():  # Replace with actual available nodes logic
             if node_id == failed_node_id:
                 continue  # Skip the failed node
 
@@ -587,12 +585,11 @@ class PastryNode:
                 print(f"Node {self.node_id}: Failed to compute distance for node_id {node_id}: {e}")
 
         if closest_node_id:
-            print(
-                f"Node {self.node_id}: Closest alive node to {failed_node_id} is {closest_node_id}."
-            )
+            print(f"Node {self.node_id}: Closest alive node to {failed_node_id} is {closest_node_id}.")
         else:
             print(f"Node {self.node_id}: No alive node found to repair {failed_node_id}.")
         return closest_node_id
+
 
     # Node Joining and Routing
 
@@ -639,10 +636,22 @@ class PastryNode:
                 "hops": hops,  # Include the final hops list in the response
             }
 
-        # Else forward the request to the next hop
+        # Check if the next hop node is alive before forwarding
+        if next_hop_id not in self.network.node_ports:
+            print(f"Node {self.node_id}: Detected failure of node {next_hop_id}. Repairing before forwarding...")
+            self._repair_routing_table_entry(next_hop_id)
+            self._repair_leaf_set(next_hop_id)
+            self._repair_neighborhood_set(next_hop_id)
+            next_hop_id = self._find_next_hop(new_node_id)  # Retry with repaired network
+
+        if not next_hop_id:
+            print(f"Node {self.node_id}: No available nodes to forward JOIN_NETWORK request.")
+            return {"status": "failure", "message": "No available nodes to forward JOIN_NETWORK request."}
+
         print(f"\nForwarding JOIN_NETWORK request to node {next_hop_id}...")
         response = self.send_request(self.network.node_ports[next_hop_id], request)
         return response
+
 
     def _handle_insert_key_request(self, request):
         """
@@ -668,7 +677,7 @@ class PastryNode:
             next_hop_id = self._find_next_hop(key)
 
         # Step 2: If this node is responsible for storing the key, insert it
-        if next_hop_id == self.node_id:
+        if self._in_leaf_set(key) or next_hop_id == self.node_id:
 
             if not self.kd_tree:
 
@@ -1172,7 +1181,7 @@ class PastryNode:
 
         # Check if any country_keys should be moved to the requesting node
         for country_key in np.unique(self.kd_tree.country_keys):
-            l = common_prefix_length(self.node_id, country_key)
+            l = common_prefix_length(self.node_id, country_key)  # Use the correct key
             if self._is_closer_node(request_node_id, country_key, l, self.node_id):
                 keys_to_move.append(country_key)
 
@@ -1198,21 +1207,16 @@ class PastryNode:
                     "hops": [],
                 }
                 self.send_request(self.network.node_ports[request_node_id], insert_request)
-                print(
-                    f"Node {self.node_id}: Moved Key {country_key} with Point {point} to {request_node_id}."
-                )
+                print(f"Node {self.node_id}: Moved Key {country_key} to {request_node_id}.")
 
             # Remove the key and data from the current node's KDTree
-            print(f"Node {self.node_id}: Deleting Key {country_key} from KDTree.")
+            print(f"Node {self.node_id}: Deleted Key {country_key}.")
             self.kd_tree.delete_points(country_key)
 
-        if len(keys_to_move) > 0:
-            print(f"Node {self.node_id}: Moved keys {keys_to_move} to {request_node_id}.\n")
-        else:
-            print(f"\nNode {self.node_id}: Moved no keys to {request_node_id}.")
+        print(f"\nNode {self.node_id}: Moved {len(keys_to_move)} keys to {request_node_id}.")
         return {
             "status": "success",
-            "message": f"Moved keys {keys_to_move} to {request_node_id}.",
+            "message": f"Moved {len(keys_to_move)} keys to {request_node_id}.",
         }
 
     def insert_key(self, key, point, review, country):
@@ -1326,13 +1330,35 @@ class PastryNode:
         for node_id in self.Lmin + self.Lmax:
             if node_id is not None:
                 request = {"operation": "GET_KEYS", "node_id": self.node_id, "hops": []}
-                response = self.send_request(self.network.node_ports[node_id], request)
+                self.send_request(self.network.node_ports[node_id], request)
+
+    def _is_node_alive(self, node_id):
+        """
+        Check if a node is alive by pinging its port.
+        Returns True if the node responds, False if unreachable.
+        """
+        if node_id is None:
+            return False
+
+        # Try to find the node's port from the leaf set
+        node_port = self._find_port(node_id)
+        if node_port is None:
+            return False  # If we can't find the port, assume the node is down
+
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(1)  # Short timeout to avoid long waits
+                s.connect(("localhost", node_port))
+            return True  # Node is alive
+        except (socket.error, ConnectionRefusedError):
+            return False  # Node is down
+
 
     def _find_next_hop(self, key):
         """
         Find the next hop to forward a request based on the node ID.
         """
-        # Check if the key is in the leaf set range
+        # Check if the key is in the leaf set
         if self._in_leaf_set(key):
             # If the node_id is in the leaf set
             closest_leaf_id = self._find_closest_leaf_id(key)
@@ -1341,19 +1367,18 @@ class PastryNode:
         # If the key is not in the leaf set, check the routing table
         else:
             i = common_prefix_length(self.node_id, key)
-            if i < HASH_HEX_DIGITS:
-                next_hop = self.routing_table[i][int(key[i], 16)]
+            next_hop = self.routing_table[i][int(key[i], 16)]
 
-                if next_hop is not None:
-                    return next_hop
-                # If the routing table entry is empty,
-                # scan all the nodes in the network
-                else:
-                    next_hop = self._find_closest_node_id_all(key)
-                    return next_hop
-            # If the common prefix length is equal to the length of the node_id,
-            # the key is stored at this node
-            return self.node_id
+            if next_hop is not None:
+                return next_hop
+            # If the routing table entry is empty,
+            # scan all the nodes in the network
+            else:
+                next_hop = self._find_closest_node_id_all(key)
+                return next_hop
+
+
+
 
     def transmit_state(self):
         """
@@ -1441,7 +1466,7 @@ class PastryNode:
 
         # Insert the close node aswell if there is space
         print(
-            f"Node {self.node_id}: Adding Close Node {close_node_id} to the neighborhood set aswell..."
+            f"Node {self.node_id}: Adding Node close node {close_node_id} to the neighborhood set aswell..."
         )
         for i in range(len(self.neighborhood_set)):
             if self.neighborhood_set[i] is None:
@@ -1566,44 +1591,14 @@ class PastryNode:
 
     # Helper Methods
 
-    def _in_leaf_set(self, key):
+    def _in_leaf_set(self, node_id):
         """
-        Check if a key is in the range of the leaf set.
+        Check if a node ID is in the leaf set.
         """
-        # Get the biggest node in Lmax
-        lmax_max = self.Lmax[0]
-        if lmax_max is not None:
-            for node_id in self.Lmax:
-                if node_id is not None:
-                    if hex_compare(node_id, lmax_max):
-                        lmax_max = node_id
+        if node_id in self.Lmin or node_id in self.Lmax:
+            return True
         else:
-            # If lmax_max is None we need to check Lmin for the biggest node
-            lmax_max = self.Lmin[0]
-            for node_id in self.Lmin:
-                if node_id is not None:
-                    if hex_compare(node_id, lmax_max):
-                        lmax_max = node_id
-
-        # Get the smallest node in Lmin
-        lmin_min = self.Lmin[0]
-        if lmin_min is not None:
-            for node_id in self.Lmin:
-                if node_id is not None:
-                    if hex_compare(lmin_min, node_id):
-                        lmin_min = node_id
-        else:
-            # If lmin_min is None we need to check Lmax for the smallest node
-            if lmin_min is None:
-                lmin_min = self.Lmax[0]
-                for node_id in self.Lmax:
-                    if node_id is not None:
-                        if hex_compare(lmin_min, node_id):
-                            lmin_min = node_id
-
-        # Check if the key is between lmin_min and lmax_max
-        if lmin_min is not None and lmax_max is not None:
-            return hex_compare(key, lmin_min) and hex_compare(lmax_max, key)
+            return False
 
     def _find_closest_leaf_id(self, key):
         closest_diff_dig_idx, closest_dist = hex_distance(self.node_id, key)

@@ -21,6 +21,29 @@ class PastryNetwork:
 
         self.gui = PastryDashboard(self, main_window=main_window)  # Initialize the Pastry GUI
 
+    def _find_port(self, node_id):
+        """
+        Find the port of a given node ID by checking known neighbors.
+        """
+        # Check Lmin for the node's port
+        for leaf in self.Lmin:
+            if leaf is not None and leaf == node_id:
+                return self.node_ports.get(leaf)  # Assuming self.node_ports stores known ports
+
+        # Check Lmax for the node's port
+        for leaf in self.Lmax:
+            if leaf is not None and leaf == node_id:
+                return self.node_ports.get(leaf)
+
+        # Check routing table for the node's port
+        for row in self.routing_table:
+            for entry in row:
+                if entry is not None and entry == node_id:
+                    return self.node_ports.get(entry)
+
+        return None  # If the node isn't found, return None
+
+
     def node_join(self, new_node):
         """
         Handles a new node joining the Pastry network.
