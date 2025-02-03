@@ -351,7 +351,7 @@ if __name__ == "__main__":
     country_keys = [hashlib.sha1(country.encode()).hexdigest()[-4:] for country in countries]
 
     # Build the KD-Tree
-    kd_tree = KDTree(points, reviews, country_keys, countries)
+    kd_tree = KDTree(points, reviews)
 
     # kd_tree.visualize(points, reviews)
 

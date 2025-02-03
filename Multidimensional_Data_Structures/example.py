@@ -14,7 +14,7 @@ Then we preprocess the reviews using TF-IDF and build an LSH index to find the N
 
 """-----------KD-Tree------------"""
 # Load CSV file
-csv_file = "Coffee Reviews Dataset/simplified_coffee.csv"
+csv_file = "Coffee_Reviews_Dataset/simplified_coffee.csv"
 df = pd.read_csv(csv_file)
 
 # Keep only the date from the review_date column
