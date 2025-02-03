@@ -280,8 +280,8 @@ class KDTree:
         # Set integer year ticks
         ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
-        # If there's only one point, narrow the x-axis range
-        if points.shape[0] == 1:
+        # If there's only one point or the all the points have the same year, narrow the x-axis range
+        if points.shape[0] == 1 or np.all(points[:, 0] == points[0, 0]):
             year = points[0, 0]
             ax.set_xlim(year - 1, year + 1)  # 1 year margin on each side
             ax.set_xticks([year])
@@ -290,7 +290,7 @@ class KDTree:
         if country_key is None or country is None:
             ax.set_title("3D Scatter Plot of Coffee Review Points")
 
-        ax.set_title(f"3D Scatter Plot of Coffee Review Points from {country} - key: {country_key}")
+        ax.set_title(f"3D Scatter Plot of Coffee Review Points from {country} - Key: {country_key}")
 
         # Redraw the canvas
         canvas.draw()

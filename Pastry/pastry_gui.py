@@ -9,8 +9,8 @@ from .node import PastryNode
 from .helper_functions import hash_key
 
 
-WIDTH = 1680
-HEIGHT = 720
+WIDTH = 1720
+HEIGHT = 750
 
 
 class PastryDashboard:
@@ -135,6 +135,17 @@ class PastryDashboard:
             font=("Arial", 14),
         )
         self.delete_key_button.pack(pady=10, padx=10)
+
+        # Lookup key button
+        self.lookup_key_button = tk.Button(
+            control_frame,
+            text="Lookup Key",
+            command=self.lookup_key_gui,
+            width=15,
+            height=2,
+            font=("Arial", 14),
+        )
+        self.lookup_key_button.pack(pady=10, padx=10)
 
         # Center frame for visualizations
         viz_width = HEIGHT
@@ -459,90 +470,143 @@ class PastryDashboard:
             self.info_text.delete(1.0, tk.END)
             self.info_text.config(state=tk.DISABLED)
 
-    def show_kd_tree_gui(self):
+    def select_country_window(self):
+        # Get unique countries from the KD Tree of the selected node
+        unique_country_keys, unique_countries = self.selected_node.kd_tree.get_unique_country_keys()
+
+        if not unique_countries:
+            print("No countries available.")
+            return
+
+        # Create a window to select a country
+        def on_select(event=None):
+            nonlocal selected_country, selected_country_key
+            selected_country = country_var.get()
+            if selected_country:
+                selected_country_key = unique_country_keys[unique_countries.index(selected_country)]
+                selection_window.destroy()
+
+        selection_window = tk.Toplevel(self.root)
+        selection_window.title("Select Country")
+        selection_window.geometry("300x200")
+
+        tk.Label(selection_window, text="Select a country:", font=("Arial", 14)).pack(pady=10)
+
+        country_var = tk.StringVar(selection_window)
+        country_var.set(unique_countries[0])  # First country as default
+
+        dropdown = tk.OptionMenu(selection_window, country_var, *unique_countries)
+        dropdown.config(font=("Arial", 12))
+        dropdown["menu"].config(font=("Arial", 12))
+        dropdown.pack(pady=5)
+
+        # Add a Submit button for the selection window
+        submit_button = tk.Button(
+            selection_window, text="OK", command=on_select, font=("Arial", 12)
+        )
+        submit_button.pack(pady=10)
+
+        # Bind the Return key to on_select
+        selection_window.bind("<Return>", lambda event: on_select())
+
+        selected_country = None
+        selected_country_key = None
+
+        selection_window.grab_set()
+        self.root.wait_window(selection_window)
+
+        return selected_country, selected_country_key
+
+    def show_kd_tree_gui(self, selected_country=None, selected_country_key=None):
         """Displays the KD Tree of the selected node if available."""
         if self.selected_node is None:
             print("No node selected.")
             return
 
-        # If the node has only one country, don't show the country selection window
-        if hasattr(self, "has_more_countries") and not self.has_more_countries:
-            print("KD Tree is already displayed.")
-            return
-
         if hasattr(self.selected_node, "kd_tree") and self.selected_node.kd_tree:
-            # Open a dialog box to let the user select a unique country
-            def on_select(event=None):
-                nonlocal selected_country
-                selected_country = country_var.get()
-                if selected_country:
-                    if hasattr(self, "ax_kd_tree"):
-                        self.ax_kd_tree.clear()
-                        self.ax_kd_tree.set_xticks([])
-                        self.ax_kd_tree.set_yticks([])
-                        self.ax_kd_tree.set_zticks([])
-                        self.canvas.mpl_disconnect(self.kd_tree_pick_event_id)
-                        del self.kd_tree_pick_event_id  # Remove reference
-                    selection_window.unbind("<Return>")
-                    selection_window.destroy()
+            if hasattr(self, "ax_kd_tree"):
+                self.ax_kd_tree.clear()
+                self.ax_kd_tree.set_xticks([])
+                self.ax_kd_tree.set_yticks([])
+                self.ax_kd_tree.set_zticks([])
+                self.canvas.mpl_disconnect(self.kd_tree_pick_event_id)
+                del self.kd_tree_pick_event_id  # Remove reference
 
-            selection_window = tk.Toplevel(self.root)
-            selection_window.title("Select Country")
-            selection_window.geometry("300x200")
+            # If the selected_country is not provided promt the user to select it
+            if selected_country is None or selected_country_key is None:
+                # If the node has only one country, don't show the country selection window
+                """if hasattr(self, "has_more_countries") and not self.has_more_countries:
+                print("KD Tree is already displayed.")
+                return"""
 
-            # Make the selection window appear above the main window
-            selection_window.transient(self.root)
+                # Open a dialog box to let the user select a unique country
+                def on_select(event=None):
+                    nonlocal selected_country
+                    selected_country = country_var.get()
+                    if selected_country:
+                        selection_window.unbind("<Return>")
+                        selection_window.destroy()
 
-            # Make the selection window modal so that it captures all input
-            selection_window.grab_set()
+                selection_window = tk.Toplevel(self.root)
+                selection_window.title("Select Country")
+                selection_window.geometry("300x200")
 
-            # Direct the keyboard focus to the selection window
-            selection_window.focus_set()
+                # Make the selection window appear above the main window
+                selection_window.transient(self.root)
 
-            tk.Label(selection_window, text="Select a country:", font=("Arial", 14)).pack(pady=10)
+                # Make the selection window modal so that it captures all input
+                selection_window.grab_set()
 
-            # Get unique countries from the KD Tree of the selected node
-            unique_country_keys, unique_countries = self.network.nodes[
-                self.selected_node.node_id
-            ].kd_tree.get_unique_country_keys()
+                # Direct the keyboard focus to the selection window
+                selection_window.focus_set()
 
-            # If there are more than 2 unique countries, update the "Show KD Tree" button
-            if len(unique_countries) >= 2:
-                self.show_kd_tree_button.config(text="Choose Country")
-                self.has_more_countries = True
-            else:
-                self.show_kd_tree_button.config(text="Show KD Tree")
-                self.has_more_countries = False
+                tk.Label(selection_window, text="Select a country:", font=("Arial", 14)).pack(
+                    pady=10
+                )
 
-            country_var = tk.StringVar(selection_window)
-            if unique_countries:
-                country_var.set(unique_countries[0])  # First country as default
+                # Get unique countries from the KD Tree of the selected node
+                unique_country_keys, unique_countries = self.network.nodes[
+                    self.selected_node.node_id
+                ].kd_tree.get_unique_country_keys()
 
-            dropdown = tk.OptionMenu(selection_window, country_var, *unique_countries)
-            dropdown.config(font=("Arial", 12))
-            dropdown["menu"].config(font=("Arial", 12))
-            dropdown.pack(pady=5)
+                # If there are more than 2 unique countries, update the "Show KD Tree" button
+                if len(unique_countries) >= 2:
+                    self.show_kd_tree_button.config(text="Choose Country")
+                    self.has_more_countries = True
+                else:
+                    self.show_kd_tree_button.config(text="Show KD Tree")
+                    self.has_more_countries = False
 
-            # Add a button to confirm selection
-            tk.Button(selection_window, text="OK", command=on_select, font=("Arial", 12)).pack(
-                pady=10
-            )
+                country_var = tk.StringVar(selection_window)
+                if unique_countries:
+                    country_var.set(unique_countries[0])  # First country as default
 
-            # Bind Enter key to select action
-            selection_window.bind("<Return>", on_select)
+                dropdown = tk.OptionMenu(selection_window, country_var, *unique_countries)
+                dropdown.config(font=("Arial", 12))
+                dropdown["menu"].config(font=("Arial", 12))
+                dropdown.pack(pady=5)
 
-            selected_country = None
+                # Add a button to confirm selection
+                tk.Button(selection_window, text="OK", command=on_select, font=("Arial", 12)).pack(
+                    pady=10
+                )
 
-            selection_window.grab_set()
-            self.root.wait_window(selection_window)
+                # Bind Enter key to select action
+                selection_window.bind("<Return>", on_select)
 
-            if not selected_country:
-                print("Country selection canceled.")
-                del self.has_more_countries
-                return
+                selected_country = None
 
-            # Get the key for the selected country
-            selected_country_key = unique_country_keys[unique_countries.index(selected_country)]
+                selection_window.grab_set()
+                self.root.wait_window(selection_window)
+
+                if not selected_country:
+                    print("Country selection canceled.")
+                    del self.has_more_countries
+                    self.show_kd_tree_button.config(text="Show KD Tree")
+                    return
+
+                # Get the key for the selected country
+                selected_country_key = unique_country_keys[unique_countries.index(selected_country)]
 
             # Get points and reviews for the selected country
             points, reviews = self.network.nodes[self.selected_node.node_id].kd_tree.get_points(
@@ -618,9 +682,9 @@ class PastryDashboard:
 
         # Create a new window for inserting a new coffee shop key
         insert_window = tk.Toplevel(self.root)
-        insert_window.title("Insert New Coffee Shop")
+        insert_window.title("Insert New Coffee Shop Review")
         # Increase the height slightly to accommodate the review field
-        insert_window.geometry("400x350")
+        insert_window.geometry("450x350")
 
         # Create labels and entry fields using grid layout
         tk.Label(insert_window, text="Name:", font=("Arial", 12)).grid(
@@ -711,7 +775,145 @@ class PastryDashboard:
         insert_window.bind("<Return>", lambda event: submit())
 
     def update_key_gui(self):
-        pass
+        """Update a key in the network."""
+        if self.selected_node is None:
+            print("No node selected.")
+            return
+
+        # Check if the selected node has a KD-Tree
+        if not hasattr(self.selected_node, "kd_tree") or not self.selected_node.kd_tree:
+            print(f"Node {self.selected_node.node_id} does not have a KD Tree.")
+            return
+
+        selected_country, selected_country_key = self.select_country_window()
+
+        if not selected_country:
+            print("Country selection canceled.")
+            return
+
+        # Create a window to input updated data and criteria
+        def submit():
+            # Collect updated data from the GUI
+            updated_year = year_entry.get()
+            updated_rating = rating_entry.get()
+            updated_price = price_entry.get()
+            updated_review = review_text.get("1.0", tk.END).strip()
+
+            # Check if all fields are provided by the user
+            if updated_year and updated_rating and updated_price and updated_review:
+                # Use the "point" field in update_fields
+                updated_data = {
+                    "point": [int(updated_year), float(updated_rating), float(updated_price)],
+                    "review": updated_review,
+                }
+            elif not (updated_year or updated_rating or updated_price or updated_review):
+                print("At least one field must be updated.")
+                return
+            else:
+                # Use the "attributes" field in update_fields
+                updated_data = {
+                    "attributes": {
+                        "review_date": int(updated_year) if updated_year else None,
+                        "rating": float(updated_rating) if updated_rating else None,
+                        "price": float(updated_price) if updated_price else None,
+                    },
+                    "review": updated_review if updated_review else None,
+                }
+                # Remove None values from updated_data[attributes]
+                updated_data["attributes"] = {
+                    k: v for k, v in updated_data["attributes"].items() if v is not None
+                }
+                # Remove updated_data[review] if it is None
+                if updated_data["review"] is None:
+                    del updated_data["review"]
+
+            # Collect criteria from the GUI
+            year_criteria = year_criteria_entry.get()
+            rating_criteria = rating_criteria_entry.get()
+            price_criteria = price_criteria_entry.get()
+            criteria = {
+                "review_date": int(year_criteria) if year_criteria else None,
+                "rating": float(rating_criteria) if rating_criteria else None,
+                "price": float(price_criteria) if price_criteria else None,
+            }
+
+            # Remove None values from criteria
+            criteria = {k: v for k, v in criteria.items() if v is not None}
+
+            # Call the update_key method
+            self.selected_node.update_key(selected_country_key, updated_data, criteria)
+
+            # Close the update window and refresh the GUI
+            update_window.destroy()
+            # self.show_pastry_gui()
+            self.show_kd_tree_gui(selected_country, selected_country_key)
+
+        # Create the update window
+        update_window = tk.Toplevel(self.root)
+        update_window.title("Update Coffee Shop Review")
+        update_window.geometry("450x450")
+
+        # Updated Data Section
+        tk.Label(update_window, text="Updated Data", font=("Arial", 14)).grid(
+            row=0, column=0, columnspan=2, pady=10
+        )
+
+        tk.Label(update_window, text="Year:", font=("Arial", 12)).grid(
+            row=1, column=0, padx=10, pady=5, sticky="e"
+        )
+        year_entry = tk.Entry(update_window, font=("Arial", 12))
+        year_entry.grid(row=1, column=1, padx=10, pady=5)
+
+        tk.Label(update_window, text="Rating:", font=("Arial", 12)).grid(
+            row=2, column=0, padx=10, pady=5, sticky="e"
+        )
+        rating_entry = tk.Entry(update_window, font=("Arial", 12))
+        rating_entry.grid(row=2, column=1, padx=10, pady=5)
+
+        tk.Label(update_window, text="Price (100g USD):", font=("Arial", 12)).grid(
+            row=3, column=0, padx=10, pady=5, sticky="e"
+        )
+        price_entry = tk.Entry(update_window, font=("Arial", 12))
+        price_entry.grid(row=3, column=1, padx=10, pady=5)
+
+        tk.Label(update_window, text="Review:", font=("Arial", 12)).grid(
+            row=4, column=0, padx=10, pady=5, sticky="ne"
+        )
+        review_text = tk.Text(update_window, font=("Arial", 12), width=30, height=4)
+        review_text.grid(row=4, column=1, padx=10, pady=5)
+
+        # Criteria Section
+        tk.Label(update_window, text="Criteria", font=("Arial", 14)).grid(
+            row=5, column=0, columnspan=2, pady=10
+        )
+
+        tk.Label(update_window, text="Year:", font=("Arial", 12)).grid(
+            row=6, column=0, padx=10, pady=5, sticky="e"
+        )
+        year_criteria_entry = tk.Entry(update_window, font=("Arial", 12))
+        year_criteria_entry.grid(row=6, column=1, padx=10, pady=5)
+
+        tk.Label(update_window, text="Rating:", font=("Arial", 12)).grid(
+            row=7, column=0, padx=10, pady=5, sticky="e"
+        )
+        rating_criteria_entry = tk.Entry(update_window, font=("Arial", 12))
+        rating_criteria_entry.grid(row=7, column=1, padx=10, pady=5)
+
+        tk.Label(update_window, text="Price (100g USD):", font=("Arial", 12)).grid(
+            row=8, column=0, padx=10, pady=5, sticky="e"
+        )
+        price_criteria_entry = tk.Entry(update_window, font=("Arial", 12))
+        price_criteria_entry.grid(row=8, column=1, padx=10, pady=5)
+
+        # Submit Button
+        submit_button = tk.Button(update_window, text="Submit", command=submit, font=("Arial", 12))
+        submit_button.grid(row=9, column=0, columnspan=2, pady=10)
+
+        # Bind the Return key to submit
+        update_window.bind("<Return>", lambda event: submit())
 
     def delete_key_gui(self):
+        pass
+
+    def lookup_key_gui(self):
         pass
