@@ -50,8 +50,6 @@ class KDTree:
         new_country_key = hashlib.sha1(new_country.encode()).hexdigest()[-4:]
         self.country_keys = np.append(self.country_keys, new_country_key)
         # Append the original country to the countries list
-        # self.countries.tolist()
-        # print(self.countries)
         self.countries.append(new_country)
         # Rebuild the KD-Tree with the updated points
         self.build(self.points)
@@ -170,7 +168,9 @@ class KDTree:
         Args:
             country_key (str): Hashed country key.
             lower_bounds (list): Lower bounds for each axis [review_date, rating, price].
+                                Use `None` for axes that should not be constrained.
             upper_bounds (list): Upper bounds for each axis [review_date, rating, price].
+                                Use `None` for axes that should not be constrained.
 
         Returns:
             list: Points and their associated reviews within the specified range.
@@ -179,25 +179,39 @@ class KDTree:
             raise ValueError("Bounds must have exactly three values for the three axes.")
 
         # Compute the midpoint and radius for the search
-        center = [(low + high) / 2 for low, high in zip(lower_bounds, upper_bounds)]
-        radius = max((high - low) / 2 for low, high in zip(lower_bounds, upper_bounds))
+        # Only consider axes where both lower and upper bounds are not None
+        valid_axes = [
+            i for i in range(3) if lower_bounds[i] is not None and upper_bounds[i] is not None
+        ]
+
+        # Calculate center and radius only for valid axes
+        for i in range(3):
+            if i not in valid_axes:
+                lower_bounds[i] = np.min(self.points[:, i])
+                upper_bounds[i] = np.max(self.points[:, i])
+        center = [(lower_bounds[i] + upper_bounds[i]) / 2 for i in range(3)]
+        radius = max((upper_bounds[i] - lower_bounds[i]) / 2 for i in range(3))
 
         # Query points within the hypersphere defined by center and radius
         indices = self.tree.query_radius([center], r=radius)[0]
 
-        # Filter results within the actual range bounds
+        # Filter results within the actual range bounds and matching the country_key
         matching_points = []
         matching_reviews = []
 
         for idx in indices:
             point = self.points[idx]
-            if all(lower_bounds[i] <= point[i] <= upper_bounds[i] for i in range(3)) and self.country_keys[idx] == country_key:
+            if self.country_keys[idx] == country_key and all(
+                (lower_bounds[i] is None or lower_bounds[i] <= point[i])
+                and (upper_bounds[i] is None or point[i] <= upper_bounds[i])
+                for i in range(3)
+            ):
                 matching_points.append(point)
                 matching_reviews.append(self.reviews[idx])
 
         # Convert to NumPy arrays
-        matching_points = np.array(matching_points)  # 2D array with cols=3
-        matching_reviews = np.array(matching_reviews)  # 1D array
+        matching_points = np.array(matching_points)
+        matching_reviews = np.array(matching_reviews)
 
         return matching_points, matching_reviews
 

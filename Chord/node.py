@@ -127,13 +127,22 @@ class ChordNode:
         Print the state of the node (ID, Address, Data Structures).
         """
         print("\n" + "-" * 100)
-        print(f"Node ID: {self.node_id}")
-        print(f"Predecessor: {self.predecessor}")
-        print("Finger Table:")
-        print(self.finger_table)
-        print("Successors:")
-        print(self.successors)
-
+        print(f"-- Node ID: {self.node_id} --")
+        print(f"* Predecessor: {self.predecessor}")
+        print(f"* Finger Table: {self.finger_table}")
+        print(f"* Successors: {self.successors}")
+        if self.kd_tree:
+            print("* KDTree Infos")
+            print(f"\tUnique Countries: {list(set(self.kd_tree.countries))}")
+            print(f"\tUnique keys: {np.unique(self.kd_tree.country_keys)}")
+            print(f"\tNum of points: {len(self.kd_tree.points)}")
+        else: print("* KDTree is Empty.")
+        if self.back_up:
+            print("* Backup Infos")
+            print(f"\tUnique Countries: {list(set(self.back_up.countries))}")
+            print(f"\tUnique keys: {np.unique(self.back_up.country_keys)}")
+            print(f"\tNum of points: {len(self.back_up.points)}")
+        else: print("* Backup is Empty.")
 
     # Network Communication
 
@@ -146,13 +155,13 @@ class ChordNode:
         self.thread_pool.submit(self._update_finger_table_scheduler)
         
     def _update_finger_table_scheduler(self):
-        interval = 5  # seconds
+        interval = 3  # seconds
         while True:
             if not self.running:
                 break
             time.sleep(interval)
             self.update_finger_table()
-            print("Updated Finger Table of Node:", self.node_id)
+            # print("Updated Finger Table of Node:", self.node_id)
     
     def _update_successors_scheduler(self):
         interval = 0.5  # seconds
@@ -299,7 +308,8 @@ class ChordNode:
         node = self.network.nodes[successor_id]
         restoration = {
             "operation": "RESTORATION",
-            "sender_id": self.node_id # In case of change of predecessor value
+            "sender_id": self.node_id,
+            "kdtree": self.kd_tree
         }
         status = self.send_request(node, restoration)
         return status
@@ -370,6 +380,7 @@ class ChordNode:
         return 0
     
     def _handle_restoration_request(self, request):
+        tree = request["kdtree"]
         # Set new predecessor
         self.predecessor = request["sender_id"]
         if self.back_up:
@@ -378,8 +389,9 @@ class ChordNode:
             points = self.back_up.points
             reviews = self.back_up.reviews.tolist()
             countries = self.back_up.countries
-
+            c=0
             for key, point, review, country in zip(keys, points, reviews, countries):
+                c=c+1
                 request = {
                     "operation": "INSERT_KEY",
                     "key": key,
@@ -389,9 +401,13 @@ class ChordNode:
                     "hops": [],  # Initialize hops tracking
                     "choice": True
                 }
-            return self._handle_insert_key_request(request)
+                self._handle_insert_key_request(request)
+            self.back_up = tree
+            return {"message": "Back up merged."}
             
-        else: return {"message": "Back up is empty."}
+        else:           
+            self.back_up = tree
+            return {"message": "Back up is empty."}
 
     def _handle_set_backup(self, request):
         self.back_up = request["backup"]
@@ -513,11 +529,9 @@ class ChordNode:
             print(f"Node {self.node_id}: No data for key {key}.")
             return {"status": "failure", "message": f"No data for key {key}."}
         
-        print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
-
         # KDTree Range Search
         points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
-        print(f"Node {self.node_id}: Found {len(points)} matching points.")
+        # print(f"Node {self.node_id}: Found {len(points)} matching points.")
 
         if len(reviews) == 0:
             print(f"Node {self.node_id}: No reviews found within the specified range.")
@@ -533,14 +547,15 @@ class ChordNode:
 
         similar_pairs = lsh.find_similar_pairs(N)
         similar_docs = lsh.find_similar_docs(similar_pairs, reviews, N)
-
-        print(f"\nThe {N} Most Similar Reviews:\n")
-        for i, doc in enumerate(similar_docs, 1):
-            print(f"{i}. {doc}\n")
+        
+        if similar_docs:
+            print(f"\nThe {N} Most Similar Reviews:\n")
+            for i, doc in enumerate(similar_docs, 1):
+                print(f"{i}. {doc}\n")
 
         return {
             "status": "success",
-            "message": f"Found {len(points)} matching points.",
+            "message": f"Node {self.node_id} found {len(points)} matching points.",
             "hops": hops
         }
     
@@ -705,8 +720,8 @@ class ChordNode:
     ####### Get Successor #######
     #############################
 
-    # Get first running successor
     def get_successor(self):
+        # Get first running successor
         for i in range(len(self.successors)-1):
             if self.network.nodes[self.successors[i]].running:
                 return self.successors[i]
@@ -752,7 +767,6 @@ class ChordNode:
             new_successor = self.get_successor()
             self.request_restoration(new_successor)
    
-            
         # For each index in the successors list
         for i in range(index_of_node_that_left, len(self.successors)-1):
             self.successors[i] = self.successors[i+1]

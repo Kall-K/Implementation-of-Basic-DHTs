@@ -109,13 +109,13 @@ class ChordNetwork:
         plt.show()
 
     def insert_key(self, key, point, review, country):  
-        print(ChordNetwork.bootstrap_node.insert_key(key, point, review, country))   
+        return ChordNetwork.bootstrap_node.insert_key(key, point, review, country)   
 
     def delete_key(self, key):
-        print(ChordNetwork.bootstrap_node.delete_key(key))   
+        return ChordNetwork.bootstrap_node.delete_key(key)  
     
     def update_key(self, key, updated_data, criteria=None):
-        print(ChordNetwork.bootstrap_node.update_key(key, updated_data, criteria=None))
+        return ChordNetwork.bootstrap_node.update_key(key, updated_data, criteria=None)
         
     def lookup(self, key, lower_bounds, upper_bounds, N):
-        print(ChordNetwork.bootstrap_node.lookup(key, lower_bounds, upper_bounds, N))
+        return ChordNetwork.bootstrap_node.lookup(key, lower_bounds, upper_bounds, N)

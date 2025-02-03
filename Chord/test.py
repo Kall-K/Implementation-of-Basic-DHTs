@@ -13,23 +13,20 @@ from helper_functions import *
 def insert_keys(network, keys, points, reviews, countries, names):
     """Insert all keys sequentially."""
     for key, point, review, country, name in zip(keys, points, reviews, countries, names):
-        print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
+        # print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
         network.insert_key(key, point, review, country)
         
-# def insert_key(network, key, point, review, country, name):
-#     """Insert a key."""
-#     print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
-#     response = network.insert_key(key, point, review, country)
-#     print(response)
-
-
+def insert_key(network, key, point, review, country, name):
+    """Insert a key."""
+    # print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
+    return network.insert_key(key, point, review, country)
 
 def main():
     # Load dataset
     dataset_path = "../Coffee_Reviews_Dataset/simplified_coffee.csv"
     df = pd.read_csv(dataset_path)
-    df = df[:75]
-    # print(df)
+    # df = df[:75]
+
     # Keep only the year from the review_date column
     df["review_date"] = pd.to_datetime(df["review_date"], format="%B %Y").dt.year
 
@@ -68,64 +65,76 @@ def main():
         network.node_join(node)
         node.print_state()
 
+    # network.visualize_network()
+
+    ################################################################
+    #                        KEYS INSERTION                        #
+    ################################################################ 
+    print("""\n################################################################
+#                        KEYS INSERTION                        #
+################################################################\n""")
+    print("\n" + "-" * 100 + "\n")
+    print("-> Inserting Keys from Dataset...")
+    insert_keys(network, keys, points, reviews, countries, names)
+    print("-> End of Insertion")
+    print("\n" + "-" * 100 + "\n")
+
+    ################################################################
+    #                        DEMOSTRATION                          #
+    ################################################################
+    print("""\n################################################################
+#                        INSERT KEY                            #
+################################################################\n""")
+    country = "Romania "
+    name = "Carpathian Coffee"
+    key = hash_key(country)
+    point = [2023, 97, 5.7]
+    review = "Dried plums, acacia honey, roasted walnuts, and dark chocolate in aroma and cup. Fine, well-balanced acidity; creamy and rich body. Long finish with notes of caramelized almonds and subtle essences of vanilla and smoked oak."
+    response = insert_key(network, key, point, review, country, name)
+    print(f">> Inserting Key: {key}, Country: {country}, Name: {name}")
+    print(f">> Insertion status: {response["status"]}.")
+    print(f">> {response["message"]}.")
+    print(f">> Key Inserted with {response["hops"]} hops.")
+    ################################################################
+    #                        LOOKUP KEY                            #
+    ################################################################
+    # Verify all updates
+    lower_bounds = [2023, 97, 5.7]
+    upper_bounds = [2023, 97, 5.7]
+    print("\nVerifying Insert through Lookup: ")
+    response = network.lookup(key, lower_bounds, upper_bounds, N=5)
+    print(f">> Lookup status: {response["status"]}.")
+    print(f">> {response["message"]}")
+    print(f">> Key Found with {response["hops"]} hops.")
+    # ################################################################
+    # #                        UPDATE KEY                            #
+    # ################################################################
+    print("""\n################################################################
+#                        UPDATE KEY                            #
+################################################################\n""")
+        # ΝΑ ΘΥΜΗΘΩ ΝΑ ΒΑΛΩ HOPS !!!!!!!!!
+    # Update all points for Taiwan
+    print("\nUpdating all points for Taiwan:\n")
+    update_fields = {"attributes": {"price": 35.0}}
+    network.update_key(key, updated_data=update_fields)
     
-    # # Key Insertion
-    # print("\nKey Insertions")
-    # print("=======================")
-    # insert_keys(network, keys, points, reviews, countries, names)
+    # Update a specific point for Taiwan
+    print("\nUpdating a specific point for Taiwan:\n")
+    criteria = {"review_date": 2019, "rating": 94, "price": 35.0}
+    update_fields = {"attributes": {"price": 36.0}}
+    network.update_key(key, updated_data=update_fields, criteria=criteria)
 
-    # country = "United States"
-    # name = "Greg's Coffee"
-    # key = hash_key(country)
-    # point = [2018, 94, 5.5]
-    # review = "Very delicate and sweet. Lemon verbena, dried persimmon, dogwood, baker's chocolate in aroma and cup. Balanced, sweet-savory structure; velvety-smooth mouthfeel. The sweetly herb-toned finish centers on notes of lemon verbena and dried persimmon wrapped in baker's chocolate."
-
-    # print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
-    # network.insert_key(key, point, review, country)
-
-    # Key Deletion
-    # print("\nKey Deletion")
-    # print("=======================")
-    # network.delete_key('372a')
-    # network.delete_key('372b')
-
-    # key = '372b'
-    # # Parallel Deletion
-    # delete_thread = threading.Thread(target=network.delete_key, args=(key,))
-    # delete_thread2 = threading.Thread(target=network.delete_key, args=(key,))
-
-    # delete_thread.start()
-    # delete_thread2.start()
-
-    # delete_thread.join()
-    # delete_thread2.join()
-
-    # # Key Update
-    # print("\nKey Update")
-    # print("=======================")
-
-    # taiwan_country_key = hash_key("Taiwan")
-
-    # # Update all points for Taiwan
-    # print("\nUpdating all points for Taiwan:\n")
-    # update_fields = {"attributes": {"price": 35.0}}
-    # network.update_key(key=taiwan_country_key, updated_data=update_fields)
+    # Update only the review for Taiwan
+    print("\nUpdating only the review for Taiwan:\n")
+    update_fields = {
+        "review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."
+    } 
     
-    # # Update a specific point for Taiwan
-    # print("\nUpdating a specific point for Taiwan:\n")
-    # criteria = {"review_date": 2019, "rating": 94, "price": 35.0}
-    # update_fields = {"attributes": {"price": 36.0}}
-    # network.update_key(key=taiwan_country_key, updated_data=update_fields, criteria=criteria)
+    network.update_key(key, updated_data=update_fields)
 
-    # # Update only the review for Taiwan
-    # print("\nUpdating only the review for Taiwan:\n")
-    # update_fields = {
-    #     "review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."
-    # }
     # update_fields2 = {
     #     "review": "An updated review2 for Taiwan's coffee: crisp and fruity with a lingering sweetness."
     # }
-    # # network.update_key(key=taiwan_country_key, updated_data=update_fields)
 
     # update_thread1 = threading.Thread(target=network.update_key, args=(taiwan_country_key, update_fields,))
     # update_thread2 = threading.Thread(target=network.update_key, args=(taiwan_country_key, update_fields2,))
@@ -135,23 +144,46 @@ def main():
     # update_thread1.join()
     # update_thread2.join()
 
-    # # Update based on specific attributes and modify multiple fields
-    # print("\nUpdating specific attributes for Taiwan:\n")
-    # criteria = {"review_date": 2019, "rating": 94}
-    # update_fields = {"attributes": {"price": 37.0, "rating": 95}}
-    # network.update_key(key=taiwan_country_key, updated_data=update_fields, criteria=criteria)
+    # Update based on specific attributes and modify multiple fields
+    print("\nUpdating specific attributes for Romania:\n")
+    criteria = {"review_date": 2019, "rating": 94}
+    update_fields = {"attributes": {"price": 37.0, "rating": 95}}
+    network.update_key(key, updated_data=update_fields, criteria=criteria)
+    # ################################################################
+    # #                        LOOKUP KEY                            #
+    # ################################################################
+    # ################################################################
+    # #                        DELETE KEY                            #
+    # ################################################################
+    # network.delete_key('372a')
+    # network.delete_key('372b')
 
+    # key = '372b'
+    # # Parallel Deletion
+    # delete_thread = threading.Thread(target=network.delete_key, args=(key,))
+    # delete_thread2 = threading.Thread(target=network.delete_key, args=(key,))
+
+    # delete_thread.start()
+    # delete_thread2.start() 
+
+    # delete_thread.join()
+    # delete_thread2.join()
+    # ################################################################
+    # #                        LOOKUP KEY                            #
+    # ################################################################
     # # Verify all updates
     # lower_bounds = [2018, 90, 30.0]
     # upper_bounds = [2019, 95, 40.0]
     # print("\nVerifying updates through lookup:\n")
     # network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
+    # ################################################################
+    # #                        NODES LEAVE                           #
+    # ################################################################
 
-    # network.visualize_network()
-
-    ################################################################
-    #                        NODES LEAVE                           #
-    ################################################################
+    # for node_id in network.nodes.keys():
+    #     network.nodes[node_id].print_state()
+    
+    return
 
     print("""\n################################################################
 #                        NODES LEAVE                           #
@@ -163,7 +195,8 @@ def main():
         if node.running:
             node.leave()
             print("\n\n" + "-" * 100)
-            print(f"\n-------------- State after node ${node.node_id} left --------------")
+            time.sleep(5)
+            print(f"\n>>>> State after node ${node.node_id} left")
             for node in network.nodes.values():
                 if node.running:
                     node.print_state()
@@ -172,6 +205,8 @@ def main():
     # network.nodes["4c12"].leave()
     # network.nodes["cafe"].leave()
     # network.nodes["4c12"].leave()
+
+    
 
     running = True
     while running:
