@@ -98,10 +98,9 @@ def main():
     ################################################################
     #                        LOOKUP KEY                            #
     ################################################################
-    # Verify all updates
     lower_bounds = [2023, 97, 5.7]
     upper_bounds = [2023, 97, 5.7]
-    print("\nVerifying Insert through Lookup: ")
+    print("\nVerifying insertion through lookup: ")
     response = network.lookup(key, lower_bounds, upper_bounds, N=5)
     print(f">> Lookup status: {response["status"]}.")
     print(f">> {response["message"]}")
@@ -112,79 +111,65 @@ def main():
     print("""\n################################################################
 #                        UPDATE KEY                            #
 ################################################################\n""")
-        # ΝΑ ΘΥΜΗΘΩ ΝΑ ΒΑΛΩ HOPS !!!!!!!!!
-    # Update all points for Taiwan
-    print("\nUpdating all points for Taiwan:\n")
+    # Update all points for Romania
+    print("\nUpdating all points for Romania:\n")
     update_fields = {"attributes": {"price": 35.0}}
     network.update_key(key, updated_data=update_fields)
     
-    # Update a specific point for Taiwan
-    print("\nUpdating a specific point for Taiwan:\n")
-    criteria = {"review_date": 2019, "rating": 94, "price": 35.0}
-    update_fields = {"attributes": {"price": 36.0}}
-    network.update_key(key, updated_data=update_fields, criteria=criteria)
-
-    # Update only the review for Taiwan
-    print("\nUpdating only the review for Taiwan:\n")
-    update_fields = {
-        "review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."
+    # Update only the review for Romania
+    print("\nUpdate In Parallel")
+    print("Updating only the review for Taiwan:\n")
+    update_fields1 = {
+        "review": "An updated review for Romania's coffee: Dried plums, acacia honey, roasted walnuts, and dark chocolate in aroma and cup."
     } 
-    
-    network.update_key(key, updated_data=update_fields)
+    update_fields2 = {
+        "review": "An 2nd updated review for Romania's coffee: crisp and fruity with a lingering sweetness."
+    }
+ 
+    update_thread1 = threading.Thread(target=network.update_key, args=(key, update_fields1,))
+    update_thread2 = threading.Thread(target=network.update_key, args=(key, update_fields2,))
 
-    # update_fields2 = {
-    #     "review": "An updated review2 for Taiwan's coffee: crisp and fruity with a lingering sweetness."
-    # }
+    update_thread2.start()
+    update_thread1.start()
 
-    # update_thread1 = threading.Thread(target=network.update_key, args=(taiwan_country_key, update_fields,))
-    # update_thread2 = threading.Thread(target=network.update_key, args=(taiwan_country_key, update_fields2,))
-    # update_thread2.start()
-    # update_thread1.start()
-
-    # update_thread1.join()
-    # update_thread2.join()
-
-    # Update based on specific attributes and modify multiple fields
-    print("\nUpdating specific attributes for Romania:\n")
-    criteria = {"review_date": 2019, "rating": 94}
-    update_fields = {"attributes": {"price": 37.0, "rating": 95}}
-    network.update_key(key, updated_data=update_fields, criteria=criteria)
+    update_thread1.join()
+    update_thread2.join()
     # ################################################################
     # #                        LOOKUP KEY                            #
     # ################################################################
+    lower_bounds = [2023, 97, 35.0]
+    upper_bounds = [2023, 97, 35.0]
+    print("\nVerifying updates through lookup:")
+    response = network.lookup(key, lower_bounds, upper_bounds, N=5)
+    print(f">> Lookup status: {response["status"]}.")
+    print(f">> {response["message"]}")
+    print(f">> Key Found with {response["hops"]} hops.")
     # ################################################################
     # #                        DELETE KEY                            #
     # ################################################################
-    # network.delete_key('372a')
-    # network.delete_key('372b')
-
-    # key = '372b'
-    # # Parallel Deletion
-    # delete_thread = threading.Thread(target=network.delete_key, args=(key,))
-    # delete_thread2 = threading.Thread(target=network.delete_key, args=(key,))
-
-    # delete_thread.start()
-    # delete_thread2.start() 
-
-    # delete_thread.join()
-    # delete_thread2.join()
+    print("""\n################################################################
+#                        DELETE KEY                            #
+################################################################\n""")
+    taiwan_country_key = hash_key("Taiwan")
+    print(f"\nDelete key with value {taiwan_country_key}.")
+    response = network.delete_key(taiwan_country_key)
+    print(f">> Delete status: {response["status"]}.")
+    print(f">> {response["message"]}")
+    print(f">> Key Deleted with {response["hops"]} hops.")
     # ################################################################
     # #                        LOOKUP KEY                            #
     # ################################################################
-    # # Verify all updates
-    # lower_bounds = [2018, 90, 30.0]
-    # upper_bounds = [2019, 95, 40.0]
-    # print("\nVerifying updates through lookup:\n")
-    # network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
-    # ################################################################
-    # #                        NODES LEAVE                           #
-    # ################################################################
+    lower_bounds = [2018, 90, 30.0]
+    upper_bounds = [2019, 95, 40.0]
+    print("\nVerifying deletion through lookup:\n")
+    network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
 
-    # for node_id in network.nodes.keys():
+        # for node_id in network.nodes.keys():
     #     network.nodes[node_id].print_state()
     
-    return
-
+    # ################################################################
+    # #                        NODES LEAVE                           #
+    # ################################################################    
     print("""\n################################################################
 #                        NODES LEAVE                           #
 ################################################################\n""")

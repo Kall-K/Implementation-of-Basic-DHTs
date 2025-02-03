@@ -473,7 +473,7 @@ class ChordNode:
             if tree and key in tree.country_keys:
                 tree.delete_points(key)
             else:
-                return {"status": "failure", "message": f"No data for key {key}."}
+                return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
             
             if request["choice"]: 
                     self.kd_tree = tree
@@ -527,7 +527,7 @@ class ChordNode:
 
         if key not in self.kd_tree.country_keys or not self.kd_tree or self.kd_tree.points.size == 0:
             print(f"Node {self.node_id}: No data for key {key}.")
-            return {"status": "failure", "message": f"No data for key {key}."}
+            return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
         
         # KDTree Range Search
         points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
