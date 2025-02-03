@@ -645,6 +645,7 @@ class ChordNode:
     #############################
     # fix pos=0
     def update_finger_table(self, hops=[]):
+        self.finger_table[0] = self.successors[0]
         for i in range(1, len(self.finger_table)):
             key = int_to_hex((int(self.node_id, 16) + 2 ** i) % R)
             temp_node = self.request_find_successor(key, self, hops)[0]
