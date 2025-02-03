@@ -1345,27 +1345,6 @@ class PastryNode:
                 request = {"operation": "GET_KEYS", "node_id": self.node_id, "hops": []}
                 self.send_request(self.network.node_ports[node_id], request)
 
-    def _is_node_alive(self, node_id):
-        """
-        Check if a node is alive by pinging its port.
-        Returns True if the node responds, False if unreachable.
-        """
-        if node_id is None:
-            return False
-
-        # Try to find the node's port from the leaf set
-        node_port = self._find_port(node_id)
-        if node_port is None:
-            return False  # If we can't find the port, assume the node is down
-
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(1)  # Short timeout to avoid long waits
-                s.connect(("localhost", node_port))
-            return True  # Node is alive
-        except (socket.error, ConnectionRefusedError):
-            return False  # Node is down
-
     def _find_next_hop(self, key):
         """
         Find the next hop to forward a request based on the node ID.
