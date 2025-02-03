@@ -128,13 +128,12 @@ class ChordNode:
         """
         print("\n" + "-" * 100)
         print(f"Node ID: {self.node_id}")
-        print(f"Address: {self.address}")
         print(f"Predecessor: {self.predecessor}")
-        print("\nFinger Table:")
+        print("Finger Table:")
         print(self.finger_table)
-        print("\n" + "-" * 100)
-        # for finger in self.finger_table:
-        #     print(finger)
+        print("Successors:")
+        print(self.successors)
+
 
     # Network Communication
 
@@ -153,7 +152,7 @@ class ChordNode:
                 break
             time.sleep(interval)
             self.update_finger_table()
-            print("\nUpdated Finger Table of Node:", self.node_id)
+            print("Updated Finger Table of Node:", self.node_id)
     
     def _update_successors_scheduler(self):
         interval = 0.5  # seconds
@@ -163,7 +162,7 @@ class ChordNode:
             time.sleep(interval)
             self.update_successors_on_join()
             self.update_successors_on_leave()
-            print(".", end=" ", flush=True)
+            # print(".", end=" ", flush=True)
 
     def _server(self):
         """
@@ -182,7 +181,7 @@ class ChordNode:
                 return
 
             s.listen()
-            print(f"Node {self.node_id} listening on {self.address} (bound to {bind_address})")
+            # print(f"Node {self.node_id} listening on {self.address} (bound to {bind_address})")
 
             while not self.stop_event.is_set():
                 conn, addr = s.accept()  # Accept incoming connection
@@ -190,7 +189,6 @@ class ChordNode:
                 try:
                     self.thread_pool.submit(self._handle_request, conn)
                 except RuntimeError as e:
-                    # print("Thread pool is shutting down.")
                     return None
 
     def _handle_request(self, conn):
@@ -198,7 +196,6 @@ class ChordNode:
             data = conn.recv(1024*1024)  # Read up to 1024*1024 bytes of data
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
-            # print(f"Node {self.node_id}: Handling Request: {request}")
             response = None
 
             if operation == "FIND_SUCCESSOR":
@@ -248,8 +245,6 @@ class ChordNode:
                 s.sendall(pickle.dumps(request))  # Serialize and send the request
                 response = s.recv(1024*1024)  # Receive the response
             except Exception as e:
-                # print(f"Error connecting to {connect_address}: {e}")
-                # print(connect_address, request)
                 return None
 
         return pickle.loads(response)  # Deserialize the response
@@ -400,7 +395,6 @@ class ChordNode:
 
     def _handle_set_backup(self, request):
         self.back_up = request["backup"]
-        print(request["backup"])
         return 0
     
     def _handle_get_successor_request(self):
@@ -461,10 +455,8 @@ class ChordNode:
 
         with self.lock:
             if tree and key in tree.country_keys:
-                # print(f"\nNode {self.node_id}: Deleted Key {key}.")
                 tree.delete_points(key)
             else:
-                # print(f"\nNode {self.node_id}: No data for key {key}.\n")
                 return {"status": "failure", "message": f"No data for key {key}."}
             
             if request["choice"]: 
@@ -493,7 +485,6 @@ class ChordNode:
                     criteria=criteria,
                     update_fields=update_fields,
                 )
-                # print(f"Node {self.node_id}: Key {key} updated successfully.")
             else:
                 return {"status": "failure", "message": f"Key {key} not found.", "hops": hops}
             
@@ -610,7 +601,6 @@ class ChordNode:
             "criteria": criteria,  # Optional criteria for filtering
             "hops": [],  # Initialize hops tracking
         }
-        # print(f"Node {self.node_id}: Handling Update Request: {request}")
         successor_id, hops = self._handle_find_successor(request)
         request["hops"] = len(hops)-1
         successor = self.network.nodes[successor_id]
@@ -710,7 +700,6 @@ class ChordNode:
         self.running = False
         self.stop_event.set()
         self.thread_pool.shutdown(wait=False)
-        print("Node Left: ",self.node_id)
 
     #############################
     ####### Get Successor #######
@@ -761,7 +750,7 @@ class ChordNode:
                     
         if index_of_node_that_left == 0:
             new_successor = self.get_successor()
-            print(self.request_restoration(new_successor))
+            self.request_restoration(new_successor)
    
             
         # For each index in the successors list
