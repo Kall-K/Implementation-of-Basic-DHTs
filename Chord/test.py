@@ -48,6 +48,14 @@ def main():
     print("Creating the Chord network...")
     network = ChordNetwork()
 
+    ################################################################
+    #                         NODES JOIN                           #
+    ################################################################
+
+    print("""\n################################################################
+#                         NODES JOIN                           #
+################################################################\n""")
+
     # Predefined node IDs to test
     predefined_ids = ["4b12", "fa35", "19bd", "4bde", "4c12", "cafe"]
 
@@ -55,18 +63,16 @@ def main():
 
     # Node Insertion
     for node_id in predefined_ids:
-        # Create a ChordNode with a specific ID
         node = ChordNode(network, node_id=node_id)
         node.start_server()
-        # time.sleep(1)  # Allow the server to start
         network.node_join(node)
-        # print(f"Node Added: ID = {node.node_id}, Port = {node.port}")
-        #node.print_state()
+        node.print_state()
 
-    # Key Insertion
-    print("\nKey Insertions")
-    print("=======================")
-    insert_keys(network, keys, points, reviews, countries, names)
+    
+    # # Key Insertion
+    # print("\nKey Insertions")
+    # print("=======================")
+    # insert_keys(network, keys, points, reviews, countries, names)
 
     # country = "United States"
     # name = "Greg's Coffee"
@@ -78,77 +84,92 @@ def main():
     # network.insert_key(key, point, review, country)
 
     # Key Deletion
-    print("\nKey Deletion")
-    print("=======================")
+    # print("\nKey Deletion")
+    # print("=======================")
     # network.delete_key('372a')
     # network.delete_key('372b')
 
-    key = '372b'
-    # Parallel Deletion
-    delete_thread = threading.Thread(target=network.delete_key, args=(key,))
-    delete_thread2 = threading.Thread(target=network.delete_key, args=(key,))
+    # key = '372b'
+    # # Parallel Deletion
+    # delete_thread = threading.Thread(target=network.delete_key, args=(key,))
+    # delete_thread2 = threading.Thread(target=network.delete_key, args=(key,))
 
-    delete_thread.start()
-    delete_thread2.start()
+    # delete_thread.start()
+    # delete_thread2.start()
 
-    delete_thread.join()
-    delete_thread2.join()
+    # delete_thread.join()
+    # delete_thread2.join()
 
-    # Key Update
-    print("\nKey Update")
-    print("=======================")
+    # # Key Update
+    # print("\nKey Update")
+    # print("=======================")
 
-    taiwan_country_key = hash_key("Taiwan")
+    # taiwan_country_key = hash_key("Taiwan")
 
-    # Update all points for Taiwan
-    print("\nUpdating all points for Taiwan:\n")
-    update_fields = {"attributes": {"price": 35.0}}
-    network.update_key(key=taiwan_country_key, updated_data=update_fields)
-    
-    # Update a specific point for Taiwan
-    print("\nUpdating a specific point for Taiwan:\n")
-    criteria = {"review_date": 2019, "rating": 94, "price": 35.0}
-    update_fields = {"attributes": {"price": 36.0}}
-    network.update_key(key=taiwan_country_key, updated_data=update_fields, criteria=criteria)
-
-    # Update only the review for Taiwan
-    print("\nUpdating only the review for Taiwan:\n")
-    update_fields = {
-        "review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."
-    }
-    update_fields2 = {
-        "review": "An updated review2 for Taiwan's coffee: crisp and fruity with a lingering sweetness."
-    }
+    # # Update all points for Taiwan
+    # print("\nUpdating all points for Taiwan:\n")
+    # update_fields = {"attributes": {"price": 35.0}}
     # network.update_key(key=taiwan_country_key, updated_data=update_fields)
+    
+    # # Update a specific point for Taiwan
+    # print("\nUpdating a specific point for Taiwan:\n")
+    # criteria = {"review_date": 2019, "rating": 94, "price": 35.0}
+    # update_fields = {"attributes": {"price": 36.0}}
+    # network.update_key(key=taiwan_country_key, updated_data=update_fields, criteria=criteria)
 
-    update_thread1 = threading.Thread(target=network.update_key, args=(taiwan_country_key, update_fields,))
-    update_thread2 = threading.Thread(target=network.update_key, args=(taiwan_country_key, update_fields2,))
-    update_thread2.start()
-    update_thread1.start()
+    # # Update only the review for Taiwan
+    # print("\nUpdating only the review for Taiwan:\n")
+    # update_fields = {
+    #     "review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."
+    # }
+    # update_fields2 = {
+    #     "review": "An updated review2 for Taiwan's coffee: crisp and fruity with a lingering sweetness."
+    # }
+    # # network.update_key(key=taiwan_country_key, updated_data=update_fields)
 
-    update_thread1.join()
-    update_thread2.join()
+    # update_thread1 = threading.Thread(target=network.update_key, args=(taiwan_country_key, update_fields,))
+    # update_thread2 = threading.Thread(target=network.update_key, args=(taiwan_country_key, update_fields2,))
+    # update_thread2.start()
+    # update_thread1.start()
 
-    # Update based on specific attributes and modify multiple fields
-    print("\nUpdating specific attributes for Taiwan:\n")
-    criteria = {"review_date": 2019, "rating": 94}
-    update_fields = {"attributes": {"price": 37.0, "rating": 95}}
-    network.update_key(key=taiwan_country_key, updated_data=update_fields, criteria=criteria)
+    # update_thread1.join()
+    # update_thread2.join()
 
-    # Verify all updates
-    lower_bounds = [2018, 90, 30.0]
-    upper_bounds = [2019, 95, 40.0]
-    print("\nVerifying updates through lookup:\n")
-    network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
+    # # Update based on specific attributes and modify multiple fields
+    # print("\nUpdating specific attributes for Taiwan:\n")
+    # criteria = {"review_date": 2019, "rating": 94}
+    # update_fields = {"attributes": {"price": 37.0, "rating": 95}}
+    # network.update_key(key=taiwan_country_key, updated_data=update_fields, criteria=criteria)
+
+    # # Verify all updates
+    # lower_bounds = [2018, 90, 30.0]
+    # upper_bounds = [2019, 95, 40.0]
+    # print("\nVerifying updates through lookup:\n")
+    # network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
 
     # network.visualize_network()
 
-    time.sleep(2)
-    print("Node left")
-    network.nodes["19bd"].leave()
-    network.nodes["4c12"].leave()
+    ################################################################
+    #                        NODES LEAVE                           #
+    ################################################################
 
-    # time.sleep(1)
+    print("""\n################################################################
+#                        NODES LEAVE                           #
+################################################################\n""")
+    time.sleep(2)
+    nodes_to_leave = ["19bd", "4c12"]
+    for node in nodes_to_leave:
+        node = network.nodes[node]
+        if node.running:
+            node.leave()
+            print("\n\n" + "-" * 100)
+            print(f"\n-------------- State after node ${node.node_id} left --------------")
+            for node in network.nodes.values():
+                if node.running:
+                    node.print_state()
+
+    # network.nodes["19bd"].leave()
+    # network.nodes["4c12"].leave()
     # network.nodes["cafe"].leave()
     # network.nodes["4c12"].leave()
 
