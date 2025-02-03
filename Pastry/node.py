@@ -565,7 +565,9 @@ class PastryNode:
         Find the closest alive node to the given failed_node_id.
         """
         if not isinstance(failed_node_id, str):
-            print(f"Node {self.node_id}: Invalid failed_node_id: {failed_node_id}. Expected a string.")
+            print(
+                f"Node {self.node_id}: Invalid failed_node_id: {failed_node_id}. Expected a string."
+            )
             return None  # Gracefully handle invalid input
 
         min_distance = float("inf")
@@ -585,11 +587,12 @@ class PastryNode:
                 print(f"Node {self.node_id}: Failed to compute distance for node_id {node_id}: {e}")
 
         if closest_node_id:
-            print(f"Node {self.node_id}: Closest alive node to {failed_node_id} is {closest_node_id}.")
+            print(
+                f"Node {self.node_id}: Closest alive node to {failed_node_id} is {closest_node_id}."
+            )
         else:
             print(f"Node {self.node_id}: No alive node found to repair {failed_node_id}.")
         return closest_node_id
-
 
     # Node Joining and Routing
 
@@ -638,7 +641,9 @@ class PastryNode:
 
         # Check if the next hop node is alive before forwarding
         if next_hop_id not in self.network.node_ports:
-            print(f"Node {self.node_id}: Detected failure of node {next_hop_id}. Repairing before forwarding...")
+            print(
+                f"Node {self.node_id}: Detected failure of node {next_hop_id}. Repairing before forwarding..."
+            )
             self._repair_routing_table_entry(next_hop_id)
             self._repair_leaf_set(next_hop_id)
             self._repair_neighborhood_set(next_hop_id)
@@ -646,12 +651,14 @@ class PastryNode:
 
         if not next_hop_id:
             print(f"Node {self.node_id}: No available nodes to forward JOIN_NETWORK request.")
-            return {"status": "failure", "message": "No available nodes to forward JOIN_NETWORK request."}
+            return {
+                "status": "failure",
+                "message": "No available nodes to forward JOIN_NETWORK request.",
+            }
 
         print(f"\nForwarding JOIN_NETWORK request to node {next_hop_id}...")
         response = self.send_request(self.network.node_ports[next_hop_id], request)
         return response
-
 
     def _handle_insert_key_request(self, request):
         """
@@ -814,16 +821,22 @@ class PastryNode:
                     return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
 
                 # KD-Tree Range Search
-                points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
-                print(f"Node {self.node_id}: Found {len(points)} matching points.")
                 print(
-                    f"Node {self.node_id}: Searching in KDTree. Query bounds: {lower_bounds} - {upper_bounds}"
+                    f"Node {self.node_id}: Searching in KDTree. Query Bounds: {lower_bounds} - {upper_bounds}"
                 )
                 print(f"Stored points: {self.kd_tree.points}")
+                points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
+                print(f"Node {self.node_id}: Found {len(points)} matching points.")
 
                 if len(reviews) == 0:
                     print(f"Node {self.node_id}: No reviews found within the specified range.")
-                    return {"status": "success", "points": [], "reviews": [], "hops": hops}
+                    return {
+                        "status": "success",
+                        "points": [],
+                        "reviews": [],
+                        "similar_reviews": [],
+                        "hops": hops,
+                    }
 
                 # LSH Similarity Search
                 try:
@@ -846,9 +859,9 @@ class PastryNode:
 
                     return {
                         "status": "success",
-                        "points_len": len(points),
-                        "reviews_len": len(reviews),
-                        "similar_reviews_len": len(similar_docs),
+                        "points": points,
+                        "reviews": reviews,
+                        "similar_reviews": similar_docs,
                         "hops": hops,  # Include the hops list in the response
                     }
                 except ValueError as e:
@@ -1353,7 +1366,6 @@ class PastryNode:
         except (socket.error, ConnectionRefusedError):
             return False  # Node is down
 
-
     def _find_next_hop(self, key):
         """
         Find the next hop to forward a request based on the node ID.
@@ -1376,9 +1388,6 @@ class PastryNode:
             else:
                 next_hop = self._find_closest_node_id_all(key)
                 return next_hop
-
-
-
 
     def transmit_state(self):
         """

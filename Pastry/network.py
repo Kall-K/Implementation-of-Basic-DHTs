@@ -43,7 +43,6 @@ class PastryNetwork:
 
         return None  # If the node isn't found, return None
 
-
     def node_join(self, new_node):
         """
         Handles a new node joining the Pastry network.
@@ -160,6 +159,7 @@ class PastryNetwork:
         print(f"Network: Removing Node {leaving_node_id} from the network.")
         del self.nodes[leaving_node_id]
         del self.node_ports[leaving_node_id]
+        leaving_node.running = False  # Stop the node's server
 
         # Notify remaining nodes about the departure
         print(f"Network: Notifying affected nodes about Node {leaving_node_id}'s departure.")
@@ -244,6 +244,7 @@ class PastryNetwork:
             return {"status": "failure", "message": f"Node {failing_node_id} not found."}
 
         # Remove the node from the network **without notifying others**
+        self.nodes[failing_node_id].running = False  # Stop the node's server
         del self.nodes[failing_node_id]
         del self.node_ports[failing_node_id]
 
@@ -325,6 +326,7 @@ class PastryNetwork:
             response = first_node.insert_key(key, point, review, country)
             print(response)
 
+        # Show the Pastry GUI
         self.gui.show_pastry_gui()
         # Run the gui main loop
         self.gui.root.mainloop()

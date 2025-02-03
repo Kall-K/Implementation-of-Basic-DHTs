@@ -210,8 +210,10 @@ class PastryDashboard:
         self.info_frame.grid_rowconfigure(1, weight=1)
         self.info_frame.grid_columnconfigure(0, weight=1)
 
-        node_info_label = tk.Label(self.info_frame, text="Node Information", font=("Arial", 14))
-        node_info_label.grid(row=0, column=0, sticky="n", padx=5, pady=5)
+        self.node_info_label = tk.Label(
+            self.info_frame, text="Node Information", font=("Arial", 14)
+        )
+        self.node_info_label.grid(row=0, column=0, sticky="n", padx=5, pady=5)
         self.info_text = scrolledtext.ScrolledText(
             self.info_frame, wrap=tk.WORD, width=30, height=50
         )
@@ -435,8 +437,8 @@ class PastryDashboard:
     def show_pastry_gui(self):
         """Displays the Pastry ring and topology."""
 
-        if hasattr(self, "has_more_countries"):
-            del self.has_more_countries
+        """if hasattr(self, "has_more_countries"):
+            del self.has_more_countries"""
 
         # Remove the temporary KD-Tree plot if it exists
         if hasattr(self, "ax_kd_tree"):
@@ -517,14 +519,40 @@ class PastryDashboard:
 
         return selected_country, selected_country_key
 
-    def show_kd_tree_gui(self, selected_country=None, selected_country_key=None):
+    def show_kd_tree_gui(
+        self,
+        selected_country=None,
+        selected_country_key=None,
+        points=None,
+        reviews=None,
+        title=None,
+    ):
         """Displays the KD Tree of the selected node if available."""
         if self.selected_node is None:
             print("No node selected.")
             return
 
-        if hasattr(self.selected_node, "kd_tree") and self.selected_node.kd_tree:
-            if hasattr(self, "ax_kd_tree"):
+        if (
+            hasattr(self.selected_node, "kd_tree")
+            and self.selected_node.kd_tree
+            and self.selected_node.kd_tree.points.size
+        ):
+
+            # If the selected_country is not provided promt the user to select it
+            if selected_country is None or selected_country_key is None:
+
+                # Prompt the user to select a country
+                selected_country, selected_country_key = self.select_country_window()
+
+                if not selected_country:
+                    print("Country selection canceled.")
+                    """del self.has_more_countries
+                    self.show_kd_tree_button.config(text="Show KD Tree")"""
+                    return
+
+            # Clear the KD-Tree plot if it exists
+            if hasattr(self, "ax_kd_tree") and hasattr(self, "kd_tree_pick_event_id"):
+                self.ax_kd_tree.set_title("")
                 self.ax_kd_tree.clear()
                 self.ax_kd_tree.set_xticks([])
                 self.ax_kd_tree.set_yticks([])
@@ -532,86 +560,11 @@ class PastryDashboard:
                 self.canvas.mpl_disconnect(self.kd_tree_pick_event_id)
                 del self.kd_tree_pick_event_id  # Remove reference
 
-            # If the selected_country is not provided promt the user to select it
-            if selected_country is None or selected_country_key is None:
-                # If the node has only one country, don't show the country selection window
-                """if hasattr(self, "has_more_countries") and not self.has_more_countries:
-                print("KD Tree is already displayed.")
-                return"""
-
-                # Open a dialog box to let the user select a unique country
-                def on_select(event=None):
-                    nonlocal selected_country
-                    selected_country = country_var.get()
-                    if selected_country:
-                        selection_window.unbind("<Return>")
-                        selection_window.destroy()
-
-                selection_window = tk.Toplevel(self.root)
-                selection_window.title("Select Country")
-                selection_window.geometry("300x200")
-
-                # Make the selection window appear above the main window
-                selection_window.transient(self.root)
-
-                # Make the selection window modal so that it captures all input
-                selection_window.grab_set()
-
-                # Direct the keyboard focus to the selection window
-                selection_window.focus_set()
-
-                tk.Label(selection_window, text="Select a country:", font=("Arial", 14)).pack(
-                    pady=10
+            if points is None or reviews is None:
+                # Get points and reviews for the selected country
+                points, reviews = self.network.nodes[self.selected_node.node_id].kd_tree.get_points(
+                    selected_country_key
                 )
-
-                # Get unique countries from the KD Tree of the selected node
-                unique_country_keys, unique_countries = self.network.nodes[
-                    self.selected_node.node_id
-                ].kd_tree.get_unique_country_keys()
-
-                # If there are more than 2 unique countries, update the "Show KD Tree" button
-                if len(unique_countries) >= 2:
-                    self.show_kd_tree_button.config(text="Choose Country")
-                    self.has_more_countries = True
-                else:
-                    self.show_kd_tree_button.config(text="Show KD Tree")
-                    self.has_more_countries = False
-
-                country_var = tk.StringVar(selection_window)
-                if unique_countries:
-                    country_var.set(unique_countries[0])  # First country as default
-
-                dropdown = tk.OptionMenu(selection_window, country_var, *unique_countries)
-                dropdown.config(font=("Arial", 12))
-                dropdown["menu"].config(font=("Arial", 12))
-                dropdown.pack(pady=5)
-
-                # Add a button to confirm selection
-                tk.Button(selection_window, text="OK", command=on_select, font=("Arial", 12)).pack(
-                    pady=10
-                )
-
-                # Bind Enter key to select action
-                selection_window.bind("<Return>", on_select)
-
-                selected_country = None
-
-                selection_window.grab_set()
-                self.root.wait_window(selection_window)
-
-                if not selected_country:
-                    print("Country selection canceled.")
-                    del self.has_more_countries
-                    self.show_kd_tree_button.config(text="Show KD Tree")
-                    return
-
-                # Get the key for the selected country
-                selected_country_key = unique_country_keys[unique_countries.index(selected_country)]
-
-            # Get points and reviews for the selected country
-            points, reviews = self.network.nodes[self.selected_node.node_id].kd_tree.get_points(
-                selected_country_key
-            )
 
             # Clear the ring plot
             self.ax_ring.clear()
@@ -669,6 +622,7 @@ class PastryDashboard:
                 reviews,
                 selected_country_key,
                 selected_country,
+                title,
             )
 
         else:
@@ -768,7 +722,9 @@ class PastryDashboard:
 
             # Close the insert window and update visualizations
             insert_window.destroy()
+            # self.show_kd_tree_gui(country, key)
             self.show_pastry_gui()
+            self.update_info_panel(self.selected_node)
 
         submit_button = tk.Button(insert_window, text="Submit", command=submit, font=("Arial", 12))
         submit_button.grid(row=6, column=0, columnspan=2, pady=10)
@@ -785,6 +741,7 @@ class PastryDashboard:
             print(f"Node {self.selected_node.node_id} does not have a KD Tree.")
             return
 
+        # Prompt the user to select a country
         selected_country, selected_country_key = self.select_country_window()
 
         if not selected_country:
@@ -845,8 +802,8 @@ class PastryDashboard:
 
             # Close the update window and refresh the GUI
             update_window.destroy()
-            # self.show_pastry_gui()
             self.show_kd_tree_gui(selected_country, selected_country_key)
+            self.update_info_panel(self.selected_node)
 
         # Create the update window
         update_window = tk.Toplevel(self.root)
@@ -913,7 +870,213 @@ class PastryDashboard:
         update_window.bind("<Return>", lambda event: submit())
 
     def delete_key_gui(self):
-        pass
+        """Delete a key from the network."""
+        if self.selected_node is None:
+            print("No node selected.")
+            return
+
+        # Check if the selected node has a KD-Tree
+        if not hasattr(self.selected_node, "kd_tree") or not self.selected_node.kd_tree:
+            print(f"Node {self.selected_node.node_id} does not have a KD Tree.")
+            return
+
+        # Prompt the user to select a country
+        selected_country, selected_country_key = self.select_country_window()
+
+        if not selected_country:
+            print("Country selection canceled.")
+            return
+
+        # Confirm deletion with the user
+        confirm_window = tk.Toplevel(self.root)
+        confirm_window.title("Confirm Deletion")
+        confirm_window.geometry("300x150")
+
+        tk.Label(
+            confirm_window,
+            text=f"Delete all data for {selected_country}?",
+            font=("Arial", 14),
+        ).pack(pady=10)
+
+        def confirm_delete():
+            # Delete the key using the selected node
+            self.selected_node.delete_key(selected_country_key)
+            confirm_window.destroy()
+            print(f"Deleted key for country: {selected_country}")
+            # self.show_kd_tree_gui(selected_country, selected_country_key)
+            self.show_pastry_gui()
+
+        def cancel_delete():
+            confirm_window.destroy()
+            print("Deletion canceled.")
+
+        # Add confirmation and cancel buttons
+        tk.Button(
+            confirm_window,
+            text="Confirm",
+            command=confirm_delete,
+            font=("Arial", 12),
+        ).pack(side=tk.LEFT, padx=20, pady=10)
+
+        tk.Button(
+            confirm_window,
+            text="Cancel",
+            command=cancel_delete,
+            font=("Arial", 12),
+        ).pack(side=tk.RIGHT, padx=20, pady=10)
+
+        # Bind Enter key to confirm deletion
+        confirm_window.bind("<Return>", lambda event: confirm_delete())
 
     def lookup_key_gui(self):
-        pass
+        """Lookup similar reviews for a key in the network."""
+        if self.selected_node is None:
+            print("No node selected.")
+            return
+
+        # Check if the selected node has a KD-Tree
+        if not hasattr(self.selected_node, "kd_tree") or not self.selected_node.kd_tree:
+            print(f"Node {self.selected_node.node_id} does not have a KD Tree.")
+            return
+
+        # Prompt the user to select a country
+        selected_country, selected_country_key = self.select_country_window()
+
+        if not selected_country:
+            print("Country selection canceled.")
+            return
+
+        # Create a window to input search ranges and N
+        lookup_window = tk.Toplevel(self.root)
+        lookup_window.title("Lookup Similar Reviews")
+        lookup_window.geometry("450x400")
+
+        # Year range
+        tk.Label(lookup_window, text="Year Range:", font=("Arial", 12)).grid(
+            row=0, column=0, padx=10, pady=5, sticky="e"
+        )
+        tk.Label(lookup_window, text="Lower:", font=("Arial", 12)).grid(
+            row=1, column=0, padx=10, pady=5, sticky="e"
+        )
+        year_low_entry = tk.Entry(lookup_window, font=("Arial", 12))
+        year_low_entry.grid(row=1, column=1, padx=10, pady=5)
+        tk.Label(lookup_window, text="Upper:", font=("Arial", 12)).grid(
+            row=2, column=0, padx=10, pady=5, sticky="e"
+        )
+        year_upper_entry = tk.Entry(lookup_window, font=("Arial", 12))
+        year_upper_entry.grid(row=2, column=1, padx=10, pady=5)
+
+        # Rating range
+        tk.Label(lookup_window, text="Rating Range:", font=("Arial", 12)).grid(
+            row=3, column=0, padx=10, pady=5, sticky="e"
+        )
+        tk.Label(lookup_window, text="Lower:", font=("Arial", 12)).grid(
+            row=4, column=0, padx=10, pady=5, sticky="e"
+        )
+        rating_low_entry = tk.Entry(lookup_window, font=("Arial", 12))
+        rating_low_entry.grid(row=4, column=1, padx=10, pady=5)
+        tk.Label(lookup_window, text="Upper:", font=("Arial", 12)).grid(
+            row=5, column=0, padx=10, pady=5, sticky="e"
+        )
+        rating_upper_entry = tk.Entry(lookup_window, font=("Arial", 12))
+        rating_upper_entry.grid(row=5, column=1, padx=10, pady=5)
+
+        # Price range
+        tk.Label(lookup_window, text="Price Range (100g USD):", font=("Arial", 12)).grid(
+            row=6, column=0, padx=10, pady=5, sticky="e"
+        )
+        tk.Label(lookup_window, text="Lower:", font=("Arial", 12)).grid(
+            row=7, column=0, padx=10, pady=5, sticky="e"
+        )
+        price_low_entry = tk.Entry(lookup_window, font=("Arial", 12))
+        price_low_entry.grid(row=7, column=1, padx=10, pady=5)
+        tk.Label(lookup_window, text="Upper:", font=("Arial", 12)).grid(
+            row=8, column=0, padx=10, pady=5, sticky="e"
+        )
+        price_upper_entry = tk.Entry(lookup_window, font=("Arial", 12))
+        price_upper_entry.grid(row=8, column=1, padx=10, pady=5)
+
+        # Number of similar reviews (N)
+        tk.Label(lookup_window, text="Number of Similar Reviews (N):", font=("Arial", 12)).grid(
+            row=9, column=0, padx=10, pady=5, sticky="e"
+        )
+        N_entry = tk.Entry(lookup_window, font=("Arial", 12))
+        N_entry.grid(row=9, column=1, padx=10, pady=5)
+
+        def submit():
+            # Collect input values
+            year_low = year_low_entry.get()
+            year_upper = year_upper_entry.get()
+            rating_low = rating_low_entry.get()
+            rating_upper = rating_upper_entry.get()
+            price_low = price_low_entry.get()
+            price_upper = price_upper_entry.get()
+            N = N_entry.get()
+
+            # Validate inputs
+            try:
+                year_low = int(year_low) if year_low else None
+                year_upper = int(year_upper) if year_upper else None
+                rating_low = float(rating_low) if rating_low else None
+                rating_upper = float(rating_upper) if rating_upper else None
+                price_low = float(price_low) if price_low else None
+                price_upper = float(price_upper) if price_upper else None
+                N = int(N) if N else 5  # Default to 5 if N is not provided
+            except ValueError:
+                print("Invalid input. Please enter numeric values.")
+                return
+
+            # Ensure at least one range is provided
+            if not (
+                (year_low and year_upper)
+                or (rating_low and rating_upper)
+                or (price_low and price_upper)
+            ):
+                print("At least one range must be specified.")
+                return
+
+            # Execute the lookup operation
+            response = self.selected_node.lookup(
+                selected_country_key,
+                lower_bounds=[year_low, rating_low, price_low],
+                upper_bounds=[year_upper, rating_upper, price_upper],
+                N=N,
+            )
+            if response["status"] == "failure":
+                print("Lookup failed.")
+                return
+            points = response["points"]
+            reviews = response["reviews"]
+            similar_reviews = response["similar_reviews"]
+
+            # Visualize the lookup results in the KD Tree 3d plot
+            title = f"Lookup Results for {selected_country} in Range: {[year_low, rating_low, price_low]} - {[year_upper, rating_upper, price_upper]}"
+            self.show_kd_tree_gui(
+                selected_country,
+                selected_country_key,
+                points,
+                reviews,
+                title=title,
+            )
+
+            # Display results in the info panel
+            self.node_info_label.config(text="LSH Similarity Search Results")
+            self.info_text.config(state=tk.NORMAL)
+            self.info_text.delete(1.0, tk.END)
+            if response["status"] == "success" and len(similar_reviews) > 0:
+                self.info_text.insert(tk.END, f"The {N} Most Similar Review:\n\n")
+                for i, similar_review in enumerate(similar_reviews, 1):
+                    self.info_text.insert(tk.END, f"{i}. {similar_review}\n\n")
+            else:
+                self.info_text.insert(tk.END, "No similar reviews found.\n")
+            self.info_text.config(state=tk.DISABLED)
+
+            # Close the lookup window
+            lookup_window.destroy()
+
+        # Submit button
+        submit_button = tk.Button(lookup_window, text="Submit", command=submit, font=("Arial", 12))
+        submit_button.grid(row=10, column=0, columnspan=2, pady=10)
+
+        # Bind the Return key to submit
+        lookup_window.bind("<Return>", lambda event: submit())
