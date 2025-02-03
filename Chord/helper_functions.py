@@ -1,7 +1,7 @@
 from ipaddress import ip_address
 import hashlib
 
-from constants import *
+from .constants import *
 
 """---Helper function for the Pasrty Implementation---"""
 
@@ -12,6 +12,7 @@ def hash_key(value):
     """
     sha1_hash = hashlib.sha1(value.encode()).hexdigest()
     return sha1_hash[-4:]
+
 
 def topological_distance(ip1, ip2):
     """
@@ -70,11 +71,15 @@ def hex_compare(id1, id2, equality=True):
         return True
     else:
         return False
-    
+
+
 def distance(hex1, hex2):
     [n1, n2] = [int(str(hex1), 16), int(str(hex2), 16)]
-    if n1 <= n2: return n2 - n1
-    else: return R - n1 + n2
-    
+    if n1 <= n2:
+        return n2 - n1
+    else:
+        return R - n1 + n2
+
+
 def int_to_hex(num):
     return hex(num)[2:].rjust(4, "0")

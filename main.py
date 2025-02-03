@@ -1,9 +1,7 @@
 import tkinter as tk
 
 from Pastry.network import PastryNetwork
-
-# from Chord.chord_gui import ChordDashboard
-# from Chord.network import ChordNetwork
+from Chord.network import ChordNetwork
 
 WIDTH = 640
 HEIGHT = 360
@@ -48,7 +46,7 @@ class MainLauncher(tk.Tk):
 
         btn_chord = tk.Button(
             self,
-            text="Build Chord (den douleuei akoma)",
+            text="Build Chord",
             command=lambda: self.launch_chord(predefined_ids),
             font=("Arial", 20),
         )
@@ -71,15 +69,14 @@ class MainLauncher(tk.Tk):
         pastry_network.build(predefined_ids)
 
     def launch_chord(self, predefined_ids):
-        pass
         # Create the chord network
-        # chord_network = ChordNetwork(self)
+        chord_network = ChordNetwork(self)
 
         # Hide the main window
-        # self.withdraw()
+        self.withdraw()
 
         # Build the network
-        # chord_network.build(predefined_ids)
+        chord_network.build(predefined_ids)
 
 
 if __name__ == "__main__":

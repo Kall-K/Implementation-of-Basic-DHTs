@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import scrolledtext
 from matplotlib.collections import PathCollection
 
-from .node import ChordNode
+from .node import PastryNode
 from .helper_functions import hash_key
 
 
@@ -13,13 +13,13 @@ WIDTH = 1720
 HEIGHT = 750
 
 
-class ChordDashboard:
+class PastryDashboard:
     def __init__(self, network, main_window):
         self.network = network
         self.main_window = main_window
         self.selected_node = None
         self.root = tk.Tk()
-        self.root.title("Chord GUI")
+        self.root.title("Pastry GUI")
         self.root.geometry(f"{WIDTH}x{HEIGHT}")
 
         # Ensure cleanup on close
@@ -29,7 +29,7 @@ class ChordDashboard:
         self.setup_widgets()
 
     def on_close(self):
-        """Shut down Chord network before closing GUI."""
+        """Shut down Pastry network before closing GUI."""
         print("Shutting down network...")
         for node in self.network.nodes.values():
             node.running = False
@@ -46,16 +46,16 @@ class ChordDashboard:
         control_frame.pack(side=tk.LEFT, fill=tk.Y)
         control_frame.pack_propagate(False)  # Prevents resizing
 
-        # Show Chord button
-        self.show_chord_button = tk.Button(
+        # Show Pastry button
+        self.show_pastry_button = tk.Button(
             control_frame,
-            text="Show Chord",
-            command=self.show_chord_gui,
+            text="Show Pastry",
+            command=self.show_pastry_gui,
             width=15,
             height=2,
             font=("Arial", 14),
         )
-        self.show_chord_button.pack(pady=10, padx=10)
+        self.show_pastry_button.pack(pady=10, padx=10)
 
         # Show KD Tree button
         self.show_kd_tree_button = tk.Button(
@@ -78,6 +78,17 @@ class ChordDashboard:
             font=("Arial", 14),
         )
         self.node_join_button.pack(pady=10, padx=10)
+
+        # Node leave button
+        self.node_leave_button = tk.Button(
+            control_frame,
+            text="Node Leave",
+            command=self.node_leave_gui,
+            width=15,
+            height=2,
+            font=("Arial", 14),
+        )
+        self.node_leave_button.pack(pady=10, padx=10)
 
         # Node leave unexpected button
         self.node_leave_unexpected_button = tk.Button(
@@ -145,13 +156,37 @@ class ChordDashboard:
         fig_height = HEIGHT / 100
         self.fig = plt.figure(figsize=(fig_width, fig_height))
 
-        # Create main visualization (Chord Ring)
-        ring_pad_side = 0.03
+        # Topology visualization (Bottom)
+        topology_pad = 0.05
 
-        self.ring_x = ring_pad_side
-        self.ring_y = 0
-        self.ring_width = 1 - 2 * ring_pad_side
-        self.ring_height = self.ring_width
+        self.topology_x = topology_pad
+        self.topology_y = topology_pad
+        self.topology_width = (
+            1 - self.topology_x - topology_pad
+        )  # 100% of the fig width - the padding left and right
+        self.topology_height = 1 / 4 - self.topology_y  # 1/4 of the fig height - the padding
+        self.ax_topology = self.fig.add_axes(
+            [self.topology_x, self.topology_y, self.topology_width, self.topology_height]
+        )
+
+        self.ax_topology.set_xlim(0, 1)
+        self.ax_topology.set_ylim(-0.1, 0.1)
+        self.ax_topology.set_xticks(np.linspace(0, 1, 11))
+        self.ax_topology.set_yticks([])
+        self.ax_topology.set_title("Pastry Network Topology")
+
+        # Create main visualization (Pastry Ring)
+        ring_pad_bottom = 0.03
+        ring_pad_top = 0.05
+        topology_x_mid = (self.topology_x + (self.topology_x + self.topology_width)) / 2
+        topology_x_quarter = (self.topology_x + topology_x_mid) / 2
+        topology_x_eighth = (self.topology_x + topology_x_quarter) / 2
+
+        self.ring_x = (self.topology_x + topology_x_eighth) / 2
+        ring_x_width = self.ring_x - self.topology_x
+        self.ring_y = self.topology_y + self.topology_height + ring_pad_bottom
+        self.ring_width = self.topology_width - 2 * ring_x_width
+        self.ring_height = 1 - self.topology_height - topology_pad - ring_pad_bottom - ring_pad_top
 
         self.ax_ring = self.fig.add_axes(
             [self.ring_x, self.ring_y, self.ring_width, self.ring_height]
@@ -161,11 +196,11 @@ class ChordDashboard:
         self.ax_ring.set_ylim(-1.2, 1.2)
         self.ax_ring.set_xticks([])
         self.ax_ring.set_yticks([])
-        self.ax_ring.set_title("Chord Overlay Network Visualization")
+        self.ax_ring.set_title("Pastry Overlay Network Visualization")
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.viz_frame)
         self.canvas.get_tk_widget().pack(fill=tk.Y, expand=True)
-        self.chord_node_pick_event_id = self.canvas.mpl_connect("pick_event", self.on_node_pick)
+        self.pastry_node_pick_event_id = self.canvas.mpl_connect("pick_event", self.on_node_pick)
 
         # Right frame for node info
         self.info_frame = tk.Frame(self.root)
@@ -186,7 +221,7 @@ class ChordDashboard:
 
     def visualize_network(self, threshold=0.3):
         """
-        Visualizes the Chord network by placing nodes on a circular ring
+        Visualizes the Pastry network by placing nodes on a circular ring
         based on their 4-digit hex ID. Lower values are at the top (12 o'clock),
         and values increase clockwise.
 
@@ -196,14 +231,11 @@ class ChordDashboard:
             print("No nodes in the network to visualize.")
             return
 
-        # Filter nodes that have the 'running' attribute set to True
-        filtered_nodes = [node_id for node_id, node in self.network.nodes.items() if node.running]
-
-        # Sort the filtered nodes by their hex ID
-        sorted_nodes = sorted(filtered_nodes, key=lambda x: int(x, 16))
+        # Convert node IDs from hex to integers for sorting
+        sorted_nodes = sorted(self.network.nodes.keys(), key=lambda x: int(x, 16))
 
         self.ax_ring.clear()
-        self.ax_ring.set_title("Chord Overlay Network Visualization")
+        self.ax_ring.set_title("Pastry Overlay Network Visualization")
         self.ax_ring.spines["top"].set_visible(False)
         self.ax_ring.spines["bottom"].set_visible(False)
         self.ax_ring.spines["left"].set_visible(False)
@@ -268,6 +300,52 @@ class ChordDashboard:
 
         self.canvas.draw()
 
+    def visualize_topology(self):
+        """
+        Visualizes the Pastry network by placing nodes as points on a horizontal line [0,1]
+        based on the nodes' position attribute (which is a float in [0,1]).
+        """
+        if not self.network.nodes:
+            print("No nodes in the network to visualize.")
+            return
+        # Draw a horizontal line to represent the topology
+        self.ax_topology.clear()
+        self.ax_topology.plot([0, 1], [0, 0], color="gray", linestyle="--")
+        self.ax_topology.set_xlim(0, 1)
+        self.ax_topology.set_ylim(-0.1, 0.1)  # Small height since it's a 1D layout
+        self.ax_topology.set_xticks(np.linspace(0, 1, 11))
+        self.ax_topology.set_yticks([])
+        self.ax_topology.spines["top"].set_visible(True)
+        self.ax_topology.spines["bottom"].set_visible(True)
+        self.ax_topology.spines["left"].set_visible(True)
+        self.ax_topology.spines["right"].set_visible(True)
+        self.ax_topology.set_title("Pastry Network Topology")
+
+        # Sort nodes by position for a structured layout
+        sorted_nodes = sorted(self.network.nodes.values(), key=lambda node: node.position)
+
+        # Plot each node at its position on the horizontal line
+        for node in sorted_nodes:
+            x = node.position
+
+            node_plot = self.ax_topology.scatter(x, 0, color="lightblue", s=100, picker=True)
+            node_plot.set_gid(node.node_id)  # Store the node ID in the plot
+            # self.ax_topology.plot(x, 0, "o", color="lightblue", markersize=10)  # Node as a point
+            self.ax_topology.text(
+                x,
+                0.025,
+                node.node_id,
+                fontsize=10,
+                ha="center",
+                va="center",
+                color="black",
+            )  # Label above
+
+        # Draw a horizontal line to represent the topology
+        self.ax_topology.plot([0, 1], [0, 0], color="gray", linestyle="--")
+
+        self.canvas.draw()
+
     def on_node_pick(self, event):
         if isinstance(event.artist, PathCollection):
             node_id = event.artist.get_gid()
@@ -321,11 +399,28 @@ class ChordDashboard:
             print("Invalid Node ID.")
             return
 
-        node = ChordNode(self.network, node_id=new_node_id)
+        node = PastryNode(self.network, node_id=new_node_id)
         print(f"\nAdding new node with ID: {node.node_id} to the network.")
         node.start_server()
         self.network.node_join(node)
-        self.show_chord_gui()
+        self.show_pastry_gui()
+
+    def node_leave_gui(self):
+        if self.selected_node is None:
+            print("No node selected.")
+            return
+
+        print("Node is leaving gracefully...")
+
+        leaving_node_id = self.selected_node.node_id
+
+        leave_response = self.network.leave(leaving_node_id)
+        if leave_response and "hops" in leave_response:
+            print(f"Hops during NODE_LEAVE for {leaving_node_id}: {len(leave_response['hops'])}")
+        else:
+            print(f"Failed to retrieve hops for NODE_LEAVE {leaving_node_id}.")
+
+        self.show_pastry_gui()
 
     def node_leave_unexpected_gui(self):
         if self.selected_node is None:
@@ -333,14 +428,18 @@ class ChordDashboard:
             return
 
         print("Node left unexpectedly.")
-        leaving_node = self.network.nodes[self.selected_node.node_id]
+        leaving_node_id = self.selected_node.node_id
 
-        leaving_node.leave()
+        self.network.leave_unexpected(leaving_node_id)
 
-        self.show_chord_gui()
+        self.show_pastry_gui()
 
-    def show_chord_gui(self):
-        """Displays the Chord ring."""
+    def show_pastry_gui(self):
+        """Displays the Pastry ring and topology."""
+
+        """if hasattr(self, "has_more_countries"):
+            del self.has_more_countries"""
+
         # Remove the temporary KD-Tree plot if it exists
         if hasattr(self, "ax_kd_tree"):
             self.ax_kd_tree.remove()
@@ -351,7 +450,6 @@ class ChordDashboard:
             self.canvas.mpl_disconnect(self.kd_tree_pick_event_id)
             del self.kd_tree_pick_event_id  # Remove reference
 
-        # Remove the Review panel if it exists
         if hasattr(self, "review_text"):
             self.review_text.destroy()
             del self.review_text
@@ -363,10 +461,10 @@ class ChordDashboard:
         # Reinitialize the GUI
         self.setup_widgets()
 
-        # Redraw the chord ring
+        # Redraw both visualizations
         self.visualize_network()
-
-        if self.selected_node and self.selected_node.running:
+        self.visualize_topology()
+        if self.selected_node and self.selected_node in self.network.nodes.values():
             self.update_info_panel(self.selected_node)
         else:
             # Clear the info panel text
@@ -448,9 +546,11 @@ class ChordDashboard:
 
                 if not selected_country:
                     print("Country selection canceled.")
+                    """del self.has_more_countries
+                    self.show_kd_tree_button.config(text="Show KD Tree")"""
                     return
 
-            # Clear the previous KD-Tree plot if it exists
+            # Clear the KD-Tree plot if it exists
             if hasattr(self, "ax_kd_tree") and hasattr(self, "kd_tree_pick_event_id"):
                 self.ax_kd_tree.set_title("")
                 self.ax_kd_tree.clear()
@@ -461,7 +561,7 @@ class ChordDashboard:
                 del self.kd_tree_pick_event_id  # Remove reference
 
             if points is None or reviews is None:
-                # Get points and reviews for the selected country if they are not provided
+                # Get points and reviews for the selected country
                 points, reviews = self.network.nodes[self.selected_node.node_id].kd_tree.get_points(
                     selected_country_key
                 )
@@ -470,6 +570,15 @@ class ChordDashboard:
             self.ax_ring.clear()
             self.ax_ring.set_xticks([])
             self.ax_ring.set_yticks([])
+
+            # Clear the topology plot
+            self.ax_topology.clear()
+            self.ax_topology.set_xticks([])
+            self.ax_topology.set_yticks([])
+            self.ax_topology.spines["top"].set_visible(False)
+            self.ax_topology.spines["bottom"].set_visible(False)
+            self.ax_topology.spines["left"].set_visible(False)
+            self.ax_topology.spines["right"].set_visible(False)
 
             # Create a scrollable review panel below the node information panel
             if not hasattr(self, "review_text"):
@@ -494,8 +603,8 @@ class ChordDashboard:
 
             self.ax_kd_tree = self.fig.add_subplot(111, projection="3d")
 
-            # Disconnect Chord pick event
-            self.canvas.mpl_disconnect(self.chord_node_pick_event_id)
+            # Disconnect Pastry pick event
+            self.canvas.mpl_disconnect(self.pastry_node_pick_event_id)
 
             # Connect KD-Tree pick event and store ID
             self.kd_tree_pick_event_id = self.canvas.mpl_connect(
@@ -528,7 +637,7 @@ class ChordDashboard:
         # Create a new window for inserting a new coffee shop key
         insert_window = tk.Toplevel(self.root)
         insert_window.title("Insert New Coffee Shop Review")
-
+        # Increase the height slightly to accommodate the review field
         insert_window.geometry("450x350")
 
         # Create labels and entry fields using grid layout
@@ -614,7 +723,7 @@ class ChordDashboard:
             # Close the insert window and update visualizations
             insert_window.destroy()
             # self.show_kd_tree_gui(country, key)
-            self.show_chord_gui()
+            self.show_pastry_gui()
             self.update_info_panel(self.selected_node)
 
         submit_button = tk.Button(insert_window, text="Submit", command=submit, font=("Arial", 12))
@@ -795,7 +904,7 @@ class ChordDashboard:
             confirm_window.destroy()
             print(f"Deleted key for country: {selected_country}")
             # self.show_kd_tree_gui(selected_country, selected_country_key)
-            self.show_chord_gui()
+            self.show_pastry_gui()
 
         def cancel_delete():
             confirm_window.destroy()

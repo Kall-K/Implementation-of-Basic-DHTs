@@ -11,12 +11,11 @@ import sys
 import os
 
 # Add the parent directory to sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 from .constants import *
 from .helper_functions import *
-
 
 from Multidimensional_Data_Structures.kd_tree import KDTree
 from Multidimensional_Data_Structures.lsh import LSH
