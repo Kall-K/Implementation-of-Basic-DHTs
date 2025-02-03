@@ -1,6 +1,5 @@
 import tkinter as tk
 
-from Pastry.pastry_gui import PastryDashboard
 from Pastry.network import PastryNetwork
 
 # from Chord.chord_gui import ChordDashboard
