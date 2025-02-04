@@ -495,12 +495,12 @@ class ChordNode:
             if tree and key in tree.country_keys:
                 tree.delete_points(key)
             else:
-                return {"status": "failure", "message": f"No data for key {key}."}
-
-            if request["choice"]:
+                return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
+            
+            if request["choice"]: 
                 self.kd_tree = tree
                 self.request_backup_update(self.get_successor(), request)
-            else:
+            else: 
                 self.back_up = tree
 
             return {"status": "success", "message": f"Deleted Key {key}.", "hops": hops}
@@ -555,8 +555,9 @@ class ChordNode:
             or self.kd_tree.points.size == 0
         ):
             print(f"Node {self.node_id}: No data for key {key}.")
-            return {"status": "failure", "message": f"No data for key {key}."}
 
+            return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
+        
         # KDTree Range Search
         points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
         # print(f"Node {self.node_id}: Found {len(points)} matching points.")
@@ -680,8 +681,9 @@ class ChordNode:
     #############################
     #### Update Finger Table ####
     #############################
-    # fix pos=0
+    
     def update_finger_table(self, hops=[]):
+        self.finger_table[0] = self.successors[0]
         for i in range(1, len(self.finger_table)):
             key = int_to_hex((int(self.node_id, 16) + 2**i) % R)
             temp_node = self.request_find_successor(key, self, hops)[0]

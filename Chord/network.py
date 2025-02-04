@@ -10,7 +10,6 @@ class ChordNetwork:
 
     def __init__(self, main_window=None):
         self.nodes = {}  # Dictionary. Keys are node IDs, values are Node objects
-        self.keys = {}
         self.used_ports = []
 
         self.gui = ChordDashboard(self, main_window)
@@ -91,14 +90,23 @@ class ChordNetwork:
         # Run the gui main loop
         self.gui.root.mainloop()
 
-    def insert_key(self, key, point, review, country):
-        return ChordNetwork.bootstrap_node.insert_key(key, point, review, country)
+
+    def insert_key(self, key, point, review, country):  
+        for node_id in self.nodes.keys():
+            if self.nodes[node_id].running:
+                return self.nodes[node_id].insert_key(key, point, review, country)
 
     def delete_key(self, key):
-        return ChordNetwork.bootstrap_node.delete_key(key)
-
+        for node_id in self.nodes.keys():
+            if self.nodes[node_id]:
+                return self.nodes[node_id].delete_key(key)  
+    
     def update_key(self, key, updated_data, criteria=None):
-        return ChordNetwork.bootstrap_node.update_key(key, updated_data, criteria=None)
+        for node_id in self.nodes.keys():
+            if self.nodes[node_id]:
+                return self.nodes[node_id].update_key(key, updated_data, criteria)     
 
     def lookup(self, key, lower_bounds, upper_bounds, N):
-        return ChordNetwork.bootstrap_node.lookup(key, lower_bounds, upper_bounds, N)
+        for node_id in self.nodes.keys():
+            if self.nodes[node_id]:
+                return self.nodes[node_id].lookup(key, lower_bounds, upper_bounds, N)
