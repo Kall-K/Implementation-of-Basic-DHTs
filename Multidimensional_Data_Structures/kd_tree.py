@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
 from sklearn.neighbors import KDTree as sk_KDTree
-import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import tkinter as tk
 import sys
 import os
 import hashlib
@@ -25,7 +26,7 @@ class KDTree:
         self.points = points
         self.reviews = reviews  # Store reviews for reference
         self.country_keys = country_keys  # 4-digit hex hash of the country
-        self.countries = list(countries) if countries is not None else []  # Store original country names
+        self.countries = countries if countries is not None else []  # Store original country names
         self.build(points)
 
     def build(self, points):
@@ -46,11 +47,14 @@ class KDTree:
         # Append the new point and review to the existing data
         self.points = np.vstack([self.points, new_point])
         self.reviews = np.append(self.reviews, new_review)
+
         # Hash the country and append to country_keys
         new_country_key = hashlib.sha1(new_country.encode()).hexdigest()[-4:]
         self.country_keys = np.append(self.country_keys, new_country_key)
+
         # Append the original country to the countries list
-        self.countries.append(new_country)
+        self.countries = np.append(self.countries, new_country)
+
         # Rebuild the KD-Tree with the updated points
         self.build(self.points)
 
@@ -72,7 +76,7 @@ class KDTree:
         self.points = np.delete(self.points, indices_to_delete, axis=0)
         self.reviews = np.delete(self.reviews, indices_to_delete)
         self.country_keys = np.delete(self.country_keys, indices_to_delete)
-        self.countries = list(np.delete(self.countries, indices_to_delete))
+        self.countries = np.delete(self.countries, indices_to_delete)
 
         # Rebuild the KD-Tree with the updated points
         if self.points.size > 0:
@@ -80,7 +84,7 @@ class KDTree:
         else:
             self.tree = None
 
-        print(f"Deleted {len(indices_to_delete)} points with country key: {country_key}")
+        print(f"Deleted {len(indices_to_delete)} points with country key: {country_key}\n")
 
     def print_countries(self):
         """
@@ -116,7 +120,9 @@ class KDTree:
 
             # Match additional criteria if provided
             if criteria:
-                match = all(point[CRITERIA_MAPPING[key]] == value for key, value in criteria.items())
+                match = all(
+                    point[CRITERIA_MAPPING[key]] == value for key, value in criteria.items()
+                )
                 if not match:
                     continue
 
@@ -190,10 +196,10 @@ class KDTree:
                 lower_bounds[i] = np.min(self.points[:, i])
                 upper_bounds[i] = np.max(self.points[:, i])
         center = [(lower_bounds[i] + upper_bounds[i]) / 2 for i in range(3)]
-        radius = max((upper_bounds[i] - lower_bounds[i]) / 2 for i in range(3))
+        radius = np.linalg.norm((np.array(upper_bounds) - np.array(lower_bounds)) / 2)
 
-        # Query points within the hypersphere defined by center and radius
-        indices = self.tree.query_radius([center], r=radius)[0]
+        # Query points within the hypersphere defined by center and radius + a small epsilon
+        indices = self.tree.query_radius([center], r=radius + 1e-8)[0]
 
         # Filter results within the actual range bounds and matching the country_key
         matching_points = []
@@ -214,6 +220,27 @@ class KDTree:
         matching_reviews = np.array(matching_reviews)
 
         return matching_points, matching_reviews
+
+    def get_unique_country_keys(self):
+        """Return tuple of lists with the unique country keys and their assosiated countries."""
+        unique_country_keys = np.unique(self.country_keys)
+        unique_countries = []
+        for key in unique_country_keys:
+            for country in self.countries:
+                if key == hashlib.sha1(country.encode()).hexdigest()[-4:]:
+                    unique_countries.append(country)
+                    break
+        return list(unique_country_keys), unique_countries
+
+    def get_points(self, country_key):
+        """Return the points and reviews for a specific country key."""
+        points = []
+        reviews = []
+        for idx, key in enumerate(self.country_keys):
+            if key == country_key:
+                points.append(self.points[idx].tolist())
+                reviews.append(self.reviews[idx].tolist())
+        return np.array(points), np.array(reviews)
 
     def print_search_results(self, matching_points, matching_reviews):
         """Prints the search results, including the associated country."""
@@ -236,34 +263,67 @@ class KDTree:
             )
             print(f"\nPoint: {point}\nReview: {review}\nCountry: {country}")
 
-    def visualize(self, points, reviews):
+    def visualize(
+        self, ax, canvas, points=None, reviews=None, country_key=None, country=None, title=None
+    ):
         """
-        Visualize the points in a 3D scatter plot.
-        """
-        fig = plt.figure(figsize=(10, 7))
-        ax = fig.add_subplot(111, projection="3d")
+        Visualize the points in a 3D scatter plot on the provided Axes object.
+        If points and reviews are None, visualize all stored points.
 
-        # Scatter plot the points
-        ax.scatter(points[:, 0], points[:, 1], points[:, 2], c="blue", marker="o", picker=True)
+        Args:
+            ax (Axes): The Matplotlib Axes object to plot on.
+            canvas (FigureCanvasTkAgg): The Tkinter canvas for displaying the plot.
+            points (numpy array, optional): Array of data points. If None, use all stored points.
+            reviews (numpy array, optional): Array of reviews. If None, use all stored reviews.
+        """
+        # If to points and reviews are provided, use all stored points and reviews
+        if points is None or reviews is None:
+            if self.points is None or self.reviews is None or len(self.points) == 0:
+                print("No points available for visualization.")
+                return
+            points = self.points
+            reviews = self.reviews
+
+        if len(points) > 0:
+            # Create a 3D scatter plot if points are available
+            ax.scatter(points[:, 0], points[:, 1], points[:, 2], c="blue", marker="o", picker=True)
 
         # Label axes
         ax.set_xlabel("Review Date (Year)")
         ax.set_ylabel("Rating")
         ax.set_zlabel("Price (100g USD)")
 
+        # Set integer year ticks
+        ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+
+        # If there's only one point or the all the points have the same year, narrow the x-axis range
+        if len(points) > 0 and (points.shape[0] == 1 or np.all(points[:, 0] == points[0, 0])):
+            year = points[0, 0]
+            ax.set_xlim(year - 1, year + 1)  # 1 year margin on each side
+            ax.set_xticks([year])
+
         # Add title
-        ax.set_title("3D Scatter Plot of Coffee Review Points")
+        if title is not None:
+            ax.set_title(title)
+        elif country_key is None or country is None:
+            ax.set_title("3D Scatter Plot of Coffee Review Points")
+        else:
+            ax.set_title(
+                f"3D Scatter Plot of Coffee Review Points from {country} - Key: {country_key}"
+            )
 
-        def on_pick(event):
-            """Handle the pick event to display the associated review."""
-            ind = event.ind[0]  # Index of the picked point
-            review = reviews[ind]
-            print(f"\nReview for selected point ({points[ind]}):\n{review}")
+        # Redraw the canvas
+        canvas.draw()
 
-        # Connect the pick event
-        fig.canvas.mpl_connect("pick_event", on_pick)
+    def on_pick(self, event, points, reviews, review_text):
+        """Handle the pick event to display the associated review."""
+        ind = event.ind[0]  # Index of the picked point
+        review_text.config(state=tk.NORMAL)
+        review_text.delete(1.0, tk.END)
 
-        plt.show()
+        text = f"Point: {points[ind]}\nReview: {reviews[ind]}"
+        review_text.insert(tk.END, text)
+        review_text.config(font=("Courier", 11), state=tk.DISABLED)
 
 
 # Map criteria keys to point array indices
@@ -291,7 +351,7 @@ if __name__ == "__main__":
     country_keys = [hashlib.sha1(country.encode()).hexdigest()[-4:] for country in countries]
 
     # Build the KD-Tree
-    kd_tree = KDTree(points, reviews, country_keys, countries)
+    kd_tree = KDTree(points, reviews)
 
     # kd_tree.visualize(points, reviews)
 

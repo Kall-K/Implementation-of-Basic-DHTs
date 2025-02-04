@@ -8,18 +8,19 @@ import numpy as np
 import subprocess  # for running netsh to get excluded ports on Windows
 import re
 import platform  # for system identification to get excluded ports
-from constants import *
-from helper_functions import *
 from collections import defaultdict
 import sys
 import os
 
 # Add the parent directory to sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from .constants import *
+from .helper_functions import *
 from Multidimensional_Data_Structures.kd_tree import KDTree
 from Multidimensional_Data_Structures.lsh import LSH
 from sklearn.feature_extraction.text import TfidfVectorizer
+
 
 class ChordNode:
 
@@ -29,11 +30,9 @@ class ChordNode:
         """
         self.network = network  # Reference to the DHT network
         self.address = self._generate_address()  # (IP, Port)
-        self.node_id = (
-            node_id if node_id is not None else self._generate_id(self.address)
-        )
+        self.node_id = node_id if node_id is not None else self._generate_id(self.address)
         self.kd_tree = None  # Centralized KD-Tree
-        
+
         self.predecessor = self.node_id
         self.finger_table = [self.node_id] * M
 
@@ -46,7 +45,7 @@ class ChordNode:
 
         # Create a thread pool for handling requests to limit the number of concurrent threads
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
-        self.stop_event = threading.Event() # event to stop while 
+        self.stop_event = threading.Event()  # event to stop while
 
     # Initialization Methods
 
@@ -56,7 +55,9 @@ class ChordNode:
         """
         # Simulate unique IPs in a private network range (192.168.x.x)
         ip = f"192.168.{np.random.randint(0, 256)}.{np.random.randint(1, 256)}"
-        port = port or self._generate_port() #np.random.randint(1024, 65535)  # Random port if not provided
+        port = (
+            port or self._generate_port()
+        )  # np.random.randint(1024, 65535)  # Random port if not provided
         return (ip, port)
 
     def _generate_id(self, address):
@@ -67,7 +68,7 @@ class ChordNode:
         sha1_hash = hashlib.sha1(address_str.encode()).hexdigest()
         node_id = sha1_hash[-HASH_HEX_DIGITS:]  # Take the last 128 bits
         return node_id
-    
+
     def get_excluded_ports(self):
         """
         Retrieve the list of excluded ports from Windows (netsh) or Linux (/proc/sys/net/ipv4/ip_local_reserved_ports).
@@ -77,7 +78,11 @@ class ChordNode:
         if platform.system() == "Windows":
             try:
                 # Run netsh command to get reserved ports
-                output = subprocess.check_output(["netsh", "int", "ipv4", "show", "excludedportrange", "protocol=tcp"], text=True, shell=True)
+                output = subprocess.check_output(
+                    ["netsh", "int", "ipv4", "show", "excludedportrange", "protocol=tcp"],
+                    text=True,
+                    shell=True,
+                )
 
                 # Extract port ranges using regex
                 matches = re.findall(r"(\d+)\s+(\d+)", output)
@@ -91,11 +96,11 @@ class ChordNode:
             try:
                 # Use 'ss' get occupied ports
                 output = subprocess.check_output(["ss", "-tan"], text=True)
-                
+
                 # Extract port numbers from the output
                 matches = re.findall(r":(\d+)", output)
                 occupied_ports = {int(port) for port in matches}
-                
+
                 # Convert occupied ports to (port, port) format for consistency with Windows
                 for port in occupied_ports:
                     excluded_ports.append((port, port))
@@ -104,7 +109,7 @@ class ChordNode:
                 print(f"Failed to retrieve occupied ports on Linux using 'ss': {e}")
 
         return excluded_ports
-    
+
     def _generate_port(self):
         """
         Generate a unique address Port for the node.
@@ -122,27 +127,54 @@ class ChordNode:
                 return port
 
     # State Inspection
+    def get_state(self):
+        """
+        Return a string containing the state of the node (ID, Address, Data Structures).
+        """
+        state = []
+        state.append(f"Node ID: {self.node_id}")
+        state.append(f"Port: {self.address[1]}")
+        state.append(f"\nPredecessor: {self.predecessor}")
+        state.append(f"Successors: {self.successors}")
+        state.append(f"\nFinger Table: {self.finger_table}")
+
+        # KD Tree Information
+        state.append("\nKD Tree:\nUnique Country Keys:")
+        if not self.kd_tree or self.kd_tree.country_keys.size == 0:
+            state.append("[]")  # Empty KD Tree
+        else:
+            unique_keys, counts = np.unique(self.kd_tree.country_keys, return_counts=True)
+            state.append(f"{list(map(str, unique_keys))}")
+
+            # Country count table
+            state.append("\nNumber of points/reviews for each country:")
+            state.append(f"{'Country Key':<12} | {'Country Name':<14} | {'Count':<6}")
+            state.append("-" * 38)
+
+            country_map = dict(zip(self.kd_tree.country_keys, self.kd_tree.countries))
+            for key, count in zip(unique_keys, counts):
+                state.append(f"{key:<12} | {country_map[key]:<14} | {count:<6}")
+
+        state.append("\nBackup:\nUnique Country Keys:")
+        if not self.back_up or self.back_up.country_keys.size == 0:
+            state.append("[]")  # Empty Backup
+        else:
+            unique_keys, counts = np.unique(self.back_up.country_keys, return_counts=True)
+            state.append(f"{list(map(str, unique_keys))}")
+
+            # Country count table
+            state.append("\nNumber of points/reviews for each country:")
+            state.append(f"{'Country Key':<12} | {'Country Name':<14} | {'Count':<6}")
+            state.append("-" * 38)
+
+            country_map = dict(zip(self.back_up.country_keys, self.back_up.countries))
+            for key, count in zip(unique_keys, counts):
+                state.append(f"{key:<12} | {country_map[key]:<14} | {count:<6}")
+
+        return "\n".join(state)
+
     def print_state(self):
-        """
-        Print the state of the node (ID, Address, Data Structures).
-        """
-        print("\n" + "-" * 100)
-        print(f"-- Node ID: {self.node_id} --")
-        print(f"* Predecessor: {self.predecessor}")
-        print(f"* Finger Table: {self.finger_table}")
-        print(f"* Successors: {self.successors}")
-        if self.kd_tree:
-            print("* KDTree Infos")
-            print(f"\tUnique Countries: {list(set(self.kd_tree.countries))}")
-            print(f"\tUnique keys: {np.unique(self.kd_tree.country_keys)}")
-            print(f"\tNum of points: {len(self.kd_tree.points)}")
-        else: print("* KDTree is Empty.")
-        if self.back_up:
-            print("* Backup Infos")
-            print(f"\tUnique Countries: {list(set(self.back_up.countries))}")
-            print(f"\tUnique keys: {np.unique(self.back_up.country_keys)}")
-            print(f"\tNum of points: {len(self.back_up.points)}")
-        else: print("* Backup is Empty.")
+        print(self.get_state)
 
     # Network Communication
 
@@ -153,7 +185,7 @@ class ChordNode:
         self.thread_pool.submit(self._server)
         self.thread_pool.submit(self._update_successors_scheduler)
         self.thread_pool.submit(self._update_finger_table_scheduler)
-        
+
     def _update_finger_table_scheduler(self):
         interval = 3  # seconds
         while True:
@@ -162,7 +194,7 @@ class ChordNode:
             time.sleep(interval)
             self.update_finger_table()
             # print("Updated Finger Table of Node:", self.node_id)
-    
+
     def _update_successors_scheduler(self):
         interval = 0.5  # seconds
         while True:
@@ -202,7 +234,7 @@ class ChordNode:
 
     def _handle_request(self, conn):
         try:
-            data = conn.recv(1024*1024)  # Read up to 1024*1024 bytes of data
+            data = conn.recv(1024 * 1024)  # Read up to 1024*1024 bytes of data
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
             response = None
@@ -252,25 +284,21 @@ class ChordNode:
             try:
                 s.connect(connect_address)  # Connect using loopback
                 s.sendall(pickle.dumps(request))  # Serialize and send the request
-                response = s.recv(1024*1024)  # Receive the response
+                response = s.recv(1024 * 1024)  # Receive the response
             except Exception as e:
                 return None
 
         return pickle.loads(response)  # Deserialize the response
-    
+
     #############################
     ######### Requests ##########
     #############################
 
     def request_find_successor(self, key, node, hops):
-        get_successor_request = {
-            "operation": "FIND_SUCCESSOR",
-            "key": key,
-            "hops": hops
-        }
+        get_successor_request = {"operation": "FIND_SUCCESSOR", "key": key, "hops": hops}
         # Get the position on the ring
         return self.send_request(node, get_successor_request)
-    
+
     def request_delete_successor_keys(self, keys, successor_id):
         node = self.network.nodes[successor_id]
         delete_successor_keys = {
@@ -291,7 +319,7 @@ class ChordNode:
         }
         status = self.send_request(node, set_successor)
         return status
-    
+
     def request_set_predecessor(self, predecessor_id, node_id):
         """
         Send a request to the node with node_id to set its successor to predecessor_id.
@@ -309,33 +337,26 @@ class ChordNode:
         restoration = {
             "operation": "RESTORATION",
             "sender_id": self.node_id,
-            "kdtree": self.kd_tree
+            "kdtree": self.kd_tree,
         }
         status = self.send_request(node, restoration)
         return status
-    
+
     def request_get_successor(self, node_id):
         node = self.network.nodes[node_id]
-        get_successor = {
-            "operation": "GET_SUCCESSOR"
-        }
+        get_successor = {"operation": "GET_SUCCESSOR"}
         status = self.send_request(node, get_successor)
         return status
-    
+
     def request_status_running(self, node_id):
         node = self.network.nodes[node_id]
-        get_status = {
-            "operation": "GET_STATUS"
-        }
+        get_status = {"operation": "GET_STATUS"}
         status = self.send_request(node, get_status)
         return status
-    
+
     def request_set_backup(self, backup, node_id):
         node = self.network.nodes[node_id]
-        set_backup = {
-            "operation": "SET_BACKUP",
-            "backup": backup
-        }
+        set_backup = {"operation": "SET_BACKUP", "backup": backup}
         status = self.send_request(node, set_backup)
         return status
 
@@ -348,7 +369,7 @@ class ChordNode:
     #############################
     ######### Handlers ##########
     #############################
-    
+
     def _handle_find_successor(self, request):
         key = request["key"]
         request["hops"].append(self.node_id)
@@ -360,7 +381,7 @@ class ChordNode:
             closest_preceding_node_id = self.closest_preceding_node(self, key)
             closest_preceding_node = self.network.nodes[closest_preceding_node_id]
             return self.request_find_successor(key, closest_preceding_node, request["hops"])
-    
+
     def _handle_delete_successor_keys(self, request):
         keys = request["keys"]
         for key in keys:
@@ -373,12 +394,12 @@ class ChordNode:
         self.finger_table[0] = successor_id
         self.successors[0] = successor_id
         return 0
-    
+
     def _handle_set_predecessor(self, request):
         predecessor_id = request["predecessor"]
         self.predecessor = predecessor_id
         return 0
-    
+
     def _handle_restoration_request(self, request):
         tree = request["kdtree"]
         # Set new predecessor
@@ -389,9 +410,9 @@ class ChordNode:
             points = self.back_up.points
             reviews = self.back_up.reviews.tolist()
             countries = self.back_up.countries
-            c=0
+            c = 0
             for key, point, review, country in zip(keys, points, reviews, countries):
-                c=c+1
+                c = c + 1
                 request = {
                     "operation": "INSERT_KEY",
                     "key": key,
@@ -399,26 +420,26 @@ class ChordNode:
                     "review": review,
                     "country": country,
                     "hops": [],  # Initialize hops tracking
-                    "choice": True
+                    "choice": True,
                 }
                 self._handle_insert_key_request(request)
             self.back_up = tree
             return {"message": "Back up merged."}
-            
-        else:           
+
+        else:
             self.back_up = tree
             return {"message": "Back up is empty."}
 
     def _handle_set_backup(self, request):
         self.back_up = request["backup"]
         return 0
-    
+
     def _handle_get_successor_request(self):
         return self.get_successor()
 
     def _handle_get_status_request(self):
         return self.running
-    
+
     #############################
     ####### KEY Handlers ########
     #############################
@@ -426,7 +447,7 @@ class ChordNode:
     def _handle_insert_key_request(self, request):
         """
         Handle an INSERT_KEY operation.
-        """        
+        """
         key = request["key"]
         point = request["point"]
         review = request["review"]
@@ -449,17 +470,18 @@ class ChordNode:
                 # Add point to the existing KDTree
                 tree.add_point(point, review, country)
 
-            if request["choice"]: 
+            if request["choice"]:
                 self.kd_tree = tree
                 self.request_backup_update(self.get_successor(), request)
-            else: self.back_up = tree
-            
+            else:
+                self.back_up = tree
+
             return {
                 "status": "success",
                 "message": f"Key {key} stored at {self.node_id}",
-                "hops": hops
+                "hops": hops,
             }
-    
+
     def _handle_delete_key_request(self, request):
         """
         Handle a DELETE_KEY operation.
@@ -476,9 +498,10 @@ class ChordNode:
                 return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
             
             if request["choice"]: 
-                    self.kd_tree = tree
-                    self.request_backup_update(self.get_successor(), request)
-            else: self.back_up = tree
+                self.kd_tree = tree
+                self.request_backup_update(self.get_successor(), request)
+            else: 
+                self.back_up = tree
 
             return {"status": "success", "message": f"Deleted Key {key}.", "hops": hops}
 
@@ -490,7 +513,7 @@ class ChordNode:
         criteria = request.get("criteria", None)  # Optional criteria to filter
         update_fields = request["data"]  # Update fields for the KDTree
         hops = request.get("hops", [])
-        
+
         tree = self.kd_tree if request["choice"] else self.back_up
 
         with self.lock:
@@ -503,19 +526,20 @@ class ChordNode:
                 )
             else:
                 return {"status": "failure", "message": f"Key {key} not found.", "hops": hops}
-            
-            if request["choice"]: 
+
+            if request["choice"]:
                 self.kd_tree = tree
                 self.request_backup_update(self.get_successor(), request)
-            else: self.back_up = tree
+            else:
+                self.back_up = tree
 
             return {
-                        "status": "success",
-                        "message": f"Key {key} updated successfully.",
-                        "hops": hops,
-                    }
-    
-    def _handle_lookup_request(self, request): 
+                "status": "success",
+                "message": f"Key {key} updated successfully.",
+                "hops": hops,
+            }
+
+    def _handle_lookup_request(self, request):
         """
         Handle a LOOKUP operation.
         """
@@ -525,8 +549,13 @@ class ChordNode:
         N = request["N"]
         hops = request.get("hops", [])  # Retrieve the current hops list
 
-        if key not in self.kd_tree.country_keys or not self.kd_tree or self.kd_tree.points.size == 0:
+        if (
+            key not in self.kd_tree.country_keys
+            or not self.kd_tree
+            or self.kd_tree.points.size == 0
+        ):
             print(f"Node {self.node_id}: No data for key {key}.")
+
             return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
         
         # KDTree Range Search
@@ -535,7 +564,13 @@ class ChordNode:
 
         if len(reviews) == 0:
             print(f"Node {self.node_id}: No reviews found within the specified range.")
-            return {"status": "success", "points": [], "reviews": [], "hops": hops}
+            return {
+                "status": "success",
+                "points": [],
+                "reviews": [],
+                "similar_reviews": [],
+                "hops": hops,
+            }
 
         # LSH Similarity Search
         vectorizer = TfidfVectorizer()
@@ -547,7 +582,7 @@ class ChordNode:
 
         similar_pairs = lsh.find_similar_pairs(N)
         similar_docs = lsh.find_similar_docs(similar_pairs, reviews, N)
-        
+
         if similar_docs:
             print(f"\nThe {N} Most Similar Reviews:\n")
             for i, doc in enumerate(similar_docs, 1):
@@ -555,10 +590,13 @@ class ChordNode:
 
         return {
             "status": "success",
+            "points": points,
+            "reviews": reviews,
+            "similar_reviews": similar_docs,
             "message": f"Node {self.node_id} found {len(points)} matching points.",
-            "hops": hops
+            "hops": hops,
         }
-    
+
     #############################
     ###### KEY operations #######
     #############################
@@ -576,7 +614,7 @@ class ChordNode:
             "hops": [],  # Initialize hops tracking
         }
         successor_id, hops = self._handle_find_successor(request)
-        request["hops"] = len(hops)-1
+        request["hops"] = len(hops) - 1
         successor = self.network.nodes[successor_id]
         request["choice"] = True
         return self.send_request(successor, request)
@@ -591,11 +629,11 @@ class ChordNode:
             "hops": [],  # Initialize hops tracking
         }
         successor_id, hops = self._handle_find_successor(request)
-        request["hops"] = len(hops)-1
+        request["hops"] = len(hops) - 1
         successor = self.network.nodes[successor_id]
         request["choice"] = True
         return self.send_request(successor, request)
-    
+
     def update_key(self, key, updated_data, criteria=None):
         """
         Initiate the UPDATE_KEY operation for a given key with optional criteria and updated data.
@@ -617,11 +655,11 @@ class ChordNode:
             "hops": [],  # Initialize hops tracking
         }
         successor_id, hops = self._handle_find_successor(request)
-        request["hops"] = len(hops)-1
+        request["hops"] = len(hops) - 1
         successor = self.network.nodes[successor_id]
         request["choice"] = True
         return self.send_request(successor, request)
-  
+
     def lookup(self, key, lower_bounds, upper_bounds, N=5):
         """
         Lookup operation for a given key with KDTree range search and LSH similarity check.
@@ -635,7 +673,7 @@ class ChordNode:
             "hops": [],
         }
         successor_id, hops = self._handle_find_successor(request)
-        request["hops"] = len(hops)-1
+        request["hops"] = len(hops) - 1
         successor = self.network.nodes[successor_id]
 
         return self.send_request(successor, request)
@@ -647,10 +685,12 @@ class ChordNode:
     def update_finger_table(self, hops=[]):
         self.finger_table[0] = self.successors[0]
         for i in range(1, len(self.finger_table)):
-            key = int_to_hex((int(self.node_id, 16) + 2 ** i) % R)
+            key = int_to_hex((int(self.node_id, 16) + 2**i) % R)
             temp_node = self.request_find_successor(key, self, hops)[0]
             while self.network.nodes[temp_node].running == False:
-                temp_node = self.request_find_successor(int_to_hex((int(temp_node, 16) + 1) % R), self, hops)[0]
+                temp_node = self.request_find_successor(
+                    int_to_hex((int(temp_node, 16) + 1) % R), self, hops
+                )[0]
             self.finger_table[i] = temp_node
 
     #############################
@@ -658,10 +698,10 @@ class ChordNode:
     #############################
 
     def closest_preceding_node(self, node, h_key):
-        for i in range(len(node.finger_table)-1, 0, -1):
-            if distance(node.finger_table[i-1], h_key) < distance(node.finger_table[i], h_key):
-                if self.network.nodes[node.finger_table[i-1]].running: # skip non-running nodes
-                    return node.finger_table[i-1]
+        for i in range(len(node.finger_table) - 1, 0, -1):
+            if distance(node.finger_table[i - 1], h_key) < distance(node.finger_table[i], h_key):
+                if self.network.nodes[node.finger_table[i - 1]].running:  # skip non-running nodes
+                    return node.finger_table[i - 1]
 
         return node.finger_table[-1]
 
@@ -672,7 +712,7 @@ class ChordNode:
     def join(self, successor_node):
         suc_id = successor_node.node_id
         pre_id = successor_node.predecessor
-        
+
         # set the successor of the predecessor to self's id
         self.request_set_successor(self.node_id, pre_id)
         # set the predecessor of the successor to self's id
@@ -683,16 +723,23 @@ class ChordNode:
         self.predecessor = pre_id
 
         self.update_finger_table()
-        
+
         if successor_node.kd_tree != None:
             # Get keys from successor
-            keys = {key for key in sorted(successor_node.kd_tree.country_keys)
-                    if (distance(self.node_id, key) < distance(self.get_successor(), key))}
-            
+            keys = {
+                key
+                for key in sorted(successor_node.kd_tree.country_keys)
+                if (distance(self.node_id, key) < distance(self.get_successor(), key))
+            }
+
             # 1. Insert keys and data to self's kdtree
             for key in keys:
-                review = successor_node.kd_tree.reviews[successor_node.kd_tree.country_keys == key][0]
-                country = successor_node.kd_tree.countries[successor_node.kd_tree.country_keys == key][0]
+                review = successor_node.kd_tree.reviews[successor_node.kd_tree.country_keys == key][
+                    0
+                ]
+                country = successor_node.kd_tree.countries[
+                    successor_node.kd_tree.country_keys == key
+                ][0]
                 point = successor_node.kd_tree.points[successor_node.kd_tree.country_keys == key][0]
                 self.kd_tree.add_point(point, review, country)
 
@@ -723,23 +770,23 @@ class ChordNode:
 
     def get_successor(self):
         # Get first running successor
-        for i in range(len(self.successors)-1):
+        for i in range(len(self.successors) - 1):
             if self.network.nodes[self.successors[i]].running:
                 return self.successors[i]
         return -1
-    
+
     #############################
     #### Update Successors ######
     #############################
-    
+
     def update_successors_on_join(self):
         # Find node to insert node
         index_to_insert_node = -1
         node_id = ""
-        
-        for i in range(len(self.successors)-1):
+
+        for i in range(len(self.successors) - 1):
             successor_of_successor = self.network.nodes[self.successors[i]].get_successor()
-            if successor_of_successor != self.successors[i+1]:
+            if successor_of_successor != self.successors[i + 1]:
                 index_to_insert_node = i + 1
                 node_id = successor_of_successor
                 break
@@ -748,8 +795,8 @@ class ChordNode:
             return
 
         # Insert node
-        for i in range(index_to_insert_node, len(self.successors)-1):
-            self.successors[i+1] = self.successors[i]
+        for i in range(index_to_insert_node, len(self.successors) - 1):
+            self.successors[i + 1] = self.successors[i]
         self.successors[index_to_insert_node] = node_id
         self.update_successors_on_join()
 
@@ -763,14 +810,14 @@ class ChordNode:
 
         if index_of_node_that_left == -1:
             return
-                    
+
         if index_of_node_that_left == 0:
             new_successor = self.get_successor()
             self.request_restoration(new_successor)
-   
+
         # For each index in the successors list
-        for i in range(index_of_node_that_left, len(self.successors)-1):
-            self.successors[i] = self.successors[i+1]
+        for i in range(index_of_node_that_left, len(self.successors) - 1):
+            self.successors[i] = self.successors[i + 1]
 
         # update last position because its empty
         self.successors[-1] = self.request_get_successor(self.successors[-2])
