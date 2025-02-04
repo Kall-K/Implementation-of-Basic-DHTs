@@ -67,6 +67,14 @@ def main():
 
     # network.visualize_network()
 
+    # Scenario: leave node 4b12 
+    # Issue: Although node 4b12 has left, it still exists into finger tables of nodes fa35 and cafe
+    # network.nodes["4b12"].leave()
+    # time.sleep(10)
+    # for node_id in network.nodes.keys():
+    #     if network.nodes[node_id].running:
+    #         network.nodes[node_id].print_state()
+
     ################################################################
     #                        KEYS INSERTION                        #
     ################################################################ 
@@ -137,6 +145,7 @@ def main():
     # ################################################################
     # #                        LOOKUP KEY                            #
     # ################################################################
+    # thelei allagi, den einai endeiktiko to lookup gia ta update pu eginan
     lower_bounds = [2023, 97, 35.0]
     upper_bounds = [2023, 97, 35.0]
     print("\nVerifying updates through lookup:")
@@ -164,9 +173,15 @@ def main():
     print("\nVerifying deletion through lookup:\n")
     network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
 
-        # for node_id in network.nodes.keys():
+
+    # This scenario throws ERROR
+    # node = ChordNode(network, node_id="2fec")
+    # node.start_server()
+    # network.node_join(node)
+    # time.sleep(5)
+    # for node_id in network.nodes.keys():
     #     network.nodes[node_id].print_state()
-    
+
     # ################################################################
     # #                        NODES LEAVE                           #
     # ################################################################    

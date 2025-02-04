@@ -643,6 +643,7 @@ class ChordNode:
     #############################
     #### Update Finger Table ####
     #############################
+    
     def update_finger_table(self, hops=[]):
         self.finger_table[0] = self.successors[0]
         for i in range(1, len(self.finger_table)):
