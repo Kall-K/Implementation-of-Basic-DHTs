@@ -305,6 +305,6 @@ class PastryNetwork:
             print(response)
 
         # Show the Pastry GUI
-        self.gui.show_pastry_gui()
+        self.gui.show_dht_gui()
         # Run the gui main loop
         self.gui.root.mainloop()

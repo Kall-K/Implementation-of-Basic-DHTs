@@ -87,7 +87,7 @@ class ChordNetwork:
             self.insert_key(key, point, review, country)
 
         # Show the Chord GUI
-        self.gui.show_chord_gui()
+        self.gui.show_dht_gui()
         # Run the gui main loop
         self.gui.root.mainloop()
 
