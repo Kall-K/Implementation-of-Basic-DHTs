@@ -201,7 +201,7 @@ class Dashboard(ABC):
         self.show_visualization()
 
         # Update the Info Panel
-        if self.selected_node and self.selected_node in self.network.nodes.values():
+        if self.selected_node and self.selected_node.running:
             self.update_info_panel(self.selected_node)
         else:
             # Clear the info panel text
