@@ -254,6 +254,7 @@ class ChordNode:
                 s.sendall(pickle.dumps(request))  # Serialize and send the request
                 response = s.recv(1024*1024)  # Receive the response
             except Exception as e:
+                print(e)
                 return None
 
         return pickle.loads(response)  # Deserialize the response
@@ -648,9 +649,19 @@ class ChordNode:
         self.finger_table[0] = self.successors[0]
         for i in range(1, len(self.finger_table)):
             key = int_to_hex((int(self.node_id, 16) + 2 ** i) % R)
-            temp_node = self.request_find_successor(key, self, hops)[0]
+            temp_dict = {
+                "operation": "FIND_SUCCESSOR",
+                "key": key,
+                "hops": hops
+            }
+            temp_node = self._handle_find_successor(temp_dict)[0]
             while self.network.nodes[temp_node].running == False:
-                temp_node = self.request_find_successor(int_to_hex((int(temp_node, 16) + 1) % R), self, hops)[0]
+                temp_dict = {
+                    "operation": "FIND_SUCCESSOR",
+                    "key": int_to_hex((int(temp_node, 16) + 1) % R),
+                    "hops": hops
+                }
+            temp_node = self._handle_find_successor(temp_dict)[0]
             self.finger_table[i] = temp_node
 
     #############################
@@ -658,10 +669,26 @@ class ChordNode:
     #############################
 
     def closest_preceding_node(self, node, h_key):
+        for i in range(len(node.finger_table)-1):
+            if not self.network.nodes[node.finger_table[i]].running:
+                c = i+1
+                while  c <= len(node.finger_table)-2 and not self.network.nodes[node.finger_table[c]].running:
+                    c = c+1
+                for idx in range(i,c+1):
+                    node.finger_table[idx] = node.finger_table[c]
+
+        for i in range(len(node.finger_table)-1, 0, -1):
+            if not self.network.nodes[node.finger_table[i]].running:
+                c = i-1
+                while  c >= 0 and not self.network.nodes[node.finger_table[c]].running:
+                    c = c-1
+                for idx in range(i, c+1, -1):
+                    node.finger_table[idx] = node.finger_table[c]
+
         for i in range(len(node.finger_table)-1, 0, -1):
             if distance(node.finger_table[i-1], h_key) < distance(node.finger_table[i], h_key):
-                if self.network.nodes[node.finger_table[i-1]].running: # skip non-running nodes
-                    return node.finger_table[i-1]
+                # if self.network.nodes[node.finger_table[i-1]].running: # skip non-running nodes
+                return node.finger_table[i-1]
 
         return node.finger_table[-1]
 
