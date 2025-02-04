@@ -196,10 +196,10 @@ class KDTree:
                 lower_bounds[i] = np.min(self.points[:, i])
                 upper_bounds[i] = np.max(self.points[:, i])
         center = [(lower_bounds[i] + upper_bounds[i]) / 2 for i in range(3)]
-        radius = max((upper_bounds[i] - lower_bounds[i]) / 2 for i in range(3))
+        radius = np.linalg.norm((np.array(upper_bounds) - np.array(lower_bounds)) / 2)
 
-        # Query points within the hypersphere defined by center and radius
-        indices = self.tree.query_radius([center], r=radius)[0]
+        # Query points within the hypersphere defined by center and radius + a small epsilon
+        indices = self.tree.query_radius([center], r=radius + 1e-8)[0]
 
         # Filter results within the actual range bounds and matching the country_key
         matching_points = []

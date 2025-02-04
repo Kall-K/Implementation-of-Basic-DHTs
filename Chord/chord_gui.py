@@ -32,7 +32,7 @@ class ChordDashboard:
         """Shut down Chord network before closing GUI."""
         print("Shutting down network...")
         for node in self.network.nodes.values():
-            node.running = False
+            node.leave()
 
         # Stop Tkinter main loop
         self.root.quit()  # Exit the event loop

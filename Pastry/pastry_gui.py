@@ -8,12 +8,25 @@ from matplotlib.collections import PathCollection
 from .node import PastryNode
 from .helper_functions import hash_key
 
-# from ..Chord import ChordDashboard
+
+WIDTH = 1720
+HEIGHT = 750
 
 
 class PastryDashboard:
     def __init__(self, network, main_window):
-        super.__init__(network, main_window)
+        self.network = network
+        self.main_window = main_window
+        self.selected_node = None
+        self.root = tk.Tk()
+        self.root.title("Pastry GUI")
+        self.root.geometry(f"{WIDTH}x{HEIGHT}")
+
+        # Ensure cleanup on close
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+
+        # Setup main layout
+        self.setup_widgets()
 
     def on_close(self):
         """Shut down Pastry network before closing GUI."""
