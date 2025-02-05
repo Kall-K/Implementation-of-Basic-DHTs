@@ -1,119 +1,82 @@
-import time
-import pandas as pd
-
 import sys
 import os
+import random
+import numpy as np
 
 # Add the parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-
 from Pastry.network import PastryNetwork
-from Pastry.node import PastryNode
-from Pastry.constants import *
-from Pastry.helper_functions import hash_key
+from Multidimensional_Data_Structures.kd_tree import KDTree
 
+predefined_ids = [
+    "4b12",
+    "fa35",
+    "19bd",
+    "37de",
+    "3722",
+    "ca12",
+    "cafe",
+    "fb32",
+    "20bc",
+    "20bd",
+    "3745",
+    "d3ad",
+]
 
 def main():
-    # Load dataset
-    dataset_path = "../../Coffee_Reviews_Dataset/simplified_coffee.csv"
-    df = pd.read_csv(dataset_path)
-
-    # Keep only the year from the review_date column
-    df["review_date"] = pd.to_datetime(df["review_date"], format="%B %Y").dt.year
-
-    # Extract loc_country as keys
-    keys = df["loc_country"].apply(hash_key)
-
-    # Extract data points (review_date, rating, 100g_USD)
-    points = df[["review_date", "rating", "100g_USD"]].to_numpy()
-
-    # Extract reviews and other details
-    reviews = df["review"].to_numpy()
-    countries = df["loc_country"].to_numpy()
-    names = df["name"].to_numpy()
-
-    # Stage 1: Node Joining
-    print("Stage 1: Node Joining")
-    print("=======================")
-    print("Creating the Pastry network...")
     network = PastryNetwork()
 
-    # 12 Predefined node IDs. As many as the countries in the dataset
-    predefined_ids = [
-        "4b12",
-        "fa35",
-        "19bd",
-        "37de",
-        "3722",
-        "ca12",
-        "cafe",
-        "fb32",
-        "20bc",
-        "20bd",
-        "3745",
-        "d3ad",
-    ]
+    # Build the network with predefined IDs
+    network.build(
+        predefined_ids=predefined_ids,
+        dataset_path="../../Coffee_Reviews_Dataset/simplified_coffee.csv",
+    )
 
-    print(f"Adding {len(predefined_ids)} nodes to the network...")
-    for node_id in predefined_ids:
-        node = PastryNode(network, node_id=node_id)
-        node.start_server()
-        time.sleep(0.1)  # Allow the server to start
-        network.node_join(node)
-        print(f"Node Added: ID = {node.node_id}, Position = {node.position}")
-    print("\nAll nodes have successfully joined the network.\n")
+    # Define the lookup parameters
+    lower_bounds = [2020, None, None]  # Example lower bounds
+    upper_bounds = [2021, None, None]  # Example upper bounds
+    N = 5  # Number of results to return
 
-    # Stage 2: Key Insertions
-
-    print("Stage 2: Key Insertions")
-    print("=======================")
-    print("\nInserting data into the network...")
-    first_node = list(network.nodes.values())[0]
-
-    # Insert 2 points
-    country = "England"
-    name = "Greg's Coffee"
-    key = hash_key(country)
-    point = [2018, 94, 5.5]
-    review = "England review. Lemon verbena, dried persimmon, dogwood, baker's chocolate in aroma and cup. Balanced, sweet-savory structure; velvety-smooth mouthfeel. The sweetly herb-toned finish centers on notes of lemon verbena and dried persimmon wrapped in baker's chocolate."
-    print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
-    response = first_node.insert_key(key, point, review, country)
-    print(response)
-
-    country = "Hong Kong"
-    name = "Dams's Coffee"
-    key = hash_key(country)
-    point = [2018, 94, 5.5]
-    review = "Hong Kong review. Lemon verbena, dried persimmon, dogwood, baker's chocolate in aroma and cup. Balanced, sweet-savory structure; velvety-smooth mouthfeel. The sweetly herb-toned finish centers on notes of lemon verbena and dried persimmon wrapped in baker's chocolate."
-    print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
-    response = first_node.insert_key(key, point, review, country)
-    print(response)
-
-    """# Insert all points
-    for key, point, review, country, name in zip(keys, points, reviews, countries, names):
-        print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
-        response = first_node.insert_key(key, point, review, country)
-        print(response)"""
-
-    # Inspect the state of each node
-    print("\nInspecting the state of each node:")
+    # Gather all unique country keys from each node's KD-Tree
+    unique_country_keys = set()
     for node in network.nodes.values():
-        node.print_state()
+        if node.kd_tree is not None:
+            keys, _ = node.kd_tree.get_unique_country_keys()
+            unique_country_keys.update(keys)
 
-    # Stage 3: Key Lookup
+    print(f"Unique country keys: {unique_country_keys}")
 
-    print("\nStage 3: Key Lookup")
-    print("=======================")
-    lookup_key = hash_key("England")  # Hash the country name
-    lower_bounds = [2017, 90, 4.0]
-    upper_bounds = [2018, 95, 5.5]
+    unique_country_keys = list(unique_country_keys)
+    random.shuffle(unique_country_keys)  # Shuffle to delete keys randomly
 
-    print(f"\nLooking up Key: {lookup_key}")
-    response = first_node.lookup(lookup_key, lower_bounds, upper_bounds, N=5)
-    print(response)
+    # Initialize variables to track hops
+    total_hops = 0
+    total_lookups = 0
 
-    # Run the gui main loop
+    # Perform lookups
+    for key in unique_country_keys:
+        # Select a random node for each lookup
+        random_node = random.choice(list(network.nodes.values()))
+        response = random_node.lookup(key, lower_bounds, upper_bounds, N=N)
+        
+        if response and "hops" in response:
+            print(f"got a response for key {key}")
+            total_hops += len(response["hops"])
+            total_lookups += 1
+            print(f"Lookup key: {key}, Hops: {response['hops']}, Node: {random_node.node_id}")
+            print(f"Data: {response.get('data', 'No data found')}")
+
+    # Calculate and print the average hops
+    if total_lookups > 0:
+        average_hops = total_hops / total_lookups
+        print(f"Total Lookups Performed: {total_lookups}")
+        print(f"Average hops per lookup: {average_hops}")
+    else:
+        print("No lookups were performed.")
+
+    # Show the DHT GUI
+    network.gui.show_dht_gui()
     network.gui.root.mainloop()
 
 

@@ -23,7 +23,6 @@ predefined_ids = [
     "d3ad",
 ]
 
-
 def main():
     network = PastryNetwork()
 
@@ -43,30 +42,37 @@ def main():
     print(f"Unique country keys: {unique_country_keys}")
 
     unique_country_keys = list(unique_country_keys)
-    random.shuffle(unique_country_keys)  # Shuffle to delete keys randomly
+    random.shuffle(unique_country_keys)  # Shuffle to update keys randomly
 
     # Initialize variables to track hops
     total_hops = 0
-    total_deletions = 0
+    total_updates = 0
 
-    # Delete each key and count hops
+    # Update each key and count hops
     for key in unique_country_keys:
-        # Select a random node for each deletion
+        # Define the update data
+        update_to = {
+            "review": f"An updated review for {key}'s coffee."
+        }
+
+        # Select a random node for each update
         random_node = random.choice(list(network.nodes.values()))
-        response = random_node.delete_key(key)
-        
-        if response and "hops" in response:
-            total_hops += len(response["hops"])
-            total_deletions += 1
-            print(f"Deleted key: {key}, Hops: {response['hops']}, Node: {random_node.node_id}")
+        update_response = random_node.update_key(key, updated_data=update_to)
+
+        if update_response and "hops" in update_response:
+            total_hops += len(update_response["hops"])
+            total_updates += 1
+            print(f"Updated key: {key}, Hops: {update_response['hops']}, Node: {random_node.node_id}")
+        else:
+            print(f"Failed to update key: {key}")
 
     # Calculate and print the average hops
-    if total_deletions > 0:
-        average_hops = total_hops / total_deletions
-        print(f"Total Keys Deleted: {total_deletions}")
-        print(f"Average hops per deletion: {average_hops}")
+    if total_updates > 0:
+        average_hops = total_hops / total_updates
+        print(f"Total Keys Updated: {total_updates}")
+        print(f"Average hops per update: {average_hops}")
     else:
-        print("No keys were deleted.")
+        print("No keys were updated.")
 
     # # Show the DHT GUI
     # network.gui.show_dht_gui()
