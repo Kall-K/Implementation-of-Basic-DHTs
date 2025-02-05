@@ -311,9 +311,10 @@ class PastryNode:
                 s.sendall(pickle.dumps(request))
                 response = s.recv(4096)
                 return pickle.loads(response)
-        except (socket.error, EOFError, pickle.PickleError):
-            print(f"Network: Detected failure of node at port {port}. Initiating repair...")
-            return self.repair_node_failure(request)
+        except (socket.error, EOFError, pickle.PickleError) as e:
+            print(f"Network: Failed to send request to node at port {port}. Error: {e}")
+            return None  # Return None to indicate failure
+            #return self.repair_node_failure(request)
 
     def repair_node_failure(self, failed_node_id):
         """
