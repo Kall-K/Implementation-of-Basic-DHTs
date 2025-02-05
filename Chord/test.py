@@ -63,17 +63,23 @@ def main():
         node = ChordNode(network, node_id=node_id)
         node.start_server()
         network.node_join(node)
-        node.print_state()
+        # node.print_state()
+
+    for node_id in network.nodes.keys():
+        network.nodes[node_id].print_state()
 
     # network.visualize_network()
+    print("""\n################# NODE LEAVE ###############################""")
 
     # Scenario: leave node 4b12 
     # Issue: Although node 4b12 has left, it still exists into finger tables of nodes fa35 and cafe
-    # network.nodes["4b12"].leave()
-    # time.sleep(10)
-    # for node_id in network.nodes.keys():
-    #     if network.nodes[node_id].running:
-    #         network.nodes[node_id].print_state()
+    time.sleep(5)
+    print("""\n################# NODE LEAVE 2 ###############################""")
+    network.nodes["4b12"].leave()
+    time.sleep(5)
+    for node_id in network.nodes.keys():
+        if network.nodes[node_id].running:
+            network.nodes[node_id].print_state()
 
     ################################################################
     #                        KEYS INSERTION                        #
