@@ -34,6 +34,10 @@ def main():
     print(f"\nAverage Hops during Node Arrivals: {avg_join_hops}")
     print(f"\nAverage Hops during key Insertion: {avg_insert_hops}\n")
 
+    # Show the DHT GUI
+    # network.gui.show_dht_gui()
+    # network.gui.root.mainloop()
+
 
 if __name__ == "__main__":
     main()

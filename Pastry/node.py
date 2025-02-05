@@ -733,7 +733,7 @@ class PastryNode:
         hops = request.get("hops", [])
 
         next_hop_id = self._find_next_hop(key)
-        print(f"Node {self.node_id}: Next hop for key {key} is {next_hop_id}")
+        # print(f"Node {self.node_id}: Next hop for key {key} is {next_hop_id}")
 
         # Step 1: Detect if the next hop is missing
         if next_hop_id and next_hop_id not in self.network.node_ports:
@@ -752,9 +752,9 @@ class PastryNode:
 
             if not self.kd_tree:
 
-                print(
+                """print(
                     f"The country is: {request['country']} and the key is: {hash_key(request['country'])}"
-                )
+                )"""
                 self.kd_tree = KDTree(
                     points=np.array([request["point"]]),
                     reviews=np.array([request["review"]]),
@@ -765,15 +765,15 @@ class PastryNode:
 
                 self.kd_tree.add_point(request["point"], request["review"], request["country"])
                 print(
-                    f"Node {self.node_id}: Inserted {key} into KDTree. Points now: {self.kd_tree.points.shape}"
+                    f"\nNode {self.node_id}: Inserted {key} into KDTree. Points now: {self.kd_tree.points.shape}"
                 )
 
-            print(f"\nInserted Key: {key}")
+            """print(f"\nInserted Key: {key}")
             print(f"Point: {request['point']}")
             print(f"Review: {request['review']}")
             print(f"Routed and stored at Node ID: {self.node_id}")
             print(f"Country is {request['country']}")
-            print(f"Hops: {hops}")
+            print(f"Hops: {hops}")"""
 
             return {
                 "status": "success",
