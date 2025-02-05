@@ -25,15 +25,18 @@ class ChordNetwork:
         if len(self.nodes) == 1:
             print("The network is empty. This node is the first node.")
             ChordNetwork.bootstrap_node = new_node
-            self.successor = self
+            self.successor = self   # whats this?
             return
+
         
         if ChordNetwork.bootstrap_node.running == False:
             for node in self.nodes.values():
                 if node.running:
                     ChordNetwork.bootstrap_node = self.nodes[ChordNetwork.bootstrap_node.node_id]
                     break
+
         successor_id, hops = new_node.request_find_successor(node_id, ChordNetwork.bootstrap_node, [])
+        # print(successor_id)
         # new_node joins on successor
         new_node.join(self.nodes[successor_id])
 

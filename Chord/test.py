@@ -15,16 +15,18 @@ def insert_keys(network, keys, points, reviews, countries, names):
     for key, point, review, country, name in zip(keys, points, reviews, countries, names):
         # print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
         network.insert_key(key, point, review, country)
-        
+
+
 def insert_key(network, key, point, review, country, name):
     """Insert a key."""
     # print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
     return network.insert_key(key, point, review, country)
 
+
 def main():
     # Load dataset
     dataset_path = "../Coffee_Reviews_Dataset/simplified_coffee.csv"
-    df = pd.read_csv(dataset_path)
+    df = pd.read_csv("C:\\Users\\kalli\\Desktop\\github\\Implementation-of-Basic-DHTs\\Coffee_Reviews_Dataset\\simplified_coffee.csv")
     # df = df[:75]
 
     # Keep only the year from the review_date column
@@ -49,13 +51,28 @@ def main():
     #                         NODES JOIN                           #
     ################################################################
 
-    print("""\n################################################################
+    print(
+        """\n################################################################
 #                         NODES JOIN                           #
-################################################################\n""")
+################################################################\n"""
+    )
 
     # Predefined node IDs to test
     predefined_ids = ["4b12", "fa35", "19bd", "4bde", "4c12", "cafe"]
-
+    # predefined_ids = [
+    #         "4b12",
+    #         "fa35",
+    #         "19bd",
+    #         "37de",
+    #         "3722",
+    #         "ca12",
+    #         "cafe",
+    #         "fb32",
+    #         "20bc",
+    #         "20bd",
+    #         "3745",
+    #         "d3ad",
+    #     ]
     print(f"Adding {len(predefined_ids)} nodes to the network...")
 
     # Node Insertion
@@ -65,14 +82,17 @@ def main():
         network.node_join(node)
         # node.print_state()
 
+
     for node_id in network.nodes.keys():
         network.nodes[node_id].print_state()
+
 
     # network.visualize_network()
     print("""\n################# NODE LEAVE ###############################""")
 
     # Scenario: leave node 4b12 
     # Issue: Although node 4b12 has left, it still exists into finger tables of nodes fa35 and cafe
+
     time.sleep(5)
     print("""\n################# NODE LEAVE 2 ###############################""")
     network.nodes["4b12"].leave()
@@ -81,121 +101,137 @@ def main():
         if network.nodes[node_id].running:
             network.nodes[node_id].print_state()
 
+
+    time.sleep(10)
+    for node_id in network.nodes.keys():
+        if network.nodes[node_id].running:
+            network.nodes[node_id].print_state()
+
+    return
     ################################################################
     #                        KEYS INSERTION                        #
-    ################################################################ 
-    print("""\n################################################################
+    ################################################################
+    print(
+        """\n################################################################
 #                        KEYS INSERTION                        #
-################################################################\n""")
+################################################################\n"""
+    )
     print("\n" + "-" * 100 + "\n")
     print("-> Inserting Keys from Dataset...")
     insert_keys(network, keys, points, reviews, countries, names)
     print("-> End of Insertion")
     print("\n" + "-" * 100 + "\n")
 
-    ################################################################
-    #                        DEMOSTRATION                          #
-    ################################################################
-    print("""\n################################################################
-#                        INSERT KEY                            #
-################################################################\n""")
-    country = "Romania "
-    name = "Carpathian Coffee"
-    key = hash_key(country)
-    point = [2023, 97, 5.7]
-    review = "Dried plums, acacia honey, roasted walnuts, and dark chocolate in aroma and cup. Fine, well-balanced acidity; creamy and rich body. Long finish with notes of caramelized almonds and subtle essences of vanilla and smoked oak."
-    response = insert_key(network, key, point, review, country, name)
-    print(f">> Inserting Key: {key}, Country: {country}, Name: {name}")
-    print(f">> Insertion status: {response["status"]}.")
-    print(f">> {response["message"]}.")
-    print(f">> Key Inserted with {response["hops"]} hops.")
-    ################################################################
-    #                        LOOKUP KEY                            #
-    ################################################################
-    lower_bounds = [2023, 97, 5.7]
-    upper_bounds = [2023, 97, 5.7]
-    print("\nVerifying insertion through lookup: ")
-    response = network.lookup(key, lower_bounds, upper_bounds, N=5)
-    print(f">> Lookup status: {response["status"]}.")
-    print(f">> {response["message"]}")
-    print(f">> Key Found with {response["hops"]} hops.")
-    # ################################################################
-    # #                        UPDATE KEY                            #
-    # ################################################################
-    print("""\n################################################################
-#                        UPDATE KEY                            #
-################################################################\n""")
-    # Update all points for Romania
-    print("\nUpdating all points for Romania:\n")
-    update_fields = {"attributes": {"price": 35.0}}
-    network.update_key(key, updated_data=update_fields)
+#     ################################################################
+#     #                        DEMOSTRATION                          #
+#     ################################################################
+#     print(
+#         """\n################################################################
+# #                        INSERT KEY                            #
+# ################################################################\n"""
+#     )
+#     country = "Guatemala"#"Romania "
+#     name = "Carpathian Coffee"
+#     key = hash_key(country)
+#     point = [2023, 97, 5.7]
+#     review = "Dried plums, acacia honey, roasted walnuts, and dark chocolate in aroma and cup. Fine, well-balanced acidity; creamy and rich body. Long finish with notes of caramelized almonds and subtle essences of vanilla and smoked oak."
+#     response = insert_key(network, key, point, review, country, name)
+#     print(f">> Inserting Key: {key}, Country: {country}, Name: {name}")
+#     print(f">> Insertion status: {response['status']}.")
+#     print(f">> {response['message']}.")
+#     print(f">> Key Inserted with {response['hops']} hops.")
+#     ################################################################
+#     #                        LOOKUP KEY                            #
+#     ################################################################
+#     lower_bounds = [2023, 97, 5.7]
+#     upper_bounds = [2023, 97, 5.7]
+#     print("\nVerifying insertion through lookup: ")
+#     response = network.lookup(key, lower_bounds, upper_bounds, N=5)
+#     print(f">> Lookup status: {response['status']}.")
+#     print(f">> {response['message']}")
+#     print(f">> Key Found with {response['hops']} hops.")
+#     # ################################################################
+#     # #                        UPDATE KEY                            #
+#     # ################################################################
+#     print(
+#         """\n################################################################
+# #                        UPDATE KEY                            #
+# ################################################################\n""")
+#     # Update all points
+#     print("\nUpdating all points for Romania:\n")
+#     update_fields = {"attributes": {"price": 35.0}}
+#     network.update_key(key, updated_data=update_fields)
     
-    # Update only the review for Romania
-    print("\nUpdate In Parallel")
-    print("Updating only the review for Taiwan:\n")
-    update_fields1 = {
-        "review": "An updated review for Romania's coffee: Dried plums, acacia honey, roasted walnuts, and dark chocolate in aroma and cup."
-    } 
-    update_fields2 = {
-        "review": "An 2nd updated review for Romania's coffee: crisp and fruity with a lingering sweetness."
-    }
+#     # Update only the review
+#     print("\nUpdate In Parallel")
+#     print("Updating only the review for Taiwan:\n")
+#     update_fields1 = {
+#         "review": "An updated review for Romania's coffee: Dried plums, acacia honey, roasted walnuts, and dark chocolate in aroma and cup."
+#     } 
+#     update_fields2 = {
+#         "review": "An 2nd updated review for Romania's coffee: crisp and fruity with a lingering sweetness."
+#     }
  
-    update_thread1 = threading.Thread(target=network.update_key, args=(key, update_fields1,))
-    update_thread2 = threading.Thread(target=network.update_key, args=(key, update_fields2,))
+#     update_thread1 = threading.Thread(target=network.update_key, args=(key, update_fields1,))
+#     update_thread2 = threading.Thread(target=network.update_key, args=(key, update_fields2,))
 
-    update_thread2.start()
-    update_thread1.start()
+#     update_thread2.start()
+#     update_thread1.start()
 
-    update_thread1.join()
-    update_thread2.join()
-    # ################################################################
-    # #                        LOOKUP KEY                            #
-    # ################################################################
-    # thelei allagi, den einai endeiktiko to lookup gia ta update pu eginan
-    lower_bounds = [2023, 97, 35.0]
-    upper_bounds = [2023, 97, 35.0]
-    print("\nVerifying updates through lookup:")
-    response = network.lookup(key, lower_bounds, upper_bounds, N=5)
-    print(f">> Lookup status: {response["status"]}.")
-    print(f">> {response["message"]}")
-    print(f">> Key Found with {response["hops"]} hops.")
-    # ################################################################
-    # #                        DELETE KEY                            #
-    # ################################################################
-    print("""\n################################################################
-#                        DELETE KEY                            #
-################################################################\n""")
-    taiwan_country_key = hash_key("Taiwan")
-    print(f"\nDelete key with value {taiwan_country_key}.")
-    response = network.delete_key(taiwan_country_key)
-    print(f">> Delete status: {response["status"]}.")
-    print(f">> {response["message"]}")
-    print(f">> Key Deleted with {response["hops"]} hops.")
-    # ################################################################
-    # #                        LOOKUP KEY                            #
-    # ################################################################
-    lower_bounds = [2018, 90, 30.0]
-    upper_bounds = [2019, 95, 40.0]
-    print("\nVerifying deletion through lookup:\n")
-    network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
+#     update_thread1.join()
+#     update_thread2.join()
+#     # ################################################################
+#     # #                        LOOKUP KEY                            #
+#     # ################################################################
+#     # thelei allagi, den einai endeiktiko to lookup gia ta update pu eginan
+#     lower_bounds = [2000, 10, 0]
+#     upper_bounds = [2023, 100, 50]
+#     print("\nVerifying updates through lookup:")
+#     response = network.lookup(key, lower_bounds, upper_bounds, N=5)
+#     print(f">> Lookup status: {response["status"]}.")
+#     print(f">> {response["message"]}")
+#     print(f">> Key Found with {response["hops"]} hops.")
+#     # ################################################################
+#     # #                        DELETE KEY                            #
+#     # ################################################################
+#     print("""\n################################################################
+# #                        DELETE KEY                            #
+# ################################################################\n""")
+#     taiwan_country_key = hash_key("Taiwan")
+#     print(f"\nDelete key with value {taiwan_country_key}.")
+#     response = network.delete_key(taiwan_country_key)
+#     print(f">> Delete status: {response["status"]}.")
+#     print(f">> {response["message"]}")
+#     print(f">> Key Deleted with {response["hops"]} hops.")
+#     # ################################################################
+#     # #                        LOOKUP KEY                            #
+#     # ################################################################
+#     lower_bounds = [2018, 90, 30.0]
+#     upper_bounds = [2019, 95, 40.0]
+#     print("\nVerifying deletion through lookup:\n")
+#     network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
 
 
     # This scenario throws ERROR
-    # node = ChordNode(network, node_id="2fec")
-    # node.start_server()
-    # network.node_join(node)
-    # time.sleep(5)
-    # for node_id in network.nodes.keys():
-    #     network.nodes[node_id].print_state()
+    node = ChordNode(network, node_id="2fec")
+    node.start_server()
+    network.node_join(node)
+    time.sleep(5)
+    for node_id in network.nodes.keys():
+        network.nodes[node_id].print_state()
+
+    # network.nodes["4b12"].leave()
+
 
     # ################################################################
     # #                        NODES LEAVE                           #
     # ################################################################    
     print("""\n################################################################
 #                        NODES LEAVE                           #
-################################################################\n""")
+################################################################\n"""
+    )
     time.sleep(2)
-    nodes_to_leave = ["19bd", "4c12"]
+    nodes_to_leave = ["19bd", "fa35"]
     for node in nodes_to_leave:
         node = network.nodes[node]
         if node.running:
@@ -212,8 +248,6 @@ def main():
     # network.nodes["cafe"].leave()
     # network.nodes["4c12"].leave()
 
-    
-
     running = True
     while running:
         time.sleep(2)
@@ -221,9 +255,6 @@ def main():
         for node in network.nodes.values():
             if node.running:
                 running = True
-
-
-
 
 
 if __name__ == "__main__":

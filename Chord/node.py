@@ -254,6 +254,7 @@ class ChordNode:
                 s.sendall(pickle.dumps(request))  # Serialize and send the request
                 response = s.recv(1024*1024)  # Receive the response
             except Exception as e:
+                print(e, self.node_id)
                 return None
 
         return pickle.loads(response)  # Deserialize the response
@@ -650,11 +651,14 @@ class ChordNode:
     #############################
     
     def update_finger_table(self, hops=[]):
+
         # print(f"\n- {self.node_id} ENTERING Update Finger Table -", end=", ")
         self.finger_table[0] = self.get_successor()
+
         for i in range(1, len(self.finger_table)):
             # print(f"{self.node_id} 1", end=", ")
             key = int_to_hex((int(self.node_id, 16) + 2 ** i) % R)
+
             temp_node = self.request_find_successor(key, self, hops)[0]
             # print(f"{self.node_id} 2")
             for _ in range(len(self.network.nodes)):
@@ -664,12 +668,31 @@ class ChordNode:
         # print(f"- {self.node_id} LEAVING -\n")
         
 
+
     #############################
     ## Closest Preceding Node ###
     #############################
 
     def closest_preceding_node(self, node, h_key):
+        # for i in range(len(node.finger_table)-1, 0, -1):
+        #     if not self.network.nodes[node.finger_table[i]].running:
+        #         c = i-1
+        #         while  c >= 0 and not self.network.nodes[node.finger_table[c]].running:
+        #             c = c-1
+        #         for idx in range(i, c+1, -1):
+        #             node.finger_table[idx] = node.finger_table[c]
+        
+        # for i in range(len(node.finger_table)-1):
+        #     if not self.network.nodes[node.finger_table[i]].running:
+        #         print("1 for",node.finger_table[i], self.node_id)
+        #         c = i+1
+        #         while  c <= len(node.finger_table)-2 and not self.network.nodes[node.finger_table[c]].running:
+        #             c = c+1
+        #         for idx in range(i,c+1):
+        #             node.finger_table[idx] = node.finger_table[c]
+
         for i in range(len(node.finger_table)-1, 0, -1):
+
             preceding_node = node.finger_table[i-1]
             next_node = node.finger_table[i]
 
@@ -687,6 +710,7 @@ class ChordNode:
                 if self.request_status_running(preceding_node):
                 # if self.network.nodes[preceding_node].running: # skip non-running nodes
                     return preceding_node #  -3 |-2| key -1
+
 
         return node.finger_table[-1]
 
