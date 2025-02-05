@@ -23,13 +23,9 @@ class Dashboard(ABC):
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.setup_widgets()
 
+    @abstractmethod
     def on_close(self):
-        for node in self.network.nodes.values():
-            node.leave()
-
-        self.root.quit()
-        self.root.destroy()
-        self.main_window.deiconify()
+        pass
 
     # Common GUI components and basic operations
     def setup_widgets(self):
@@ -560,6 +556,9 @@ class Dashboard(ABC):
         # Check if the selected node has a KD-Tree
         if not hasattr(self.selected_node, "kd_tree") or not self.selected_node.kd_tree:
             print(f"Node {self.selected_node.node_id} does not have a KD Tree.")
+            return
+        elif not self.selected_node.kd_tree.points.size:
+            print(f"Node {self.selected_node.node_id} does not have any keys.")
             return
 
         # Prompt the user to select a country

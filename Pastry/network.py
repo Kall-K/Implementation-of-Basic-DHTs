@@ -257,26 +257,49 @@ class PastryNetwork:
                 min_distance = distance
         return closest_node_id, closest_neighborhood_set
 
-    def build(self, predefined_ids):
+    def build(self, predefined_ids=None, node_num=None, dataset_path=None):
         """
         Build the Pastry network with the specified number of nodes.
         """
         print("Node Arrivals")
         print("=======================")
-        print(f"Adding {len(predefined_ids)} nodes to the network...")
-        print("\n" + "-" * 100)
-        for node_id in predefined_ids:
-            node = PastryNode(self, node_id=node_id)
-            print(f"Adding Node: ID = {node.node_id}")
-            node.start_server()
-            self.node_join(node)
-            print(f"\nNode Added: ID = {node.node_id}, Position = {node.position}")
+        num_join_hops = 0
+        if predefined_ids is not None:
+            print(f"Adding {len(predefined_ids)} nodes to the network...")
             print("\n" + "-" * 100)
-        print("\nAll nodes have successfully joined the network.\n")
+            for node_id in predefined_ids:
+                node = PastryNode(self, node_id=node_id)
+                print(f"Adding Node: ID = {node.node_id}")
+                node.start_server()
+                response = self.node_join(node)
+                if response and "hops" in response:
+                    num_join_hops += len(response["hops"])
+                print(f"\nNode Added: ID = {node.node_id}, Position = {node.position}")
+                print("\n" + "-" * 100)
+            avg_join_hops = num_join_hops / len(predefined_ids)
+        else:
+            # If predefined node ids are not provided build the network with node_num random nodes
+            if node_num is None:
+                print("The number of nodes must be specified.")
+                return
+            print(f"Adding {node_num} nodes to the network...")
+            print("\n" + "-" * 100)
+            for i in range(node_num):
+                node = PastryNode(self)
+                node.start_server()
+                response = self.node_join(node)
+                if response and "hops" in response:
+                    num_join_hops += len(response["hops"])
+                print(f"\nNode Added: ID = {node.node_id}, Position = {node.position}")
+                print("\n" + "-" * 100)
+            avg_join_hops = num_join_hops / node_num
+        print("\nAll nodes have successfully joined the network.")
 
         # Insert keys
         # Load dataset
-        dataset_path = "Coffee_Reviews_Dataset/simplified_coffee.csv"
+        if dataset_path is None:
+            dataset_path = "Coffee_Reviews_Dataset/simplified_coffee.csv"
+
         df = pd.read_csv(dataset_path)
 
         # Keep only the year from the review_date column
@@ -298,13 +321,15 @@ class PastryNetwork:
         print("\nInserting data into the network...")
         first_node = list(self.nodes.values())[0]
 
+        num_insert_hops = 0
         # Insert all entries
         for key, point, review, country, name in zip(keys, points, reviews, countries, names):
             print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
             response = first_node.insert_key(key, point, review, country)
-            print(response)
+            if response and "hops" in response:
+                num_insert_hops += len(response["hops"])
+        avg_insert_hops = num_insert_hops / len(keys)
 
-        # Show the Pastry GUI
-        self.gui.show_dht_gui()
-        # Run the gui main loop
-        self.gui.root.mainloop()
+        print("\nAll keys have been successfully inserted into the network.")
+
+        return avg_join_hops, avg_insert_hops

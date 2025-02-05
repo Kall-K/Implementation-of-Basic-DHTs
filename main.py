@@ -67,6 +67,10 @@ class MainLauncher(tk.Tk):
 
         # Build the network
         pastry_network.build(predefined_ids)
+        # Show the Pastry GUI
+        pastry_network.gui.show_dht_gui()
+        # Run the gui main loop
+        pastry_network.gui.root.mainloop()
 
     def launch_chord(self, predefined_ids):
         # Create the chord network
@@ -77,6 +81,10 @@ class MainLauncher(tk.Tk):
 
         # Build the network
         chord_network.build(predefined_ids)
+        # Show the Chord GUI
+        chord_network.gui.show_dht_gui()
+        # Run the gui main loop
+        chord_network.gui.root.mainloop()
 
 
 if __name__ == "__main__":
