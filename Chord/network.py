@@ -1,13 +1,18 @@
-from helper_functions import *
-import matplotlib.pyplot as plt
-import numpy as np
+import pandas as pd
+
+from .helper_functions import *
+from .chord_gui import ChordDashboard
+from .node import ChordNode
+
 
 class ChordNetwork:
     bootstrap_node = None
 
-    def __init__(self):
+    def __init__(self, main_window=None):
         self.nodes = {}  # Dictionary. Keys are node IDs, values are Node objects
         self.used_ports = []
+
+        self.gui = ChordDashboard(self, main_window)
 
     def node_join(self, new_node):
         """
@@ -26,6 +31,7 @@ class ChordNetwork:
             print(f"The network is empty. This node {node_id} is the first node.")
             ChordNetwork.bootstrap_node = new_node
             return
+
         
         for id in self.nodes.keys():
             if self.nodes[id].running and node_id != id:
@@ -36,79 +42,57 @@ class ChordNetwork:
         
 
 
-    def visualize_network(self, threshold=0.2):
+    def build(self, predefined_ids):
         """
-        Visualizes the Chord network by placing nodes on a circular ring
-        based on their 4-digit hex ID. Lower values are at the top (12 o'clock),
-        and values increase clockwise.
-
-        Nodes that are too close together will be moved slightly.
+        Build the Chord network with the specified number of nodes.
         """
-        if not self.nodes:
-            print("No nodes in the network to visualize.")
-            return
+        # Node Arrivals
+        print("Node Arrivals")
+        print("=======================")
+        print(f"Adding {len(predefined_ids)} nodes to the network...")
+        print("\n" + "-" * 100)
+        for node_id in predefined_ids:
+            node = ChordNode(self, node_id=node_id)
+            print(f"Adding Node: ID = {node.node_id}")
+            node.start_server()
+            self.node_join(node)
+            print(f"\nNode Added: ID = {node.node_id}")
+            print("\n" + "-" * 100)
+        print("\nAll nodes have successfully joined the network.\n")
 
-        # Convert node IDs from hex to integers for sorting
-        sorted_nodes = sorted(self.nodes.keys(), key=lambda x: int(x, 16))
+        # Insert keys
+        # Load dataset
+        dataset_path = "Coffee_Reviews_Dataset/simplified_coffee.csv"
+        df = pd.read_csv(dataset_path)
 
-        radius = 1  # Fixed radius for the ring
-        fig, ax = plt.subplots(figsize=(8, 8))
-        ax.set_xlim(-1.2, 1.2)
-        ax.set_ylim(-1.2, 1.2)
+        # Keep only the year from the review_date column
+        df["review_date"] = pd.to_datetime(df["review_date"], format="%B %Y").dt.year
 
-        # Draw the circular ring
-        circle = plt.Circle((0, 0), radius, color="lightgray", fill=False)
-        ax.add_patch(circle)
+        # Extract loc_country as keys
+        keys = df["loc_country"].apply(hash_key)
 
-        placed_positions = {}  # Store positions for overlap checking
+        # Extract data points (review_date, rating, 100g_USD)
+        points = df[["review_date", "rating", "100g_USD"]].to_numpy()
 
-        # Arrange nodes based on their numerical value
-        for node_id in sorted_nodes:
-            angle = 2 * np.pi * (int(node_id, 16) / 0xFFFF)
-            base_x, base_y = radius * np.sin(angle), radius * np.cos(angle)
+        # Extract reviews and other details
+        reviews = df["review"].to_numpy()
+        countries = df["loc_country"].to_numpy()
+        names = df["name"].to_numpy()
 
-            # Check for overlap within the threshold distance
-            shift_angle = np.radians(6)  # Base shift distance
-            for close_node_id in placed_positions.keys():
+        print("Key Insertions")
+        print("=======================")
+        print("\nInserting data into the network...")
 
-                dist = np.linalg.norm(
-                    [
-                        base_x - placed_positions[close_node_id][0],
-                        base_y - placed_positions[close_node_id][1],
-                    ]
-                )
-                if dist < threshold:
-                    # Move to the right clockwise slightly
-                    angle += shift_angle
-                    base_x = radius * np.sin(angle)
-                    base_y = radius * np.cos(angle)
+        # Insert all entries
+        for key, point, review, country, name in zip(keys, points, reviews, countries, names):
+            print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
+            self.insert_key(key, point, review, country)
 
-            placed_positions[node_id] = (base_x, base_y)
+        # Show the Chord GUI
+        self.gui.show_dht_gui()
+        # Run the gui main loop
+        self.gui.root.mainloop()
 
-            ax.plot(base_x, base_y, "o", color="lightblue", markersize=10)  # Blue nodes
-            text_x = (radius + 0.1) * np.sin(angle)
-            text_y = (radius + 0.1) * np.cos(angle)
-            ax.text(
-                text_x,
-                text_y,
-                node_id,
-                fontsize=12,
-                ha="center",
-                va="center",
-                color="black",
-            )
-
-        # Remove axis ticks and labels
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-        ax.set_title("Chord Network Visualization")
-
-        # Save the plot
-        plt.savefig("../Chord/Plots/chord_network_visualization.png")
-
-        plt.show()
 
     def insert_key(self, key, point, review, country):  
         for node_id in self.nodes.keys():
@@ -125,6 +109,7 @@ class ChordNetwork:
             if self.nodes[node_id].running:
                 return self.nodes[node_id].update_key(key, updated_data, criteria)
         
+
     def lookup(self, key, lower_bounds, upper_bounds, N):
         for node_id in self.nodes.keys():
             if self.nodes[node_id].running:

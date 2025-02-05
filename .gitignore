@@ -3,4 +3,9 @@
 
 # Exclude Python cache files
 __pycache__/
-Chord/node1.py
+
+# Exclude Python virtual environment
+.venv/
+venv/
+.env/
+env/

@@ -122,6 +122,7 @@ def main():
     print(f">> Insertion status: {response['status']}.")
     print(f">> {response['message']}.")
     print(f">> Key Inserted with {response['hops']} hops.")
+
 #     ################################################################
 #     #                        LOOKUP KEY                            #
 #     ################################################################
@@ -143,7 +144,7 @@ def main():
 #     print("\nUpdating all points for Romania:\n")
 #     update_fields = {"attributes": {"price": 35.0}}
 #     network.update_key(key, updated_data=update_fields)
-    
+
 #     # Update only the review
 #     print("\nUpdate In Parallel")
 #     print("Updating only the review for Taiwan:\n")
@@ -228,8 +229,10 @@ def main():
     # network.nodes["4bde"].leave()
     # network.nodes["4c12"].leave()
     # network.nodes["cafe"].leave()
+
     # network.nodes["2fec"].leave()
     
+
 
     running = True
     while running:
