@@ -602,20 +602,40 @@ class PastryNode:
         new_node_id = request["joining_node_id"]
         hops = request.get("hops", [])
 
-        # Determine the routing table row to update
-        i = common_prefix_length(self.node_id, new_node_id)
+        # Special Case: If the closest node has a common prefix with the new node,
+        # update the new nodes routing table up to the common prefix row
+        if "common_prefix_len" in request and request["common_prefix_len"] > 0:
+            i = request["common_prefix_len"]
+            for row in range(i + 1):
+                update_R_request = {
+                    "operation": "UPDATE_ROUTING_TABLE_ROW",
+                    "row_idx": row,
+                    "received_row": self.routing_table[row],
+                    "hops": hops,  # Include the updated hops list
+                }
+                print(
+                    f"Node {self.node_id}: Updating the new node's Routing Table Row {row} with node's {self.node_id} row {row}..."
+                )
+                self.send_request(self.network.node_ports[new_node_id], update_R_request)
 
-        # Update the new node's Routing Table row
-        update_R_request = {
-            "operation": "UPDATE_ROUTING_TABLE_ROW",
-            "row_idx": i,
-            "received_row": self.routing_table[i],
-            "hops": hops,  # Include the updated hops list
-        }
-        print(
-            f"Node {self.node_id}: Updating the new node's Routing Table Row {i} with node's {self.node_id} row {i}..."
-        )
-        self.send_request(self.network.node_ports[new_node_id], update_R_request)
+        else:
+            # General case: The closest nodes doesn't have a common prefix with the new
+            # and every node in the routing process provides its routing table row at the common prefix
+
+            # Determine the routing table row to update
+            i = common_prefix_length(self.node_id, new_node_id)
+
+            # Update the new node's Routing Table row
+            update_R_request = {
+                "operation": "UPDATE_ROUTING_TABLE_ROW",
+                "row_idx": i,
+                "received_row": self.routing_table[i],
+                "hops": hops,  # Include the updated hops list
+            }
+            print(
+                f"Node {self.node_id}: Updating the new node's Routing Table Row {i} with node's {self.node_id} row {i}..."
+            )
+            self.send_request(self.network.node_ports[new_node_id], update_R_request)
 
         next_hop_id = self._find_next_hop(new_node_id)
 
@@ -655,6 +675,9 @@ class PastryNode:
                 "message": "No available nodes to forward JOIN_NETWORK request.",
             }
 
+        # Remove the common_prefix_len key if it exists before forwarding
+        if "common_prefix_len" in request:
+            del request["common_prefix_len"]
         print(f"\nForwarding JOIN_NETWORK request to node {next_hop_id}...")
         response = self.send_request(self.network.node_ports[next_hop_id], request)
         return response
@@ -819,9 +842,6 @@ class PastryNode:
                     return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
 
                 # KD-Tree Range Search
-                print(
-                    f"Node {self.node_id}: Searching in KDTree. Query Bounds: {lower_bounds} - {upper_bounds}"
-                )
                 print(f"Stored points: {self.kd_tree.points}")
                 points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
                 print(f"Node {self.node_id}: Found {len(points)} matching points.")
