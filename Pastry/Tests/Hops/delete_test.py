@@ -4,10 +4,11 @@ import random
 import numpy as np
 
 # Add the parent directory to sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 from Pastry.network import PastryNetwork
 from Multidimensional_Data_Structures.kd_tree import KDTree
+
 predefined_ids = [
     "4b12",
     "fa35",
@@ -23,13 +24,14 @@ predefined_ids = [
     "d3ad",
 ]
 
+
 def main():
     network = PastryNetwork()
 
     # Build the network with predefined IDs
     network.build(
         predefined_ids=predefined_ids,
-        dataset_path="../../Coffee_Reviews_Dataset/simplified_coffee.csv",
+        dataset_path="../../../Coffee_Reviews_Dataset/simplified_coffee.csv",
     )
 
     # Gather all unique country keys from each node's KD-Tree
@@ -42,37 +44,30 @@ def main():
     print(f"Unique country keys: {unique_country_keys}")
 
     unique_country_keys = list(unique_country_keys)
-    random.shuffle(unique_country_keys)  # Shuffle to update keys randomly
+    random.shuffle(unique_country_keys)  # Shuffle to delete keys randomly
 
     # Initialize variables to track hops
     total_hops = 0
-    total_updates = 0
+    total_deletions = 0
 
-    # Update each key and count hops
+    # Delete each key and count hops
     for key in unique_country_keys:
-        # Define the update data
-        update_to = {
-            "review": f"An updated review for {key}'s coffee."
-        }
-
-        # Select a random node for each update
+        # Select a random node for each deletion
         random_node = random.choice(list(network.nodes.values()))
-        update_response = random_node.update_key(key, updated_data=update_to)
+        response = random_node.delete_key(key)
 
-        if update_response and "hops" in update_response:
-            total_hops += len(update_response["hops"])
-            total_updates += 1
-            print(f"Updated key: {key}, Hops: {update_response['hops']}, Node: {random_node.node_id}")
-        else:
-            print(f"Failed to update key: {key}")
+        if response and "hops" in response:
+            total_hops += len(response["hops"])
+            total_deletions += 1
+            print(f"Deleted key: {key}, Hops: {response['hops']}, Node: {random_node.node_id}")
 
     # Calculate and print the average hops
-    if total_updates > 0:
-        average_hops = total_hops / total_updates
-        print(f"Total Keys Updated: {total_updates}")
-        print(f"Average hops per update: {average_hops}")
+    if total_deletions > 0:
+        average_hops = total_hops / total_deletions
+        print(f"\nTotal Keys Deleted: {total_deletions}")
+        print(f"Average hops per deletion: {average_hops}")
     else:
-        print("No keys were updated.")
+        print("No keys were deleted.")
 
     # # Show the DHT GUI
     # network.gui.show_dht_gui()

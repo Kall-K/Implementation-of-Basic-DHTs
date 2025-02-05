@@ -320,13 +320,13 @@ class PastryNetwork:
         print("Key Insertions")
         print("=======================")
         print("\nInserting data into the network...")
-        first_node = list(self.nodes.values())[0]
 
         num_insert_hops = 0
         # Insert all entries
         for key, point, review, country, name in zip(keys, points, reviews, countries, names):
             print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
-            response = first_node.insert_key(key, point, review, country)
+            random_node = np.random.choice(list(self.nodes.values()))
+            response = random_node.insert_key(key, point, review, country)
             if response and "hops" in response:
                 num_insert_hops += len(response["hops"])
         avg_insert_hops = num_insert_hops / len(keys)
