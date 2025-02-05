@@ -176,6 +176,7 @@ class ChordNode:
     def print_state(self):
         print(self.get_state)
 
+
     # Network Communication
 
     def start_server(self):
@@ -187,7 +188,7 @@ class ChordNode:
         self.thread_pool.submit(self._update_finger_table_scheduler)
 
     def _update_finger_table_scheduler(self):
-        interval = 3  # seconds
+        interval = 1.5  # seconds
         while True:
             if not self.running:
                 break
@@ -371,15 +372,20 @@ class ChordNode:
     #############################
 
     def _handle_find_successor(self, request):
+        # print(f"\n- {self.node_id} ENTERING FIND_SUCCESSOR", end = ", ")
         key = request["key"]
         request["hops"].append(self.node_id)
         if self.node_id == key:
+            # print(f"1rst if", end=", ")
             return self.node_id, request["hops"]
         if distance(self.node_id, key) <= distance(self.get_successor(), key):
+            # print(f"2nd if", end=", ")
             return self.get_successor(), request["hops"]
         else:
+            # print(f"else1", end=", ")
             closest_preceding_node_id = self.closest_preceding_node(self, key)
             closest_preceding_node = self.network.nodes[closest_preceding_node_id]
+            # print(f"else2")
             return self.request_find_successor(key, closest_preceding_node, request["hops"])
 
     def _handle_delete_successor_keys(self, request):
@@ -410,9 +416,10 @@ class ChordNode:
             points = self.back_up.points
             reviews = self.back_up.reviews.tolist()
             countries = self.back_up.countries
-            c = 0
+
+
             for key, point, review, country in zip(keys, points, reviews, countries):
-                c = c + 1
+
                 request = {
                     "operation": "INSERT_KEY",
                     "key": key,
@@ -683,25 +690,44 @@ class ChordNode:
     #############################
     
     def update_finger_table(self, hops=[]):
-        self.finger_table[0] = self.successors[0]
+        # print(f"\n- {self.node_id} ENTERING Update Finger Table -", end=", ")
+        self.finger_table[0] = self.get_successor()
         for i in range(1, len(self.finger_table)):
-            key = int_to_hex((int(self.node_id, 16) + 2**i) % R)
+            # print(f"{self.node_id} 1", end=", ")
+            key = int_to_hex((int(self.node_id, 16) + 2 ** i) % R)
             temp_node = self.request_find_successor(key, self, hops)[0]
-            while self.network.nodes[temp_node].running == False:
-                temp_node = self.request_find_successor(
-                    int_to_hex((int(temp_node, 16) + 1) % R), self, hops
-                )[0]
-            self.finger_table[i] = temp_node
+            # print(f"{self.node_id} 2")
+            for _ in range(len(self.network.nodes)):
+                if self.network.nodes[temp_node].running == True: break
+                temp_node = self.request_find_successor(int_to_hex((int(temp_node, 16)+1) % R), self, hops)[0]
 
+            self.finger_table[i] = temp_node
+        # print(f"- {self.node_id} LEAVING -\n")
+        
     #############################
     ## Closest Preceding Node ###
     #############################
 
     def closest_preceding_node(self, node, h_key):
-        for i in range(len(node.finger_table) - 1, 0, -1):
-            if distance(node.finger_table[i - 1], h_key) < distance(node.finger_table[i], h_key):
-                if self.network.nodes[node.finger_table[i - 1]].running:  # skip non-running nodes
-                    return node.finger_table[i - 1]
+        for i in range(len(node.finger_table)-1, 0, -1):
+            preceding_node = node.finger_table[i-1]
+            next_node = node.finger_table[i]
+
+            running_node_found = False
+            for _ in range(i, len(self.finger_table)):
+                if self.network.nodes[node.finger_table[i]].running == True:
+                    next_node = node.finger_table[i]
+                    running_node_found = True
+                    break
+            if not running_node_found:
+                next_node = node.finger_table[-1]
+                
+            if distance(node.finger_table[i-1], h_key) < distance(next_node, h_key):
+                preceding_node = node.finger_table[i-1]
+                if self.request_status_running(preceding_node):
+                # if self.network.nodes[preceding_node].running: # skip non-running nodes
+                    return preceding_node #  -3 |-2| key -1
+
 
         return node.finger_table[-1]
 
@@ -726,22 +752,28 @@ class ChordNode:
 
         if successor_node.kd_tree != None:
             # Get keys from successor
-            keys = {
-                key
-                for key in sorted(successor_node.kd_tree.country_keys)
-                if (distance(self.node_id, key) < distance(self.get_successor(), key))
-            }
-
+            keys = [key for key in np.unique(successor_node.kd_tree.country_keys)
+                    if (distance(self.node_id, key) > distance(self.get_successor(), key))]
+            
             # 1. Insert keys and data to self's kdtree
             for key in keys:
-                review = successor_node.kd_tree.reviews[successor_node.kd_tree.country_keys == key][
-                    0
-                ]
-                country = successor_node.kd_tree.countries[
-                    successor_node.kd_tree.country_keys == key
-                ][0]
-                point = successor_node.kd_tree.points[successor_node.kd_tree.country_keys == key][0]
-                self.kd_tree.add_point(point, review, country)
+                indices = np.where(successor_node.kd_tree.country_keys == key)
+                reviews = successor_node.kd_tree.reviews[indices]
+                countries = [successor_node.kd_tree.countries[i] for i in indices[0]]
+                points = successor_node.kd_tree.points[indices]
+                for review,point,country in zip(reviews, points, countries):
+                    request = {
+                        "operation": "INSERT_KEY",
+                        "key": key,
+                        "point": point,
+                        "review": review,
+                        "country": country,
+                        "hops": [],  # Initialize hops tracking
+                        "choice": True
+                    }
+                    self._handle_insert_key_request(request)
+                # self.kd_tree.add_point(point, review, country)
+
 
             # 2. Delete keys and data from successor
             self.request_delete_successor_keys(keys, suc_id)

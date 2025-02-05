@@ -28,16 +28,19 @@ class ChordNetwork:
         # self.node_ports[new_node_id] = new_node.port
 
         if len(self.nodes) == 1:
-            print("The network is empty. This node is the first node.")
+            print(f"The network is empty. This node {node_id} is the first node.")
             ChordNetwork.bootstrap_node = new_node
-            self.successor = self
             return
 
-        successor_id, hops = new_node.request_find_successor(
-            node_id, ChordNetwork.bootstrap_node, []
-        )
-        # new_node joins on successor
-        new_node.join(self.nodes[successor_id])
+        
+        for id in self.nodes.keys():
+            if self.nodes[id].running and node_id != id:
+                successor_id, _ = new_node.request_find_successor(node_id, self.nodes[id], [])
+                # new_node joins on successor
+                new_node.join(self.nodes[successor_id])
+                break
+        
+
 
     def build(self, predefined_ids):
         """
@@ -98,15 +101,16 @@ class ChordNetwork:
 
     def delete_key(self, key):
         for node_id in self.nodes.keys():
-            if self.nodes[node_id]:
+            if self.nodes[node_id].running:
                 return self.nodes[node_id].delete_key(key)  
     
     def update_key(self, key, updated_data, criteria=None):
         for node_id in self.nodes.keys():
-            if self.nodes[node_id]:
-                return self.nodes[node_id].update_key(key, updated_data, criteria)     
+            if self.nodes[node_id].running:
+                return self.nodes[node_id].update_key(key, updated_data, criteria)
+        
 
     def lookup(self, key, lower_bounds, upper_bounds, N):
         for node_id in self.nodes.keys():
-            if self.nodes[node_id]:
+            if self.nodes[node_id].running:
                 return self.nodes[node_id].lookup(key, lower_bounds, upper_bounds, N)
