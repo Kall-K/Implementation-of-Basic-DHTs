@@ -59,20 +59,20 @@ def main():
 
     # Predefined node IDs to test
     predefined_ids = ["4b12", "fa35", "19bd", "4bde", "4c12", "cafe"]
-    # predefined_ids = [
-    #         "4b12",
-    #         "fa35",
-    #         "19bd",
-    #         "37de",
-    #         "3722",
-    #         "ca12",
-    #         "cafe",
-    #         "fb32",
-    #         "20bc",
-    #         "20bd",
-    #         "3745",
-    #         "d3ad",
-    #     ]
+    predefined_ids = [
+            "4b12",
+            "fa35",
+            "19bd",
+            "37de",
+            "3722",
+            "ca12",
+            "cafe",
+            "fb32",
+            "20bc",
+            "20bd",
+            "3745",
+            "d3ad",
+        ]
     print(f"Adding {len(predefined_ids)} nodes to the network...")
 
     # Node Insertion
@@ -104,24 +104,24 @@ def main():
     print("-> End of Insertion")
     print("\n" + "-" * 100 + "\n")
 
-#     ################################################################
-#     #                        DEMOSTRATION                          #
-#     ################################################################
-#     print(
-#         """\n################################################################
-# #                        INSERT KEY                            #
-# ################################################################\n"""
-#     )
-#     country = "Romania "
-#     name = "Carpathian Coffee"
-#     key = hash_key(country)
-#     point = [2023, 97, 5.7]
-#     review = "Dried plums, acacia honey, roasted walnuts, and dark chocolate in aroma and cup. Fine, well-balanced acidity; creamy and rich body. Long finish with notes of caramelized almonds and subtle essences of vanilla and smoked oak."
-#     response = insert_key(network, key, point, review, country, name)
-#     print(f">> Inserting Key: {key}, Country: {country}, Name: {name}")
-#     print(f">> Insertion status: {response['status']}.")
-#     print(f">> {response['message']}.")
-#     print(f">> Key Inserted with {response['hops']} hops.")
+    ################################################################
+    #                        DEMOSTRATION                          #
+    ################################################################
+    print(
+        """\n################################################################
+#                        INSERT KEY                            #
+################################################################\n"""
+    )
+    country = "Romania "
+    name = "Carpathian Coffee"
+    key = hash_key(country)
+    point = [2023, 97, 5.7]
+    review = "Dried plums, acacia honey, roasted walnuts, and dark chocolate in aroma and cup. Fine, well-balanced acidity; creamy and rich body. Long finish with notes of caramelized almonds and subtle essences of vanilla and smoked oak."
+    response = insert_key(network, key, point, review, country, name)
+    print(f">> Inserting Key: {key}, Country: {country}, Name: {name}")
+    print(f">> Insertion status: {response['status']}.")
+    print(f">> {response['message']}.")
+    print(f">> Key Inserted with {response['hops']} hops.")
 #     ################################################################
 #     #                        LOOKUP KEY                            #
 #     ################################################################

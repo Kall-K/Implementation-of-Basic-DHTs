@@ -23,17 +23,17 @@ class ChordNetwork:
         # self.node_ports[new_node_id] = new_node.port
 
         if len(self.nodes) == 1:
-            print("The network is empty. This node is the first node.")
+            print(f"The network is empty. This node {node_id} is the first node.")
             ChordNetwork.bootstrap_node = new_node
-            self.successor = self
             return
         
         for id in self.nodes.keys():
-            if self.nodes[id].running:
+            if self.nodes[id].running and node_id != id:
                 successor_id, _ = new_node.request_find_successor(node_id, self.nodes[id], [])
+                # new_node joins on successor
+                new_node.join(self.nodes[successor_id])
                 break
-        # new_node joins on successor
-        new_node.join(self.nodes[successor_id])
+        
 
 
     def visualize_network(self, threshold=0.2):
