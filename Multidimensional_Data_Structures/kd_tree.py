@@ -133,26 +133,26 @@ class KDTree:
         for idx in indices_to_update:
             # Update the point if specified
             if "point" in update_fields:
-                print(f"Updating point at index {idx}:")
-                print(f"Old Point: {self.points[idx]}")
+                # print(f"Updating point at index {idx}:")
+                # print(f"Old Point: {self.points[idx]}")
                 self.points[idx] = update_fields["point"]
-                print(f"New Point: {self.points[idx]}")
+                # print(f"New Point: {self.points[idx]}")
 
             # Update specific attributes of the point
             if "attributes" in update_fields:
-                print(f"Updating attributes of point at index {idx}:")
+                # print(f"Updating attributes of point at index {idx}:")
                 for attr_key, attr_value in update_fields["attributes"].items():
                     point_idx = CRITERIA_MAPPING[attr_key]
-                    print(f" - Old {attr_key}: {self.points[idx][point_idx]}")
+                    # print(f" - Old {attr_key}: {self.points[idx][point_idx]}")
                     self.points[idx][point_idx] = attr_value
-                    print(f" - New {attr_key}: {self.points[idx][point_idx]}")
+                    # print(f" - New {attr_key}: {self.points[idx][point_idx]}")
 
             # Update the review if specified
             if "review" in update_fields:
-                print(f"Updating review at index {idx}:")
-                print(f"Old Review: {self.reviews[idx]}")
+                # print(f"Updating review at index {idx}:")
+                # print(f"Old Review: {self.reviews[idx]}")
                 self.reviews[idx] = update_fields["review"]
-                print(f"New Review: {self.reviews[idx]}")
+                # print(f"New Review: {self.reviews[idx]}")
 
             updates_applied += 1
 

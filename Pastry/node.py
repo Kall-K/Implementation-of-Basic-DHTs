@@ -720,7 +720,7 @@ class PastryNode:
         # Remove the common_prefix_len key if it exists before forwarding
         if "common_prefix_len" in request:
             del request["common_prefix_len"]
-        print(f"\nForwarding JOIN_NETWORK request to node {next_hop_id}...")
+        print(f"\nNode: {self.node_id} Forwarding JOIN_NETWORK request to node {next_hop_id}...")
         response = self.send_request(self.network.node_ports[next_hop_id], request)
         return response
 
@@ -735,7 +735,7 @@ class PastryNode:
         next_hop_id = self._find_next_hop(key)
         # print(f"Node {self.node_id}: Next hop for key {key} is {next_hop_id}")
 
-        # Step 1: Detect if the next hop is missing
+        # Detect if the next hop is missing
         if next_hop_id and next_hop_id not in self.network.node_ports:
             print(f"Node {self.node_id}: Detected failed node {next_hop_id}. Initiating repair...")
 
@@ -747,26 +747,25 @@ class PastryNode:
             # After repair, find a new next hop
             next_hop_id = self._find_next_hop(key)
 
-        # Step 2: If this node is responsible for storing the key, insert it
+        # If this node is responsible for storing the key, insert it
         if self._in_leaf_set(key) or next_hop_id == self.node_id:
+            with self.lock:
+                if not self.kd_tree:
+                    """print(
+                        f"The country is: {request['country']} and the key is: {hash_key(request['country'])}"
+                    )"""
+                    self.kd_tree = KDTree(
+                        points=np.array([request["point"]]),
+                        reviews=np.array([request["review"]]),
+                        country_keys=np.array([hash_key(request["country"])]),
+                        countries=np.array([request["country"]]),
+                    )
+                else:
 
-            if not self.kd_tree:
-
-                """print(
-                    f"The country is: {request['country']} and the key is: {hash_key(request['country'])}"
-                )"""
-                self.kd_tree = KDTree(
-                    points=np.array([request["point"]]),
-                    reviews=np.array([request["review"]]),
-                    country_keys=np.array([hash_key(request["country"])]),
-                    countries=np.array([request["country"]]),
-                )
-            else:
-
-                self.kd_tree.add_point(request["point"], request["review"], request["country"])
-                print(
-                    f"\nNode {self.node_id}: Inserted {key} into KDTree. Points now: {self.kd_tree.points.shape}"
-                )
+                    self.kd_tree.add_point(request["point"], request["review"], request["country"])
+                    print(
+                        f"\nNode {self.node_id}: Inserted {key} into KDTree. Points now: {self.kd_tree.points.shape}"
+                    )
 
             """print(f"\nInserted Key: {key}")
             print(f"Point: {request['point']}")
@@ -805,7 +804,7 @@ class PastryNode:
         hops = request.get("hops", [])  # Retrieve the current hops list
 
         next_hop_id = self._find_next_hop(key)
-        print(f"next hop is: {next_hop_id}")
+        # print(f"next hop is: {next_hop_id}")
         # Step 1: Detect if the next hop is missing
         if next_hop_id and next_hop_id not in self.network.node_ports:
             print(f"Node {self.node_id}: Detected failed node {next_hop_id}. Initiating repair...")
@@ -827,7 +826,7 @@ class PastryNode:
 
                 # Delete the key from the KDTree if it exists
                 if key in self.kd_tree.country_keys:
-                    print(f"\nNode {self.node_id}: Deleted Key {key}.")
+                    print(f"\nNode {self.node_id}: Deleting key {key}...")
                     self.kd_tree.delete_points(key)
                 else:
                     print(f"\nNode {self.node_id}: No data for key {key}.\n")
@@ -841,7 +840,7 @@ class PastryNode:
                 }
 
         # Otherwise, forward the request to the next node
-        print(f"Forwarding DELETE_KEY Request: {hops}")
+        print(f"Node: {self.node_id} Forwarding DELETE_KEY Request: {hops}")
         response = self.send_request(self.network.node_ports[next_hop_id], request)
 
         # Ensure the hops list is returned in the response
@@ -878,14 +877,19 @@ class PastryNode:
             # If this key is found in the leaf set or the next hop is the current node, the lookup is successful
             if self._in_leaf_set(key) or next_hop_id == self.node_id:
                 print(f"\nNode {self.node_id}: Lookup Key {key} Found.")
+                with self.lock:
+                    # Check that the kd tree exists and contains data
+                    if not self.kd_tree or not self.kd_tree.points.size:
+                        print(f"Node {self.node_id}: No data for key {key}.")
+                        return {
+                            "status": "failure",
+                            "message": f"No data for key {key}.",
+                            "hops": hops,
+                        }
 
-                if not self.kd_tree or not self.kd_tree.points.size:
-                    print(f"Node {self.node_id}: No data for key {key}.")
-                    return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
-
-                # KD-Tree Range Search
-                # print(f"Stored points: {self.kd_tree.points}")
-                points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
+                    # KD-Tree Range Search
+                    # print(f"Stored points: {self.kd_tree.points}")
+                    points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
                 print(f"Node {self.node_id}: Found {len(points)} matching points.")
 
                 if len(reviews) == 0:
@@ -910,7 +914,7 @@ class PastryNode:
                     similar_pairs = lsh.find_similar_pairs(N)
                     similar_docs = lsh.find_similar_docs(similar_pairs, reviews, N)
 
-                    print(f"The Hops are: {hops}")
+                    # print(f"The Hops are: {hops}")
                     print(f"\nThe {N} Most Similar Reviews:\n")
 
                     for i, doc in enumerate(similar_docs, 1):
@@ -932,7 +936,7 @@ class PastryNode:
                     }
 
             # Forward the request to the next node
-            print(f"Forwarding LOOKUP Request: {hops}")
+            print(f"Node: {self.node_id} Forwarding LOOKUP Request: {hops}")
             response = self.send_request(self.network.node_ports[next_hop_id], request)
 
             # Ensure the hops list is returned in the response
@@ -967,26 +971,27 @@ class PastryNode:
 
         # If this node is responsible for the key
         if self._in_leaf_set(key) or next_hop_id == self.node_id:
-            # Check if the key exists in this node's data structure
-            if self.kd_tree and key in self.kd_tree.country_keys:
-                # Update the data in the KDTree
-                self.kd_tree.update_points(
-                    country_key=key,
-                    criteria=criteria,
-                    update_fields=update_fields,
-                )
-                print(f"Node {self.node_id}: Key {key} updated successfully.")
-                return {
-                    "status": "success",
-                    "message": f"Key {key} updated successfully.",
-                    "hops": hops,  # Include the full hops list in the response
-                }
-            else:
-                print(f"Node {self.node_id}: Key {key} not found.")
-                return {"status": "failure", "message": f"Key {key} not found.", "hops": hops}
+            with self.lock:
+                # Check if the key exists in this node's data structure
+                if self.kd_tree and key in self.kd_tree.country_keys:
+                    # Update the data in the KDTree
+                    self.kd_tree.update_points(
+                        country_key=key,
+                        criteria=criteria,
+                        update_fields=update_fields,
+                    )
+                    print(f"Node {self.node_id}: Key {key} updated successfully.")
+                    return {
+                        "status": "success",
+                        "message": f"Key {key} updated successfully.",
+                        "hops": hops,  # Include the full hops list in the response
+                    }
+                else:
+                    print(f"Node {self.node_id}: Key {key} not found.")
+                    return {"status": "failure", "message": f"Key {key} not found.", "hops": hops}
 
         # Forward the request to the next hop
-        print(f"Forwarding UPDATE_KEY Request: {hops}")
+        print(f"Node: {self.node_id} Forwarding UPDATE_KEY Request: {hops}")
         response = self.send_request(self.network.node_ports[next_hop_id], request)
 
         # Ensure the hops list is returned in the response

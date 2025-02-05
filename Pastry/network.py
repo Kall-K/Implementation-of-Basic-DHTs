@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import threading
 
 from .node import PastryNode
 from .constants import *
@@ -21,36 +22,45 @@ class PastryNetwork:
 
         self.gui = PastryDashboard(self, main_window=main_window)  # Initialize the Pastry GUI
 
+        self.lock = threading.Lock()
+
     def node_join(self, new_node):
         """
         Handles a new node joining the Pastry network.
         """
         # Determine the new node's ID
         new_node_id = new_node.node_id
+        with self.lock:
+            # Check if the node ID is already in use
+            if new_node_id in self.nodes.keys():
+                print(f"Node {new_node_id} already exists in the network.")
+                new_node.running = False
+                return {"status": "failure", "message": f"Node {new_node_id} already exists."}
 
-        # Check if the node ID is already in use
-        if new_node_id in self.nodes.keys():
-            print(f"Node {new_node_id} already exists in the network.")
-            new_node.running = False
-            return {"status": "failure", "message": f"Node {new_node_id} already exists."}
+            if self.used_positions:
+                new_node.position = self.used_positions.pop(0)
+            else:
+                new_node.position = np.random.uniform(0, 1)  # Fallback
 
-        if self.used_positions:
-            new_node.position = self.used_positions.pop(0)
-        else:
-            new_node.position = np.random.uniform(0, 1)  # Fallback
+            # Add the node object to the network
+            self.nodes[new_node_id] = new_node
 
-        # Add the node object to the network
-        self.nodes[new_node_id] = new_node
+            # Add the node's port to the node_ports dictionary
+            self.node_ports[new_node_id] = new_node.port
 
-        # Add the node's port to the node_ports dictionary
-        self.node_ports[new_node_id] = new_node.port
+            # Snapshot of the existing node keys
+            existing_nodes = [nid for nid in self.nodes.keys() if nid != new_node_id]
+            # Snapshot of the node ports
+            # node_ports_snapshot = dict(self.node_ports)
 
         if len(self.nodes) == 1:
             print("The network is empty. The new node is the first node.")
             return
 
-        # Find the closest node to the new using its position
-        closest_node_id, closest_neighborhood_set = self._find_topologically_closest_node(new_node)
+        # Find closest node from the snapshot we took while holding the lock
+        closest_node_id, closest_neighborhood_set = self._find_topologically_closest_node(
+            new_node, existing_nodes
+        )
         print(f"The topologically closest node is {closest_node_id}")
         print(f"The topologically closest neigborhood is {closest_neighborhood_set}")
 
@@ -71,7 +81,8 @@ class PastryNetwork:
             "hops": [],  # Initialize an empty hops list
         }
         print(f"\nForwarding JOIN_NETWORK request to the closest node {closest_node_id}...")
-        response = new_node.send_request(self.node_ports[closest_node_id], join_request)
+        with self.lock:
+            response = new_node.send_request(self.node_ports[closest_node_id], join_request)
 
         # Extract and print the hop count from the response
         if response and "hops" in response:
@@ -231,14 +242,14 @@ class PastryNetwork:
 
         return {"status": "success", "message": f"Node {failing_node_id} has failed unexpectedly."}
 
-    def _find_topologically_closest_node(self, new_node):
+    def _find_topologically_closest_node(self, new_node, existing_nodes):
         """
-        Find the topologically closest node in the network to the new node.
+        Find the topologically closest node from a precomputed list of existing nodes.
         """
         closest_node_id = None
         closest_neighborhood_set = None
         min_distance = float("inf")
-        for existing_node_id in self.node_ports.keys():
+        for existing_node_id in existing_nodes:
             # Skip the new node
             if existing_node_id == new_node.node_id:
                 continue
