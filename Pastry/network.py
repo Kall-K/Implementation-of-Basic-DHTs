@@ -67,6 +67,7 @@ class PastryNetwork:
         join_request = {
             "operation": "NODE_JOIN",
             "joining_node_id": new_node_id,
+            "common_prefix_len": common_prefix_length(new_node_id, closest_node_id),
             "hops": [],  # Initialize an empty hops list
         }
         print(f"\nForwarding JOIN_NETWORK request to the closest node {closest_node_id}...")

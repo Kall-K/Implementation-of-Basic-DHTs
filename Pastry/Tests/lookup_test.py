@@ -24,6 +24,7 @@ predefined_ids = [
     "d3ad",
 ]
 
+
 def main():
     network = PastryNetwork()
 
@@ -59,7 +60,7 @@ def main():
         # Select a random node for each lookup
         random_node = random.choice(list(network.nodes.values()))
         response = random_node.lookup(key, lower_bounds, upper_bounds, N=N)
-        
+
         if response and "hops" in response:
             print(f"got a response for key {key}")
             total_hops += len(response["hops"])
@@ -76,8 +77,8 @@ def main():
         print("No lookups were performed.")
 
     # Show the DHT GUI
-    network.gui.show_dht_gui()
-    network.gui.root.mainloop()
+    # network.gui.show_dht_gui()
+    # network.gui.root.mainloop()
 
 
 if __name__ == "__main__":

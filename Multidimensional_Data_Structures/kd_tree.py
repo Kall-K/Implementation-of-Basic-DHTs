@@ -195,6 +195,8 @@ class KDTree:
             if i not in valid_axes:
                 lower_bounds[i] = np.min(self.points[:, i])
                 upper_bounds[i] = np.max(self.points[:, i])
+        print(f"Searching in KDTree. Query Bounds: {lower_bounds} - {upper_bounds}")
+
         center = [(lower_bounds[i] + upper_bounds[i]) / 2 for i in range(3)]
         radius = np.linalg.norm((np.array(upper_bounds) - np.array(lower_bounds)) / 2)
 
