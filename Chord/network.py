@@ -86,11 +86,6 @@ class ChordNetwork:
             print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
             self.insert_key(key, point, review, country)
 
-        # Show the Chord GUI
-        self.gui.show_dht_gui()
-        # Run the gui main loop
-        self.gui.root.mainloop()
-
     def insert_key(self, key, point, review, country):
         return ChordNetwork.bootstrap_node.insert_key(key, point, review, country)
 

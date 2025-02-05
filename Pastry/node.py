@@ -758,7 +758,6 @@ class PastryNode:
             with self.lock:
                 if not self.kd_tree:
                     print(f"\nNode {self.node_id}: No data for key {key}.")
-                    hops.append(self.node_id)
                     return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
 
                 # Delete the key from the KDTree if it exists
