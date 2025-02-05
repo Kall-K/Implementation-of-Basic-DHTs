@@ -8,14 +8,24 @@ from network import ChordNetwork
 from node import ChordNode
 from constants import *
 from helper_functions import *
-
+# operation hops
 
 def insert_keys(network, keys, points, reviews, countries, names):
     """Insert all keys sequentially."""
+    responses = []
     for key, point, review, country, name in zip(keys, points, reviews, countries, names):
         # print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
-        network.insert_key(key, point, review, country)
-
+        response = network.insert_key(key, point, review, country)
+        responses.append(response["hops"])
+    return responses
+        
+def delete_keys(network, keys):
+    """Insert all keys sequentially."""
+    responses = []
+    for key in keys:
+        response = network.delete_key(key)
+        responses.append(response["hops"])
+    return responses
 
 def insert_key(network, key, point, review, country, name):
     """Insert a key."""
@@ -100,10 +110,29 @@ def main():
     )
     print("\n" + "-" * 100 + "\n")
     print("-> Inserting Keys from Dataset...")
-    insert_keys(network, keys, points, reviews, countries, names)
+    result = insert_keys(network, keys, points, reviews, countries, names)
     print("-> End of Insertion")
+    print(f"Average hops for Insertion: {sum(result)/len(result)}")
+    print(f"Sum of hops: {sum(result)}")
+    print(f"Num of Inserts: {len(result)}")
     print("\n" + "-" * 100 + "\n")
-
+    ################################################################
+    #                        KEYS INSERTION                        #
+    ################################################################
+    print(
+        """\n################################################################
+#                        KEYS DELETION                        #
+################################################################\n"""
+    )
+    print("\n" + "-" * 100 + "\n")
+    print("-> Delete Keys from Dataset...")
+    result = delete_keys(network, keys)
+    print("-> End of Deletion")
+    print(f"Average hops for Deletion: {sum(result)/len(result)}")
+    print(f"Sum of hops: {sum(result)}")
+    print(f"Num of Deletions: {len(result)}")
+    print("\n" + "-" * 100 + "\n")
+    return
     ################################################################
     #                        DEMOSTRATION                          #
     ################################################################
