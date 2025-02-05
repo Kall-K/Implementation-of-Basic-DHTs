@@ -15,7 +15,7 @@ pip install -r requirements.txt
 ```
 
 ## Usage 
-After insatlling the dependencies, you can run the application by executing:
+After installing the dependencies, you can run the application by executing:
 ```sh
 python main.py
 ```
