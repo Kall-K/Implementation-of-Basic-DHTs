@@ -26,7 +26,7 @@ def insert_key(network, key, point, review, country, name):
 def main():
     # Load dataset
     dataset_path = "../Coffee_Reviews_Dataset/simplified_coffee.csv"
-    df = pd.read_csv("C:\\Users\\kalli\\Desktop\\github\\Implementation-of-Basic-DHTs\\Coffee_Reviews_Dataset\\simplified_coffee.csv")
+    df = pd.read_csv(dataset_path)
     # df = df[:75]
 
     # Keep only the year from the review_date column
@@ -82,32 +82,14 @@ def main():
         network.node_join(node)
         # node.print_state()
 
-
-    for node_id in network.nodes.keys():
-        network.nodes[node_id].print_state()
-
-
     # network.visualize_network()
-    print("""\n################# NODE LEAVE ###############################""")
+    # time.sleep(5)
+    # network.nodes["4b12"].leave()
+    # time.sleep(5)
+    # for node_id in network.nodes.keys():
+    #     if network.nodes[node_id].running:
+    #         network.nodes[node_id].print_state()
 
-    # Scenario: leave node 4b12 
-    # Issue: Although node 4b12 has left, it still exists into finger tables of nodes fa35 and cafe
-
-    time.sleep(5)
-    print("""\n################# NODE LEAVE 2 ###############################""")
-    network.nodes["4b12"].leave()
-    time.sleep(5)
-    for node_id in network.nodes.keys():
-        if network.nodes[node_id].running:
-            network.nodes[node_id].print_state()
-
-
-    time.sleep(10)
-    for node_id in network.nodes.keys():
-        if network.nodes[node_id].running:
-            network.nodes[node_id].print_state()
-
-    return
     ################################################################
     #                        KEYS INSERTION                        #
     ################################################################
@@ -130,7 +112,7 @@ def main():
 # #                        INSERT KEY                            #
 # ################################################################\n"""
 #     )
-#     country = "Guatemala"#"Romania "
+#     country = "Romania "
 #     name = "Carpathian Coffee"
 #     key = hash_key(country)
 #     point = [2023, 97, 5.7]
@@ -183,7 +165,6 @@ def main():
 #     # ################################################################
 #     # #                        LOOKUP KEY                            #
 #     # ################################################################
-#     # thelei allagi, den einai endeiktiko to lookup gia ta update pu eginan
 #     lower_bounds = [2000, 10, 0]
 #     upper_bounds = [2023, 100, 50]
 #     print("\nVerifying updates through lookup:")
@@ -211,17 +192,18 @@ def main():
 #     print("\nVerifying deletion through lookup:\n")
 #     network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
 
+    for node_id in network.nodes.keys():
+        if network.nodes[node_id].running:
+            network.nodes[node_id].print_state()
 
-    # This scenario throws ERROR
     node = ChordNode(network, node_id="2fec")
     node.start_server()
     network.node_join(node)
+    # network.nodes["4b12"].leave()
     time.sleep(5)
     for node_id in network.nodes.keys():
-        network.nodes[node_id].print_state()
-
-    # network.nodes["4b12"].leave()
-
+        if network.nodes[node_id].running:
+            network.nodes[node_id].print_state()
 
     # ################################################################
     # #                        NODES LEAVE                           #
@@ -243,10 +225,11 @@ def main():
                 if node.running:
                     node.print_state()
 
-    # network.nodes["19bd"].leave()
+    # network.nodes["4bde"].leave()
     # network.nodes["4c12"].leave()
     # network.nodes["cafe"].leave()
-    # network.nodes["4c12"].leave()
+    # network.nodes["2fec"].leave()
+    
 
     running = True
     while running:
