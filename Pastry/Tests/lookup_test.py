@@ -62,7 +62,7 @@ def main():
         response = random_node.lookup(key, lower_bounds, upper_bounds, N=N)
 
         if response and "hops" in response:
-            print(f"got a response for key {key}")
+            print(f"Got a response for key: {key}")
             total_hops += len(response["hops"])
             total_lookups += 1
             print(f"Lookup key: {key}, Hops: {response['hops']}, Node: {random_node.node_id}")
@@ -71,7 +71,7 @@ def main():
     # Calculate and print the average hops
     if total_lookups > 0:
         average_hops = total_hops / total_lookups
-        print(f"Total Lookups Performed: {total_lookups}")
+        print(f"\nTotal Lookups Performed: {total_lookups}")
         print(f"Average hops per lookup: {average_hops}")
     else:
         print("No lookups were performed.")

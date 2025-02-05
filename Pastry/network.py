@@ -294,7 +294,7 @@ class PastryNetwork:
                 print(f"\nNode Added: ID = {node.node_id}, Position = {node.position}")
                 print("\n" + "-" * 100)
             avg_join_hops = num_join_hops / node_num
-        print("\nAll nodes have successfully joined the network.")
+        print("\nAll nodes have successfully joined the network.\n")
 
         # Insert keys
         # Load dataset

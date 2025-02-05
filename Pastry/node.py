@@ -6,6 +6,7 @@ import numpy as np
 import subprocess  # for running netsh to get excluded ports on Windows
 import re
 import platform  # for system identification to get excluded ports
+import struct
 
 import sys
 import os
@@ -231,12 +232,24 @@ class PastryNode:
 
     def _handle_request(self, conn):
         try:
-            data = conn.recv(4096)  # Read up to 1024 bytes of data
+            # Receive the length of the incoming data (first 4 bytes)
+            length_data = conn.recv(4)
+            if not length_data:
+                return
+            data_length = struct.unpack(">I", length_data)[0]
+
+            # Receive the actual data
+            data = b""
+            while len(data) < data_length:
+                chunk = conn.recv(min(data_length - len(data), 1024 * 1024))
+                if not chunk:
+                    break
+                data += chunk
+
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
             hops = request.get("hops", [])
 
-            # print(f"Node {self.node_id}: Handling Request: {request}")
             response = None
 
             # Append the current node to the hops list only in main operations
@@ -294,7 +307,14 @@ class PastryNode:
             else:
                 response = {"status": "failure", "message": "Unknown operation", "hops": hops}
 
-            conn.sendall(pickle.dumps(response))  # Serialize and send the response
+            # Serialize the response
+            response_data = pickle.dumps(response)
+
+            # Send the length of the response first (4 bytes)
+            conn.sendall(struct.pack(">I", len(response_data)))
+
+            # Send the actual response
+            conn.sendall(response_data)
         except Exception as e:
             print(f"Error handling request: {e}")
         finally:
@@ -306,15 +326,36 @@ class PastryNode:
         """
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(2)  # Timeout to avoid long delays
+                s.settimeout(120)  # Timeout to avoid long delays
                 s.connect(("localhost", port))
-                s.sendall(pickle.dumps(request))
-                response = s.recv(4096)
-                return pickle.loads(response)
+
+                # Serialize the request
+                data = pickle.dumps(request)
+
+                # Send the length of the data first (4 bytes)
+                s.sendall(struct.pack(">I", len(data)))
+
+                # Send the actual data
+                s.sendall(data)
+
+                # Receive the response length
+                response_length_data = s.recv(4)
+                if not response_length_data:
+                    return None
+                response_length = struct.unpack(">I", response_length_data)[0]
+
+                # Receive the response data
+                response_data = b""
+                while len(response_data) < response_length:
+                    chunk = s.recv(min(response_length - len(response_data), 1024 * 1024))
+                    if not chunk:
+                        break
+                    response_data += chunk
+
+                return pickle.loads(response_data)
         except (socket.error, EOFError, pickle.PickleError) as e:
             print(f"Network: Failed to send request to node at port {port}. Error: {e}")
             return None  # Return None to indicate failure
-            #return self.repair_node_failure(request)
 
     def repair_node_failure(self, failed_node_id):
         """
@@ -843,7 +884,7 @@ class PastryNode:
                     return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
 
                 # KD-Tree Range Search
-                print(f"Stored points: {self.kd_tree.points}")
+                # print(f"Stored points: {self.kd_tree.points}")
                 points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
                 print(f"Node {self.node_id}: Found {len(points)} matching points.")
 
@@ -870,7 +911,6 @@ class PastryNode:
                     similar_docs = lsh.find_similar_docs(similar_pairs, reviews, N)
 
                     print(f"The Hops are: {hops}")
-                    print("")
                     print(f"\nThe {N} Most Similar Reviews:\n")
 
                     for i, doc in enumerate(similar_docs, 1):
