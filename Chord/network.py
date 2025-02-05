@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 class ChordNetwork:
+    bootstrap_node = None
+
     def __init__(self):
         self.nodes = {}  # Dictionary. Keys are node IDs, values are Node objects
         self.used_ports = []
@@ -14,24 +16,24 @@ class ChordNetwork:
         # Determine the node ID
         node_id = new_node.node_id
 
-        # # Add the node's port to the node_ports dictionary
-        # self.node_ports[new_node.node_id] = new_node.port
+        # Add the node to the network
+        self.nodes[node_id] = new_node
 
-        if len(self.nodes) == 1 or all(not node.running for node in self.nodes.values()):
+        # # Add the node's port to the node_ports dictionary
+        # self.node_ports[new_node_id] = new_node.port
+
+        if len(self.nodes) == 1:
             print("The network is empty. This node is the first node.")
-            self.nodes[node_id] = new_node
+            ChordNetwork.bootstrap_node = new_node
+            self.successor = self
             return
         
-        # Find the running node to insert the new node
-        running_node = 0
-        for i in self.nodes.keys():
-            if self.nodes[i].running:
-                running_node = self.nodes[i]
-                break
-
-        self.nodes[node_id] = new_node
-        
-        successor_id, hops = new_node.request_find_successor(node_id, running_node, [])
+        if ChordNetwork.bootstrap_node.running == False:
+            for node in self.nodes.values():
+                if node.running:
+                    ChordNetwork.bootstrap_node = self.nodes[ChordNetwork.bootstrap_node.node_id]
+                    break
+        successor_id, hops = new_node.request_find_successor(node_id, ChordNetwork.bootstrap_node, [])
         # new_node joins on successor
         new_node.join(self.nodes[successor_id])
 
