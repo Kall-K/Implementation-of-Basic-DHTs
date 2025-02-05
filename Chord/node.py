@@ -132,13 +132,13 @@ class ChordNode:
         print(f"* Finger Table: {self.finger_table}")
         print(f"* Successors: {self.successors}")
         if self.kd_tree:
-            print("* KDTree Infos")
+            print("* KDTree Info")
             print(f"\tUnique Countries: {list(set(self.kd_tree.countries))}")
             print(f"\tUnique keys: {np.unique(self.kd_tree.country_keys)}")
             print(f"\tNum of points: {len(self.kd_tree.points)}")
         else: print("* KDTree is Empty.")
         if self.back_up:
-            print("* Backup Infos")
+            print("* Backup Info")
             print(f"\tUnique Countries: {list(set(self.back_up.countries))}")
             print(f"\tUnique keys: {np.unique(self.back_up.country_keys)}")
             print(f"\tNum of points: {len(self.back_up.points)}")
@@ -155,13 +155,13 @@ class ChordNode:
         self.thread_pool.submit(self._update_finger_table_scheduler)
         
     def _update_finger_table_scheduler(self):
-        interval = 3  # seconds
+        interval = 1.5  # seconds
         while True:
             if not self.running:
                 break
             time.sleep(interval)
             self.update_finger_table()
-            # print("Updated Finger Table of Node:", self.node_id)
+            print("Updated Finger Table of Node:", self.node_id)
     
     def _update_successors_scheduler(self):
         interval = 0.5  # seconds
@@ -351,15 +351,20 @@ class ChordNode:
     #############################
     
     def _handle_find_successor(self, request):
+        # print(f"\n- {self.node_id} ENTERING FIND_SUCCESSOR", end = ", ")
         key = request["key"]
         request["hops"].append(self.node_id)
         if self.node_id == key:
+            # print(f"1rst if", end=", ")
             return self.node_id, request["hops"]
         if distance(self.node_id, key) <= distance(self.get_successor(), key):
+            # print(f"2nd if", end=", ")
             return self.get_successor(), request["hops"]
         else:
+            # print(f"else1", end=", ")
             closest_preceding_node_id = self.closest_preceding_node(self, key)
             closest_preceding_node = self.network.nodes[closest_preceding_node_id]
+            # print(f"else2")
             return self.request_find_successor(key, closest_preceding_node, request["hops"])
     
     def _handle_delete_successor_keys(self, request):
@@ -646,36 +651,23 @@ class ChordNode:
     #############################
     
     def update_finger_table(self, hops=[]):
-        inactive_nodes = []
-        for node_id in self.finger_table:
-            if self.network.nodes[node_id].running:
-                inactive_nodes.append(node_id)
 
+        # print(f"\n- {self.node_id} ENTERING Update Finger Table -", end=", ")
         self.finger_table[0] = self.get_successor()
 
         for i in range(1, len(self.finger_table)):
+            # print(f"{self.node_id} 1", end=", ")
             key = int_to_hex((int(self.node_id, 16) + 2 ** i) % R)
-            temp_dict = {
-                "key": key,
-                "hops": hops
-            }
-            temp_node = self._handle_find_successor(temp_dict)[0]
 
-            if temp_dict in inactive_nodes:
-                temp_dict = {
-                    "key": int_to_hex((int(temp_node, 16) + 1) % R),
-                    "hops": hops
-                }
-                self.finger_table[i] = self._handle_find_successor(temp_dict)[0]
-            else: self.finger_table[i] = temp_node
-            # while self.network.nodes[temp_node].running == False:
-            #     temp_dict = {
-            #         "key": int_to_hex((int(temp_node, 16) + 1) % R),
-            #         "hops": hops
-            #     }
-            #     temp_node = self._handle_find_successor(temp_dict)[0]
-            
-            # self.finger_table[i] = temp_node
+            temp_node = self.request_find_successor(key, self, hops)[0]
+            # print(f"{self.node_id} 2")
+            for _ in range(len(self.network.nodes)):
+                if self.network.nodes[temp_node].running == True: break
+                temp_node = self.request_find_successor(int_to_hex((int(temp_node, 16)+1) % R), self, hops)[0]
+            self.finger_table[i] = temp_node
+        # print(f"- {self.node_id} LEAVING -\n")
+        
+
 
     #############################
     ## Closest Preceding Node ###
@@ -700,9 +692,25 @@ class ChordNode:
         #             node.finger_table[idx] = node.finger_table[c]
 
         for i in range(len(node.finger_table)-1, 0, -1):
-            if distance(node.finger_table[i-1], h_key) < distance(node.finger_table[i], h_key):
-                # if self.network.nodes[node.finger_table[i-1]].running: # skip non-running nodes
-                return node.finger_table[i-1]
+
+            preceding_node = node.finger_table[i-1]
+            next_node = node.finger_table[i]
+
+            running_node_found = False
+            for _ in range(i, len(self.finger_table)):
+                if self.network.nodes[node.finger_table[i]].running == True:
+                    next_node = node.finger_table[i]
+                    running_node_found = True
+                    break
+            if not running_node_found:
+                next_node = node.finger_table[-1]
+                
+            if distance(node.finger_table[i-1], h_key) < distance(next_node, h_key):
+                preceding_node = node.finger_table[i-1]
+                if self.request_status_running(preceding_node):
+                # if self.network.nodes[preceding_node].running: # skip non-running nodes
+                    return preceding_node #  -3 |-2| key -1
+
 
         return node.finger_table[-1]
 
