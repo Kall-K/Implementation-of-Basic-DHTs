@@ -16,6 +16,23 @@ def insert_keys(network, keys, points, reviews, countries, names):
         # print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
         network.insert_key(key, point, review, country)
 
+def update_keys(network, keys):
+    """Update all keys sequentially."""
+    updated_data = {"point": [2018, 94, 5.5], "review": "New review text", "attributes": {"rating": 95}}
+    hops = 0
+    for key in keys:
+        hops += network.update_key(key, updated_data)
+    return hops/len(keys)
+
+def lookups(network, keys):
+    """Perform lookups for all keys."""
+    N = 3
+    lower_bounds = [2018, 0, 0]
+    upper_bounds = [2018, 100, 100]
+    hops = 0
+    for key in keys:
+        hops += network.lookup(key, lower_bounds, upper_bounds, N)
+    return hops/len(keys)
 
 def insert_key(network, key, point, review, country, name):
     """Insert a key."""
@@ -122,27 +139,31 @@ def main():
     print(f">> Insertion status: {response['status']}.")
     print(f">> {response['message']}.")
     print(f">> Key Inserted with {response['hops']} hops.")
-#     ################################################################
-#     #                        LOOKUP KEY                            #
-#     ################################################################
-#     lower_bounds = [2023, 97, 5.7]
-#     upper_bounds = [2023, 97, 5.7]
-#     print("\nVerifying insertion through lookup: ")
-#     response = network.lookup(key, lower_bounds, upper_bounds, N=5)
-#     print(f">> Lookup status: {response['status']}.")
-#     print(f">> {response['message']}")
-#     print(f">> Key Found with {response['hops']} hops.")
-#     # ################################################################
-#     # #                        UPDATE KEY                            #
-#     # ################################################################
-#     print(
-#         """\n################################################################
-# #                        UPDATE KEY                            #
-# ################################################################\n""")
-#     # Update all points
-#     print("\nUpdating all points for Romania:\n")
-#     update_fields = {"attributes": {"price": 35.0}}
-#     network.update_key(key, updated_data=update_fields)
+    ################################################################
+    #                        LOOKUP KEY                            #
+    ################################################################
+    lookup_hops = lookups(network, keys)
+    print("lookup hops: ", lookup_hops)
+    # lower_bounds = [2023, 97, 5.7]
+    # upper_bounds = [2023, 97, 5.7]
+    # print("\nVerifying insertion through lookup: ")
+    # response = network.lookup(key, lower_bounds, upper_bounds, N=5)
+    # print(f">> Lookup status: {response['status']}.")
+    # print(f">> {response['message']}")
+    # print(f">> Key Found with {response['hops']} hops.")
+    ################################################################
+    #                        UPDATE KEY                            #
+    ################################################################
+    print(
+        """\n################################################################
+#                        UPDATE KEY                            #
+################################################################\n""")
+    # Update all points
+    update_hops = update_keys(network=network, keys=keys)
+    print("update hops: ", update_hops)
+    # print("\nUpdating all points for Romania:\n")
+    # update_fields = {"attributes": {"price": 35.0}}
+    # network.update_key(key, updated_data=update_fields)
     
 #     # Update only the review
 #     print("\nUpdate In Parallel")
@@ -220,7 +241,7 @@ def main():
             node.leave()
             print("\n\n" + "-" * 100)
             time.sleep(5)
-            print(f"\n>>>> State after node ${node.node_id} left")
+            print(f"\n>>>> State after node {node.node_id} left")
             for node in network.nodes.values():
                 if node.running:
                     node.print_state()

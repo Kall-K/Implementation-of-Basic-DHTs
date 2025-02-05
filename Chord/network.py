@@ -123,9 +123,9 @@ class ChordNetwork:
     def update_key(self, key, updated_data, criteria=None):
         for node_id in self.nodes.keys():
             if self.nodes[node_id].running:
-                return self.nodes[node_id].update_key(key, updated_data, criteria)
+                return self.nodes[node_id].update_key(key, updated_data, criteria)["hops"]
         
     def lookup(self, key, lower_bounds, upper_bounds, N):
         for node_id in self.nodes.keys():
             if self.nodes[node_id].running:
-                return self.nodes[node_id].lookup(key, lower_bounds, upper_bounds, N)
+                return self.nodes[node_id].lookup(key, lower_bounds, upper_bounds, N)["hops"]
