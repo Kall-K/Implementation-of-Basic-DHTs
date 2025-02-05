@@ -331,7 +331,5 @@ class PastryNetwork:
         avg_insert_hops = num_insert_hops / len(keys)
 
         print("\nAll keys have been successfully inserted into the network.")
-        print(f"\nAverage Hops during node join: {avg_join_hops}")
-        print(f"\nAverage Hops during key insertion: {avg_insert_hops}\n")
 
         return avg_join_hops, avg_insert_hops

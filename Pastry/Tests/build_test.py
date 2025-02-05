@@ -31,8 +31,8 @@ def main():
         dataset_path="../../Coffee_Reviews_Dataset/simplified_coffee.csv",
     )
 
-    print(f"\nAverage Hops during node join: {avg_join_hops}")
-    print(f"\nAverage Hops during key insertion: {avg_insert_hops}\n")
+    print(f"\nAverage Hops during Node Arrivals: {avg_join_hops}")
+    print(f"\nAverage Hops during key Insertion: {avg_insert_hops}\n")
 
 
 if __name__ == "__main__":
