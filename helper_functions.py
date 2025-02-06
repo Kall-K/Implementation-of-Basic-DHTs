@@ -1,7 +1,7 @@
-from ipaddress import ip_address
 import hashlib
+import matplotlib.pyplot as plt
 
-from .constants import *
+from constants import R
 
 """---Helper function for the Pasrty Implementation---"""
 
@@ -14,15 +14,11 @@ def hash_key(value):
     return sha1_hash[-4:]
 
 
-def topological_distance(ip1, ip2):
+def topological_distance(pos1, pos2):
     """
-    Calculate the topological distance between two nodes based on their ip addresses.
+    Calculate the topological distance between two nodes based on their position (float between 0 and 1).
     """
-    # Convert IP addresses to their integer representation
-    ip1_numeric = int(ip_address(ip1))
-    ip2_numeric = int(ip_address(ip2))
-    # Calculate the absolute distance
-    return abs(ip1_numeric - ip2_numeric)
+    return abs(pos1 - pos2)
 
 
 def common_prefix_length(id1, id2):
@@ -45,13 +41,8 @@ def hex_distance(id1, id2):
         if id1[i] != id2[i]:
             # Return the index of the first differing character and the absolute difference between the two IDs
             return i, abs(int(id1[i:], 16) - int(id2[i:], 16))
-    # If the IDs are identical, return the length of the IDs and 0
-    return -1, 0
-
-
-"""def hex_distance(id1, id2):
-    #Calculate the absolute distance between two hexadecimal IDs.
-    return abs(int(id1, 16) - int(id2, 16))"""
+    # If the IDs are identical, the different digit is set to len(id1) and the distance is 0
+    return len(id1), 0
 
 
 def hex_compare(id1, id2, equality=True):
@@ -83,3 +74,21 @@ def distance(hex1, hex2):
 
 def int_to_hex(num):
     return hex(num)[2:].rjust(4, "0")
+
+
+def plot_hops(hops_counts):
+    """
+    Plot a bar graph for hops in different operations.
+    """
+    operations = list(hops_counts.keys())
+    # Extract the first value (or 0 if empty) for each operation
+    hops = [counts[0] if counts else 0 for counts in hops_counts.values()]
+
+    plt.figure(figsize=(10, 6))
+    plt.bar(operations, hops, color="skyblue")
+    plt.title("Number of Hops for Pastry Network Operations", fontsize=16)
+    plt.ylabel("Number of Hops", fontsize=14)
+    plt.xlabel("Operation Type", fontsize=14)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
+    plt.show()

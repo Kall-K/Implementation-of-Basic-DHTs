@@ -3,8 +3,8 @@ import pandas as pd
 import threading
 
 from .node import PastryNode
-from .constants import *
-from .helper_functions import *
+from constants import *
+from helper_functions import *
 from .pastry_gui import PastryDashboard
 
 

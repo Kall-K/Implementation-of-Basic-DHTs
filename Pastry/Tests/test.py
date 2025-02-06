@@ -9,8 +9,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 
 from Pastry.network import PastryNetwork
 from Pastry.node import PastryNode
-from Pastry.constants import *
-from Pastry.helper_functions import *
+from constants import *
+from helper_functions import *
 
 
 def main():
@@ -37,21 +37,6 @@ def main():
     print("=======================")
     print("Creating the Pastry network...")
     network = PastryNetwork()
-
-    # 11 Predefined node IDs. As many as the countries in the dataset
-    predefined_ids = [
-        "4b12",
-        "fa35",
-        "19bd",
-        "37de",
-        "3722",
-        "ca12",
-        "cafe",
-        "fb32",
-        "20bc",
-        "20bd",
-        "3745",
-    ]
 
     print(f"Adding {len(predefined_ids)} nodes to the network...")
     for node_id in predefined_ids:
@@ -166,7 +151,9 @@ def main():
     print("\nUpdating a specific point for Taiwan:\n")
     update_feilds_that_have = {"review_date": 2019, "rating": 94, "price": 35.0}
     update_to = {"attributes": {"price": 36.0}}
-    first_node.update_key(key=taiwan_country_key, updated_data=update_to, criteria=update_feilds_that_have)
+    first_node.update_key(
+        key=taiwan_country_key, updated_data=update_to, criteria=update_feilds_that_have
+    )
 
     # Update only the review for Taiwan
     print("\nUpdating only the review for Taiwan:\n")
@@ -184,8 +171,10 @@ def main():
     # Update based on specific attributes and modify multiple fields
     print("\nUpdating specific attributes for Taiwan:\n")
     update_feilds_that_have = {"review_date": 2019, "rating": 94}
-    update_to = {"point": [2018,93,None]}
-    first_node.update_key(key=taiwan_country_key, updated_data=update_to, criteria=update_feilds_that_have)
+    update_to = {"point": [2018, 93, None]}
+    first_node.update_key(
+        key=taiwan_country_key, updated_data=update_to, criteria=update_feilds_that_have
+    )
 
     # Verify all updates
     lower_bounds = [2018, 92, 33.0]

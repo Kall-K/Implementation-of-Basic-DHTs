@@ -17,7 +17,6 @@ class ChordDashboard(Dashboard):
         print("Shutting down network...")
         for node in self.network.nodes.values():
             node.leave()
-
         # Stop Tkinter main loop
         self.root.quit()  # Exit the event loop
         self.root.destroy()  # Destroy the GUI window

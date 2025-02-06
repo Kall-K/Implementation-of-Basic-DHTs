@@ -8,15 +8,9 @@ import re
 import platform  # for system identification to get excluded ports
 import struct
 
-import sys
-import os
 
-# Add the parent directory to sys.path
-# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-
-from .constants import *
-from .helper_functions import *
+from constants import *
+from helper_functions import *
 
 from Multidimensional_Data_Structures.kd_tree import KDTree
 from Multidimensional_Data_Structures.lsh import LSH
@@ -46,7 +40,7 @@ class PastryNode:
 
         # Nearby nodes
         # self.neighborhood_set = [None for x in range(np.floor(np.sqrt(N)).astype(int))]
-        self.neighborhood_set = [None for x in range(M)]
+        self.neighborhood_set = [None for x in range(NEIGHBORHOOD_SIZE)]
 
         self.lock = threading.Lock()  # Lock for thread safety
 
@@ -109,8 +103,16 @@ class PastryNode:
             port = np.random.randint(1024, 65535)  # Random port if not provided
 
             if port not in self.network.used_ports and not is_excluded(port):
-                self.network.used_ports.append(port)
-                return port
+                # Test if port is actually available
+                test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    test_socket.bind(("127.0.0.1", port))
+                    self.network.used_ports.append(port)
+                    return port
+                except OSError:
+                    continue
+                finally:
+                    test_socket.close()
 
     def _generate_id(self, port):
         """

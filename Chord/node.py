@@ -1,3 +1,4 @@
+import struct
 import threading
 import socket
 import hashlib
@@ -8,15 +9,10 @@ import numpy as np
 import subprocess  # for running netsh to get excluded ports on Windows
 import re
 import platform  # for system identification to get excluded ports
-from collections import defaultdict
-import sys
-import os
 
-# Add the parent directory to sys.path
-# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from .constants import *
-from .helper_functions import *
+from constants import *
+from helper_functions import *
 from Multidimensional_Data_Structures.kd_tree import KDTree
 from Multidimensional_Data_Structures.lsh import LSH
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -123,8 +119,16 @@ class ChordNode:
             port = np.random.randint(1024, 65535)  # Random port if not provided
 
             if port not in self.network.used_ports and not is_excluded(port):
-                self.network.used_ports.append(port)
-                return port
+                # Test if port is actually available
+                test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    test_socket.bind(("127.0.0.1", port))
+                    self.network.used_ports.append(port)
+                    return port
+                except OSError:
+                    continue
+                finally:
+                    test_socket.close()
 
     # State Inspection
     def get_state(self):
@@ -174,7 +178,28 @@ class ChordNode:
         return "\n".join(state)
 
     def print_state(self):
-        print(self.get_state)
+        """
+        Print the state of the node (ID, Address, Data Structures).
+        """
+        print("\n" + "-" * 100)
+        print(f"-- Node ID: {self.node_id} --")
+        print(f"* Predecessor: {self.predecessor}")
+        print(f"* Finger Table: {self.finger_table}")
+        print(f"* Successors: {self.successors}")
+        if self.kd_tree:
+            print("* KDTree Info")
+            print(f"\tUnique Countries: {list(set(self.kd_tree.countries))}")
+            print(f"\tUnique keys: {np.unique(self.kd_tree.country_keys)}")
+            print(f"\tNum of points: {len(self.kd_tree.points)}")
+        else:
+            print("* KDTree is Empty.")
+        if self.back_up:
+            print("* Backup Info")
+            print(f"\tUnique Countries: {list(set(self.back_up.countries))}")
+            print(f"\tUnique keys: {np.unique(self.back_up.country_keys)}")
+            print(f"\tNum of points: {len(self.back_up.points)}")
+        else:
+            print("* Backup is Empty.")
 
     # Network Communication
 
@@ -187,7 +212,7 @@ class ChordNode:
         self.thread_pool.submit(self._update_finger_table_scheduler)
 
     def _update_finger_table_scheduler(self):
-        interval = 3  # seconds
+        interval = 1.5  # seconds
         while True:
             if not self.running:
                 break
@@ -222,19 +247,36 @@ class ChordNode:
                 return
 
             s.listen()
+            s.settimeout(1.0)
             # print(f"Node {self.node_id} listening on {self.address} (bound to {bind_address})")
 
             while not self.stop_event.is_set():
-                conn, addr = s.accept()  # Accept incoming connection
-                # Submit the connection to the thread pool for handling
                 try:
+                    conn, addr = s.accept()  # Accept incoming connection
+                    # Submit the connection to the thread pool for handling
                     self.thread_pool.submit(self._handle_request, conn)
+                except socket.timeout:
+                    continue  # Check stop_event again
                 except RuntimeError as e:
+                    print(f"Runtime Error: {e}")
                     return None
 
     def _handle_request(self, conn):
         try:
-            data = conn.recv(1024 * 1024)  # Read up to 1024*1024 bytes of data
+            # Receive the length of the incoming data (first 4 bytes)
+            length_data = conn.recv(4)
+            if not length_data:
+                return
+            data_length = struct.unpack(">I", length_data)[0]
+
+            # Receive the actual data
+            data = b""
+            while len(data) < data_length:
+                chunk = conn.recv(min(data_length - len(data), 1024 * 1024))
+                if not chunk:
+                    break
+                data += chunk
+
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
             response = None
@@ -266,7 +308,13 @@ class ChordNode:
 
             # Add more operations here as needed
 
-            conn.sendall(pickle.dumps(response))  # Serialize and send the response
+            # Serialize the response
+            response_data = pickle.dumps(response)
+            # Send the length of the response first (4 bytes)
+            conn.sendall(struct.pack(">I", len(response_data)))
+
+            # Send the actual response
+            conn.sendall(response_data)
         except Exception as e:
             print(f"Error handling request: {e}")
         finally:
@@ -276,19 +324,38 @@ class ChordNode:
         """
         Send a request to a node and wait for its response.
         """
-        # Use loopback IP for actual connection
         connect_address = ("127.0.0.1", node.address[1])
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(120)  # Timeout to avoid long delays
+                s.connect(connect_address)
+                # Serialize the request
+                data = pickle.dumps(request)
 
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            # s.settimeout(10)  # Set a timeout for both connect and recv
-            try:
-                s.connect(connect_address)  # Connect using loopback
-                s.sendall(pickle.dumps(request))  # Serialize and send the request
-                response = s.recv(1024 * 1024)  # Receive the response
-            except Exception as e:
-                return None
+                # Send the length of the data first (4 bytes)
+                s.sendall(struct.pack(">I", len(data)))
 
-        return pickle.loads(response)  # Deserialize the response
+                # Send the actual data
+                s.sendall(data)
+
+                # Receive the response length
+                response_length_data = s.recv(4)
+                if not response_length_data:
+                    return None
+                response_length = struct.unpack(">I", response_length_data)[0]
+
+                # Receive the response data
+                response_data = b""
+                while len(response_data) < response_length:
+                    chunk = s.recv(min(response_length - len(response_data), 1024 * 1024))
+                    if not chunk:
+                        break
+                    response_data += chunk
+                return pickle.loads(response_data)
+
+        except (socket.error, EOFError, pickle.PickleError) as e:
+            print(f"Network: Failed to send request to node at port {node.address[1]}. Error: {e}")
+            return None  # Return None to indicate failure
 
     #############################
     ######### Requests ##########
@@ -410,9 +477,9 @@ class ChordNode:
             points = self.back_up.points
             reviews = self.back_up.reviews.tolist()
             countries = self.back_up.countries
-            c = 0
+
             for key, point, review, country in zip(keys, points, reviews, countries):
-                c = c + 1
+
                 request = {
                     "operation": "INSERT_KEY",
                     "key": key,
@@ -495,7 +562,7 @@ class ChordNode:
             if tree and key in tree.country_keys:
                 tree.delete_points(key)
             else:
-                return {"status": "failure", "message": f"No data for key {key}."}
+                return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
 
             if request["choice"]:
                 self.kd_tree = tree
@@ -555,7 +622,8 @@ class ChordNode:
             or self.kd_tree.points.size == 0
         ):
             print(f"Node {self.node_id}: No data for key {key}.")
-            return {"status": "failure", "message": f"No data for key {key}."}
+
+            return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
 
         # KDTree Range Search
         points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
@@ -680,15 +748,19 @@ class ChordNode:
     #############################
     #### Update Finger Table ####
     #############################
-    # fix pos=0
+
     def update_finger_table(self, hops=[]):
+        self.finger_table[0] = self.get_successor()
         for i in range(1, len(self.finger_table)):
             key = int_to_hex((int(self.node_id, 16) + 2**i) % R)
             temp_node = self.request_find_successor(key, self, hops)[0]
-            while self.network.nodes[temp_node].running == False:
+            for _ in range(len(self.network.nodes)):
+                if self.network.nodes[temp_node].running == True:
+                    break
                 temp_node = self.request_find_successor(
                     int_to_hex((int(temp_node, 16) + 1) % R), self, hops
                 )[0]
+
             self.finger_table[i] = temp_node
 
     #############################
@@ -697,9 +769,23 @@ class ChordNode:
 
     def closest_preceding_node(self, node, h_key):
         for i in range(len(node.finger_table) - 1, 0, -1):
-            if distance(node.finger_table[i - 1], h_key) < distance(node.finger_table[i], h_key):
-                if self.network.nodes[node.finger_table[i - 1]].running:  # skip non-running nodes
-                    return node.finger_table[i - 1]
+            preceding_node = node.finger_table[i - 1]
+            next_node = node.finger_table[i]
+
+            running_node_found = False
+            for _ in range(i, len(self.finger_table)):
+                if self.network.nodes[node.finger_table[i]].running == True:
+                    next_node = node.finger_table[i]
+                    running_node_found = True
+                    break
+            if not running_node_found:
+                next_node = node.finger_table[-1]
+
+            if distance(node.finger_table[i - 1], h_key) < distance(next_node, h_key):
+                preceding_node = node.finger_table[i - 1]
+                if self.request_status_running(preceding_node):
+                    # if self.network.nodes[preceding_node].running: # skip non-running nodes
+                    return preceding_node  #  -3 |-2| key -1
 
         return node.finger_table[-1]
 
@@ -724,22 +810,29 @@ class ChordNode:
 
         if successor_node.kd_tree != None:
             # Get keys from successor
-            keys = {
+            keys = [
                 key
-                for key in sorted(successor_node.kd_tree.country_keys)
-                if (distance(self.node_id, key) < distance(self.get_successor(), key))
-            }
+                for key in np.unique(successor_node.kd_tree.country_keys)
+                if (distance(self.node_id, key) > distance(self.get_successor(), key))
+            ]
 
             # 1. Insert keys and data to self's kdtree
             for key in keys:
-                review = successor_node.kd_tree.reviews[successor_node.kd_tree.country_keys == key][
-                    0
-                ]
-                country = successor_node.kd_tree.countries[
-                    successor_node.kd_tree.country_keys == key
-                ][0]
-                point = successor_node.kd_tree.points[successor_node.kd_tree.country_keys == key][0]
-                self.kd_tree.add_point(point, review, country)
+                indices = np.where(successor_node.kd_tree.country_keys == key)
+                reviews = successor_node.kd_tree.reviews[indices]
+                countries = [successor_node.kd_tree.countries[i] for i in indices[0]]
+                points = successor_node.kd_tree.points[indices]
+                for review, point, country in zip(reviews, points, countries):
+                    request = {
+                        "operation": "INSERT_KEY",
+                        "key": key,
+                        "point": point,
+                        "review": review,
+                        "country": country,
+                        "hops": [],  # Initialize hops tracking
+                        "choice": True,
+                    }
+                    self._handle_insert_key_request(request)
 
             # 2. Delete keys and data from successor
             self.request_delete_successor_keys(keys, suc_id)

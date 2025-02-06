@@ -11,14 +11,15 @@ from Multidimensional_Data_Structures.kd_tree import KDTree
 from constants import predefined_ids
 
 
-def main():
-    network = PastryNetwork()
+def delete_test(network=None):
+    if network is None:
+        network = PastryNetwork()
 
-    # Build the network with predefined IDs
-    network.build(
-        predefined_ids=predefined_ids,
-        dataset_path="../../../Coffee_Reviews_Dataset/simplified_coffee.csv",
-    )
+        # Build the network with predefined IDs
+        network.build(
+            predefined_ids=predefined_ids,
+            dataset_path="../../../Coffee_Reviews_Dataset/simplified_coffee.csv",
+        )
 
     # Gather all unique country keys from each node's KD-Tree
     unique_country_keys = set()
@@ -55,10 +56,12 @@ def main():
     else:
         print("No keys were deleted.")
 
+    return average_hops
+
     # # Show the DHT GUI
     # network.gui.show_dht_gui()
     # network.gui.root.mainloop()
 
 
 if __name__ == "__main__":
-    main()
+    delete_test()

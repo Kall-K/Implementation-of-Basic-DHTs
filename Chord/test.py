@@ -1,20 +1,62 @@
+import json
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import time
 
 import threading
 
 import pandas as pd
 
-from network import ChordNetwork
-from node import ChordNode
+from Chord.network import ChordNetwork
+from Chord.node import ChordNode
 from constants import *
 from helper_functions import *
 
 
 def insert_keys(network, keys, points, reviews, countries, names):
     """Insert all keys sequentially."""
+    responses = []
     for key, point, review, country, name in zip(keys, points, reviews, countries, names):
         # print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
-        network.insert_key(key, point, review, country)
+        response = network.insert_key(key, point, review, country)
+        responses.append(response["hops"])
+    return responses
+
+
+def delete_keys(network, keys):
+    """Insert all keys sequentially."""
+    responses = []
+    for key in keys:
+        response = network.delete_key(key)
+        responses.append(response["hops"])
+    return responses
+
+
+def update_keys(network, keys):
+    """Update all keys sequentially."""
+    updated_data = {
+        "point": [2018, 94, 5.5],
+        "review": "New review text",
+        "attributes": {"rating": 95},
+    }
+    hops = 0
+    for key in keys:
+        hops += network.update_key(key, updated_data)["hops"]
+    return hops / len(keys)
+
+
+def lookups(network, keys):
+    """Perform lookups for all keys."""
+    N = 0
+    lower_bounds = [2018, 0, 0]
+    upper_bounds = [2018, 0, 0]
+    hops = 0
+    for key in keys:
+        hops += network.lookup(key, lower_bounds, upper_bounds, N)["hops"]
+    return hops / len(keys)
 
 
 def insert_key(network, key, point, review, country, name):
@@ -27,13 +69,13 @@ def main():
     # Load dataset
     dataset_path = "../Coffee_Reviews_Dataset/simplified_coffee.csv"
     df = pd.read_csv(dataset_path)
-    # df = df[:75]
 
     # Keep only the year from the review_date column
     df["review_date"] = pd.to_datetime(df["review_date"], format="%B %Y").dt.year
 
     # Extract loc_country as keys
     keys = df["loc_country"].apply(hash_key)
+    unique_keys = list(set(keys))
 
     # Extract data points (review_date, rating, 100g_USD)
     points = df[["review_date", "rating", "100g_USD"]].to_numpy()
@@ -47,9 +89,8 @@ def main():
     print("Creating the Chord network...")
     network = ChordNetwork()
 
-    ################################################################
-    #                         NODES JOIN                           #
-    ################################################################
+    # List to store test results
+    Results = {}
 
     print(
         """\n################################################################
@@ -57,23 +98,19 @@ def main():
 ################################################################\n"""
     )
 
-    # Predefined node IDs to test
-    predefined_ids = ["4b12", "fa35", "19bd", "4bde", "4c12", "cafe"]
-
     print(f"Adding {len(predefined_ids)} nodes to the network...")
 
+    hops = []
     # Node Insertion
     for node_id in predefined_ids:
         node = ChordNode(network, node_id=node_id)
         node.start_server()
-        network.node_join(node)
-        node.print_state()
+        hops.append(len(network.node_join(node)) - 1)
 
-    # network.visualize_network()
+    print(f"Total num of hops to insert {len(hops)} nodes: {sum(hops)}")
+    print(f"Avarage num of hops to insert a node: {sum(hops)/len(hops)}")
+    Results[chord_operations[0]] = sum(hops) / len(hops)
 
-    ################################################################
-    #                        KEYS INSERTION                        #
-    ################################################################
     print(
         """\n################################################################
 #                        KEYS INSERTION                        #
@@ -81,150 +118,62 @@ def main():
     )
     print("\n" + "-" * 100 + "\n")
     print("-> Inserting Keys from Dataset...")
-    insert_keys(network, keys, points, reviews, countries, names)
+    result = insert_keys(network, keys, points, reviews, countries, names)
     print("-> End of Insertion")
+    print(f"Average hops for Insertion: {sum(result)/len(result)}")
+    print(f"Sum of hops: {sum(result)}")
+    print(f"Total num of Inserts: {len(result)}")
     print("\n" + "-" * 100 + "\n")
-
-    ################################################################
-    #                        DEMOSTRATION                          #
-    ################################################################
-    print(
-        """\n################################################################
-#                        INSERT KEY                            #
-################################################################\n"""
-    )
-    country = "Romania "
-    name = "Carpathian Coffee"
-    key = hash_key(country)
-    point = [2023, 97, 5.7]
-    review = "Dried plums, acacia honey, roasted walnuts, and dark chocolate in aroma and cup. Fine, well-balanced acidity; creamy and rich body. Long finish with notes of caramelized almonds and subtle essences of vanilla and smoked oak."
-    response = insert_key(network, key, point, review, country, name)
-    print(f">> Inserting Key: {key}, Country: {country}, Name: {name}")
-    print(f">> Insertion status: {response['status']}.")
-    print(f">> {response['message']}.")
-    print(f">> Key Inserted with {response['hops']} hops.")
-    ################################################################
-    #                        LOOKUP KEY                            #
-    ################################################################
-    # Verify all updates
-    lower_bounds = [2023, 97, 5.7]
-    upper_bounds = [2023, 97, 5.7]
-    print("\nVerifying Insert through Lookup: ")
-    response = network.lookup(key, lower_bounds, upper_bounds, N=5)
-    print(f">> Lookup status: {response['status']}.")
-    print(f">> {response['message']}")
-    print(f">> Key Found with {response['hops']} hops.")
-    # ################################################################
-    # #                        UPDATE KEY                            #
-    # ################################################################
-    print(
-        """\n################################################################
-#                        UPDATE KEY                            #
-################################################################\n"""
-    )
-    # ΝΑ ΘΥΜΗΘΩ ΝΑ ΒΑΛΩ HOPS !!!!!!!!!
-    # Update all points for Taiwan
-    print("\nUpdating all points for Taiwan:\n")
-    update_fields = {"attributes": {"price": 35.0}}
-    network.update_key(key, updated_data=update_fields)
-
-    # Update a specific point for Taiwan
-    print("\nUpdating a specific point for Taiwan:\n")
-    criteria = {"review_date": 2019, "rating": 94, "price": 35.0}
-    update_fields = {"attributes": {"price": 36.0}}
-    network.update_key(key, updated_data=update_fields, criteria=criteria)
-
-    # Update only the review for Taiwan
-    print("\nUpdating only the review for Taiwan:\n")
-    update_fields = {
-        "review": "An updated review for Taiwan's coffee: crisp and fruity with a lingering sweetness."
-    }
-
-    network.update_key(key, updated_data=update_fields)
-
-    # update_fields2 = {
-    #     "review": "An updated review2 for Taiwan's coffee: crisp and fruity with a lingering sweetness."
-    # }
-
-    # update_thread1 = threading.Thread(target=network.update_key, args=(taiwan_country_key, update_fields,))
-    # update_thread2 = threading.Thread(target=network.update_key, args=(taiwan_country_key, update_fields2,))
-    # update_thread2.start()
-    # update_thread1.start()
-
-    # update_thread1.join()
-    # update_thread2.join()
-
-    # Update based on specific attributes and modify multiple fields
-    print("\nUpdating specific attributes for Romania:\n")
-    criteria = {"review_date": 2019, "rating": 94}
-    update_fields = {"attributes": {"price": 37.0, "rating": 95}}
-    network.update_key(key, updated_data=update_fields, criteria=criteria)
-    # ################################################################
-    # #                        LOOKUP KEY                            #
-    # ################################################################
-    # ################################################################
-    # #                        DELETE KEY                            #
-    # ################################################################
-    # network.delete_key('372a')
-    # network.delete_key('372b')
-
-    # key = '372b'
-    # # Parallel Deletion
-    # delete_thread = threading.Thread(target=network.delete_key, args=(key,))
-    # delete_thread2 = threading.Thread(target=network.delete_key, args=(key,))
-
-    # delete_thread.start()
-    # delete_thread2.start()
-
-    # delete_thread.join()
-    # delete_thread2.join()
-    # ################################################################
-    # #                        LOOKUP KEY                            #
-    # ################################################################
-    # # Verify all updates
-    # lower_bounds = [2018, 90, 30.0]
-    # upper_bounds = [2019, 95, 40.0]
-    # print("\nVerifying updates through lookup:\n")
-    # network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
-    # ################################################################
-    # #                        NODES LEAVE                           #
-    # ################################################################
-
-    # for node_id in network.nodes.keys():
-    #     network.nodes[node_id].print_state()
-
-    return
+    Results[chord_operations[1]] = sum(result) / len(result)
 
     print(
         """\n################################################################
-#                        NODES LEAVE                           #
+#                        KEYS UPDATE                           #
 ################################################################\n"""
     )
-    time.sleep(2)
-    nodes_to_leave = ["19bd", "4c12"]
-    for node in nodes_to_leave:
+    update_hops = update_keys(network, unique_keys)
+    print("update hops: ", update_hops)
+    Results[chord_operations[3]] = update_hops
+
+    print(
+        """\n################################################################
+#                        KEYS LOOKUP                           #
+################################################################\n"""
+    )
+    lookup_hops = lookups(network, unique_keys)
+    print("lookup hops: ", lookup_hops)
+    Results[chord_operations[4]] = lookup_hops
+
+    print(
+        """\n################################################################
+#                        KEYS DELETION                         #
+################################################################\n"""
+    )
+    print("\n" + "-" * 100 + "\n")
+    print("-> Delete Keys from Dataset...")
+    result = delete_keys(network, unique_keys)
+    print("-> End of Deletion")
+    print(f"Average hops for Deletion: {sum(result)/len(result)}")
+    print(f"Sum of hops: {sum(result)}")
+    print(f"Total num of Deletions: {len(result)}")
+    print("\n" + "-" * 100 + "\n")
+    Results[chord_operations[2]] = sum(result) / len(result)
+
+    with open("ChordResults.json", "a") as outfile:
+        json.dump(Results, outfile, indent=4)
+
+    for node in predefined_ids:
         node = network.nodes[node]
         if node.running:
             node.leave()
-            print("\n\n" + "-" * 100)
-            time.sleep(5)
-            print(f"\n>>>> State after node ${node.node_id} left")
-            for node in network.nodes.values():
-                if node.running:
-                    node.print_state()
 
-    # network.nodes["19bd"].leave()
-    # network.nodes["4c12"].leave()
-    # network.nodes["cafe"].leave()
-    # network.nodes["4c12"].leave()
-
-    running = True
-    while running:
-        time.sleep(2)
-        running = False
-        for node in network.nodes.values():
-            if node.running:
-                running = True
+    # running = True
+    # while running:
+    #     time.sleep(2)
+    #     running = False
+    #     for node in network.nodes.values():
+    #         if node.running:
+    #             running = True
 
 
 if __name__ == "__main__":

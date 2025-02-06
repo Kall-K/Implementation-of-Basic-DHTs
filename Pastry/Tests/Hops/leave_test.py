@@ -11,14 +11,15 @@ from Multidimensional_Data_Structures.kd_tree import KDTree
 from constants import predefined_ids
 
 
-def main():
-    network = PastryNetwork()
+def leave_test(network=None):
+    if network is None:
+        network = PastryNetwork()
 
-    # Build the network with predefined IDs
-    network.build(
-        predefined_ids=predefined_ids,
-        dataset_path="../../../Coffee_Reviews_Dataset/simplified_coffee.csv",
-    )
+        # Build the network with predefined IDs
+        network.build(
+            predefined_ids=predefined_ids,
+            dataset_path="../../../Coffee_Reviews_Dataset/simplified_coffee.csv",
+        )
 
     node_ids = list(network.nodes.keys())  # Create a static copy list of node IDs
     num_nodes = len(node_ids)  # Original node count
@@ -31,10 +32,12 @@ def main():
 
     print(f"\nAverage hops for Graceful Node Departures: {avg_leave_hops}")
 
+    return avg_leave_hops
+
     # Show the DHT GUI
     # network.gui.show_dht_gui()
     # network.gui.root.mainloop()
 
 
 if __name__ == "__main__":
-    main()
+    leave_test()

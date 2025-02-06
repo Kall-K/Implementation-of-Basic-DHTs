@@ -6,7 +6,8 @@ from tkinter import scrolledtext
 from matplotlib.collections import PathCollection
 from abc import ABC, abstractmethod
 
-from Pastry.helper_functions import hash_key
+
+from helper_functions import hash_key
 
 WIDTH = 1720
 HEIGHT = 750

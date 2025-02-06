@@ -11,14 +11,15 @@ from Multidimensional_Data_Structures.kd_tree import KDTree
 from constants import predefined_ids
 
 
-def main():
-    network = PastryNetwork()
+def lookup_test(network=None):
+    if network is None:
+        network = PastryNetwork()
 
-    # Build the network with predefined IDs
-    network.build(
-        predefined_ids=predefined_ids,
-        dataset_path="../../../Coffee_Reviews_Dataset/simplified_coffee.csv",
-    )
+        # Build the network with predefined IDs
+        network.build(
+            predefined_ids=predefined_ids,
+            dataset_path="../../../Coffee_Reviews_Dataset/simplified_coffee.csv",
+        )
 
     # Define the lookup parameters
     lower_bounds = [2020, None, None]  # Example lower bounds
@@ -62,10 +63,12 @@ def main():
     else:
         print("No lookups were performed.")
 
+    return average_hops
+
     # Show the DHT GUI
     # network.gui.show_dht_gui()
     # network.gui.root.mainloop()
 
 
 if __name__ == "__main__":
-    main()
+    lookup_test()
