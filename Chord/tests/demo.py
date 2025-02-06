@@ -1,7 +1,7 @@
 import json
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 import time
 
@@ -31,14 +31,13 @@ def delete_keys(network, keys):
         response = network.delete_key(key)
         responses.append(response["hops"])
     return responses
-        
 
 def update_keys(network, keys):
     """Update all keys sequentially."""
     updated_data = {"point": [2018, 94, 5.5], "review": "New review text", "attributes": {"rating": 95}}
     hops = 0
     for key in keys:
-        hops += network.update_key(key, updated_data)
+        hops += network.update_key(key, updated_data)["hops"]
     return hops/len(keys)
 
 def lookups(network, keys):
@@ -48,9 +47,8 @@ def lookups(network, keys):
     upper_bounds = [2018, 100, 100]
     hops = 0
     for key in keys:
-        hops += network.lookup(key, lower_bounds, upper_bounds, N)
+        hops += network.lookup(key, lower_bounds, upper_bounds, N)["hops"]
     return hops/len(keys)
-
 
 def insert_key(network, key, point, review, country, name):
     """Insert a key."""
@@ -60,7 +58,7 @@ def insert_key(network, key, point, review, country, name):
 
 def main():
     # Load dataset
-    dataset_path = "../Coffee_Reviews_Dataset/simplified_coffee.csv"
+    dataset_path = "../../Coffee_Reviews_Dataset/simplified_coffee.csv"
     df = pd.read_csv(dataset_path)
 
     # Keep only the year from the review_date column
@@ -158,41 +156,28 @@ def main():
     network.update_key(key, updated_data=update_fields)
 
     # Update only the review
-    print("\nUpdate In Parallel")
-    print("Updating only the review for Taiwan:\n")
-    update_fields1 = {
-        "review": "An updated review for Romania's coffee: Dried plums, acacia honey, roasted walnuts, and dark chocolate in aroma and cup."
-    } 
-    update_fields2 = {
-        "review": "An 2nd updated review for Romania's coffee: crisp and fruity with a lingering sweetness."
-    }
-
- 
-    update_thread1 = threading.Thread(target=network.update_key, args=(key, update_fields1,))
-    update_thread2 = threading.Thread(target=network.update_key, args=(key, update_fields2,))
-
-    update_thread2.start()
-    update_thread1.start()
-
-    update_thread1.join()
-    update_thread2.join()
+    print("Updating specific point for Taiwan:\n")
+    taiwan_country_key = hash_key("Taiwan")
+    update_feilds_that_have = {"review_date": 2019, "rating": 94, "price": 35.0}
+    update_to = {"attributes": {"price": 36.0}}
+    response = network.update_key(key=taiwan_country_key, updated_data=update_to, criteria=update_feilds_that_have)
     # ################################################################
     # #                        LOOKUP KEY                            #
     # ################################################################
     lower_bounds = [2000, 10, 0]
     upper_bounds = [2023, 100, 50]
     print("\nVerifying updates through lookup:")
-    response = network.lookup(key, lower_bounds, upper_bounds, N=5)
+    response = network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
     print(f">> Lookup status: {response["status"]}.")
     print(f">> {response["message"]}")
     print(f">> Key Found with {response["hops"]} hops.")
+    print(f"Returned points: {response["points"]}")
     # ################################################################
     # #                        DELETE KEY                            #
     # ################################################################
     print("""\n################################################################
 #                        DELETE KEY                            #
 ################################################################\n""")
-    taiwan_country_key = hash_key("Taiwan")
     print(f"\nDelete key with value {taiwan_country_key}.")
     response = network.delete_key(taiwan_country_key)
     print(f">> Delete status: {response["status"]}.")
@@ -206,26 +191,26 @@ def main():
     print("\nVerifying deletion through lookup:\n")
     network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
 
-    # for node_id in network.nodes.keys():
-    #     if network.nodes[node_id].running:
-    #         network.nodes[node_id].print_state()
+    print("""\n################################################################
+#                        NETWORK STATE                         #
+################################################################\n""")
+    for node_id in network.nodes.keys():
+        if network.nodes[node_id].running:
+            network.nodes[node_id].print_state()
 
-    #     time.sleep(5)
-    #     network.nodes["4b12"].leave()
-    #     time.sleep(5)
-    #     for node_id in network.nodes.keys():
-    #         if network.nodes[node_id].running:
-    #             network.nodes[node_id].print_state()
-
-
-    # node = ChordNode(network, node_id="2fec")
-    # node.start_server()
-    # network.node_join(node)
-    # # network.nodes["4b12"].leave()
-    # time.sleep(5)
-    # for node_id in network.nodes.keys():
-    #     if network.nodes[node_id].running:
-    #         network.nodes[node_id].print_state()
+    print("""\n################################################################
+#                        NODE JOIN                             #
+################################################################\n""")
+    node = ChordNode(network, node_id="2fec")
+    node.start_server()
+    network.node_join(node)
+    time.sleep(2)
+    print("""\n################################################################
+#                        NETWORK STATE                         #
+################################################################\n""")
+    for node_id in network.nodes.keys():
+        if network.nodes[node_id].running:
+            network.nodes[node_id].print_state()
 
     # ################################################################
     # #                        NODES LEAVE                           #
@@ -235,33 +220,23 @@ def main():
 ################################################################\n"""
     )
     time.sleep(2)
-    nodes_to_leave = ["19bd", "fa35"]
-    for node in nodes_to_leave:
+    for node in predefined_ids:
         node = network.nodes[node]
         if node.running:
             node.leave()
-            print("\n\n" + "-" * 100)
-            time.sleep(5)
+            time.sleep(3)
             print(f"\n>>>> State after node {node.node_id} left")
             for node in network.nodes.values():
                 if node.running:
                     node.print_state()
 
-    # network.nodes["4bde"].leave()
-    # network.nodes["4c12"].leave()
-    # network.nodes["cafe"].leave()
-
-    # network.nodes["2fec"].leave()
-    
-
-
-    running = True
-    while running:
-        time.sleep(2)
-        running = False
-        for node in network.nodes.values():
-            if node.running:
-                running = True
+    # running = True
+    # while running:
+    #     time.sleep(2)
+    #     running = False
+    #     for node in network.nodes.values():
+    #         if node.running:
+    #             running = True
 
 
 if __name__ == "__main__":

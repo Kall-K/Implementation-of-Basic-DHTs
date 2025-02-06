@@ -31,14 +31,13 @@ def delete_keys(network, keys):
         response = network.delete_key(key)
         responses.append(response["hops"])
     return responses
-        
 
 def update_keys(network, keys):
     """Update all keys sequentially."""
     updated_data = {"point": [2018, 94, 5.5], "review": "New review text", "attributes": {"rating": 95}}
     hops = 0
     for key in keys:
-        hops += network.update_key(key, updated_data)
+        hops += network.update_key(key, updated_data)["hops"]
     return hops/len(keys)
 
 def lookups(network, keys):
@@ -48,7 +47,7 @@ def lookups(network, keys):
     upper_bounds = [2018, 0, 0]
     hops = 0
     for key in keys:
-        hops += network.lookup(key, lower_bounds, upper_bounds, N)
+        hops += network.lookup(key, lower_bounds, upper_bounds, N)["hops"]
     return hops/len(keys)
 
 
@@ -159,20 +158,14 @@ def main():
         node = network.nodes[node]
         if node.running:
             node.leave()
-            print("\n\n" + "-" * 100)
-            time.sleep(5)
-            # print(f"\n>>>> State after node {node.node_id} left")
-            # for node in network.nodes.values():
-            #     if node.running:
-            #         node.print_state()
 
-    running = True
-    while running:
-        time.sleep(2)
-        running = False
-        for node in network.nodes.values():
-            if node.running:
-                running = True
+    # running = True
+    # while running:
+    #     time.sleep(2)
+    #     running = False
+    #     for node in network.nodes.values():
+    #         if node.running:
+    #             running = True
 
 
 if __name__ == "__main__":
