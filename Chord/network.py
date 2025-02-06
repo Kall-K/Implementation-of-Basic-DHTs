@@ -1,3 +1,4 @@
+import random
 import pandas as pd
 
 from .helper_functions import *
@@ -6,11 +7,8 @@ from .node import ChordNode
 
 
 class ChordNetwork:
-    bootstrap_node = None
-
     def __init__(self, main_window=None):
         self.nodes = {}  # Dictionary. Keys are node IDs, values are Node objects
-        self.keys = {}
         self.used_ports = []
 
         self.gui = ChordDashboard(self, main_window)
@@ -25,20 +23,17 @@ class ChordNetwork:
         # Add the node to the network
         self.nodes[node_id] = new_node
 
-        # # Add the node's port to the node_ports dictionary
-        # self.node_ports[new_node_id] = new_node.port
-
         if len(self.nodes) == 1:
-            print("The network is empty. This node is the first node.")
-            ChordNetwork.bootstrap_node = new_node
-            self.successor = self
-            return
+            print(f"The network is empty. This node {node_id} is the first node.")
+            return [None]
 
-        successor_id, hops = new_node.request_find_successor(
-            node_id, ChordNetwork.bootstrap_node, []
-        )
+        random_id = random.choice(list(self.nodes.keys()))
+        while node_id == random_id or not self.nodes[random_id].running:
+            random_id = random.choice(list(self.nodes.keys()))
+        successor_id, hops = new_node.request_find_successor(node_id, self.nodes[random_id], [])
         # new_node joins on successor
         new_node.join(self.nodes[successor_id])
+        return hops
 
     def build(self, predefined_ids):
         """
@@ -86,14 +81,31 @@ class ChordNetwork:
             print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
             self.insert_key(key, point, review, country)
 
+        # Show the Chord GUI
+        self.gui.show_dht_gui()
+        # Run the gui main loop
+        self.gui.root.mainloop()
+
     def insert_key(self, key, point, review, country):
-        return ChordNetwork.bootstrap_node.insert_key(key, point, review, country)
+        random_id = random.choice(list(self.nodes.keys()))
+        while not self.nodes[random_id].running:
+            random_id = random.choice(list(self.nodes.keys()))
+        return self.nodes[random_id].insert_key(key, point, review, country)
 
     def delete_key(self, key):
-        return ChordNetwork.bootstrap_node.delete_key(key)
+        random_id = random.choice(list(self.nodes.keys()))
+        while not self.nodes[random_id].running:
+            random_id = random.choice(list(self.nodes.keys()))
+        return self.nodes[random_id].delete_key(key)
 
     def update_key(self, key, updated_data, criteria=None):
-        return ChordNetwork.bootstrap_node.update_key(key, updated_data, criteria=None)
+        random_id = random.choice(list(self.nodes.keys()))
+        while not self.nodes[random_id].running:
+            random_id = random.choice(list(self.nodes.keys()))
+        return self.nodes[random_id].update_key(key, updated_data, criteria)["hops"]
 
     def lookup(self, key, lower_bounds, upper_bounds, N):
-        return ChordNetwork.bootstrap_node.lookup(key, lower_bounds, upper_bounds, N)
+        random_id = random.choice(list(self.nodes.keys()))
+        while not self.nodes[random_id].running:
+            random_id = random.choice(list(self.nodes.keys()))
+        return self.nodes[random_id].lookup(key, lower_bounds, upper_bounds, N)["hops"]

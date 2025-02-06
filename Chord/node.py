@@ -1,3 +1,4 @@
+import struct
 import threading
 import socket
 import hashlib
@@ -176,6 +177,7 @@ class ChordNode:
     def print_state(self):
         print(self.get_state)
 
+
     # Network Communication
 
     def start_server(self):
@@ -187,7 +189,7 @@ class ChordNode:
         self.thread_pool.submit(self._update_finger_table_scheduler)
 
     def _update_finger_table_scheduler(self):
-        interval = 3  # seconds
+        interval = 1.5  # seconds
         while True:
             if not self.running:
                 break
@@ -234,7 +236,20 @@ class ChordNode:
 
     def _handle_request(self, conn):
         try:
-            data = conn.recv(1024 * 1024)  # Read up to 1024*1024 bytes of data
+            # Receive the length of the incoming data (first 4 bytes)
+            length_data = conn.recv(4)
+            if not length_data:
+                return
+            data_length = struct.unpack(">I", length_data)[0]
+
+            # Receive the actual data
+            data = b""
+            while len(data) < data_length:
+                chunk = conn.recv(min(data_length - len(data), 1024 * 1024))
+                if not chunk:
+                    break
+                data += chunk
+
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
             response = None
@@ -266,7 +281,13 @@ class ChordNode:
 
             # Add more operations here as needed
 
-            conn.sendall(pickle.dumps(response))  # Serialize and send the response
+            # Serialize the response
+            response_data = pickle.dumps(response)
+            # Send the length of the response first (4 bytes)
+            conn.sendall(struct.pack(">I", len(response_data)))
+
+            # Send the actual response
+            conn.sendall(response_data)
         except Exception as e:
             print(f"Error handling request: {e}")
         finally:
@@ -276,20 +297,38 @@ class ChordNode:
         """
         Send a request to a node and wait for its response.
         """
-        # Use loopback IP for actual connection
         connect_address = ("127.0.0.1", node.address[1])
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(120)  # Timeout to avoid long delays
+                s.connect(connect_address)
+                # Serialize the request
+                data = pickle.dumps(request)
 
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            # s.settimeout(10)  # Set a timeout for both connect and recv
-            try:
-                s.connect(connect_address)  # Connect using loopback
-                s.sendall(pickle.dumps(request))  # Serialize and send the request
-                response = s.recv(1024 * 1024)  # Receive the response
-            except Exception as e:
-                return None
+                # Send the length of the data first (4 bytes)
+                s.sendall(struct.pack(">I", len(data)))
 
-        return pickle.loads(response)  # Deserialize the response
+                # Send the actual data
+                s.sendall(data)
 
+                # Receive the response length
+                response_length_data = s.recv(4)
+                if not response_length_data:
+                    return None
+                response_length = struct.unpack(">I", response_length_data)[0]
+
+                # Receive the response data
+                response_data = b""
+                while len(response_data) < response_length:
+                    chunk = s.recv(min(response_length - len(response_data), 1024 * 1024))
+                    if not chunk:
+                        break
+                    response_data += chunk
+                return pickle.loads(response_data)
+            
+        except (socket.error, EOFError, pickle.PickleError) as e:
+            print(f"Network: Failed to send request to node at port {node.address[1]}. Error: {e}")
+            return None  # Return None to indicate failure
     #############################
     ######### Requests ##########
     #############################
@@ -410,9 +449,10 @@ class ChordNode:
             points = self.back_up.points
             reviews = self.back_up.reviews.tolist()
             countries = self.back_up.countries
-            c = 0
+
+
             for key, point, review, country in zip(keys, points, reviews, countries):
-                c = c + 1
+
                 request = {
                     "operation": "INSERT_KEY",
                     "key": key,
@@ -495,12 +535,12 @@ class ChordNode:
             if tree and key in tree.country_keys:
                 tree.delete_points(key)
             else:
-                return {"status": "failure", "message": f"No data for key {key}."}
-
-            if request["choice"]:
+                return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
+            
+            if request["choice"]: 
                 self.kd_tree = tree
                 self.request_backup_update(self.get_successor(), request)
-            else:
+            else: 
                 self.back_up = tree
 
             return {"status": "success", "message": f"Deleted Key {key}.", "hops": hops}
@@ -555,14 +595,15 @@ class ChordNode:
             or self.kd_tree.points.size == 0
         ):
             print(f"Node {self.node_id}: No data for key {key}.")
-            return {"status": "failure", "message": f"No data for key {key}."}
 
+            return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
+        
         # KDTree Range Search
         points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
         # print(f"Node {self.node_id}: Found {len(points)} matching points.")
 
         if len(reviews) == 0:
-            print(f"Node {self.node_id}: No reviews found within the specified range.")
+            # print(f"Node {self.node_id}: No reviews found within the specified range.")
             return {
                 "status": "success",
                 "points": [],
@@ -680,26 +721,42 @@ class ChordNode:
     #############################
     #### Update Finger Table ####
     #############################
-    # fix pos=0
+    
     def update_finger_table(self, hops=[]):
+        self.finger_table[0] = self.get_successor()
         for i in range(1, len(self.finger_table)):
-            key = int_to_hex((int(self.node_id, 16) + 2**i) % R)
+            key = int_to_hex((int(self.node_id, 16) + 2 ** i) % R)
             temp_node = self.request_find_successor(key, self, hops)[0]
-            while self.network.nodes[temp_node].running == False:
-                temp_node = self.request_find_successor(
-                    int_to_hex((int(temp_node, 16) + 1) % R), self, hops
-                )[0]
-            self.finger_table[i] = temp_node
+            for _ in range(len(self.network.nodes)):
+                if self.network.nodes[temp_node].running == True: break
+                temp_node = self.request_find_successor(int_to_hex((int(temp_node, 16)+1) % R), self, hops)[0]
 
+            self.finger_table[i] = temp_node
+        
     #############################
     ## Closest Preceding Node ###
     #############################
 
     def closest_preceding_node(self, node, h_key):
-        for i in range(len(node.finger_table) - 1, 0, -1):
-            if distance(node.finger_table[i - 1], h_key) < distance(node.finger_table[i], h_key):
-                if self.network.nodes[node.finger_table[i - 1]].running:  # skip non-running nodes
-                    return node.finger_table[i - 1]
+        for i in range(len(node.finger_table)-1, 0, -1):
+            preceding_node = node.finger_table[i-1]
+            next_node = node.finger_table[i]
+
+            running_node_found = False
+            for _ in range(i, len(self.finger_table)):
+                if self.network.nodes[node.finger_table[i]].running == True:
+                    next_node = node.finger_table[i]
+                    running_node_found = True
+                    break
+            if not running_node_found:
+                next_node = node.finger_table[-1]
+                
+            if distance(node.finger_table[i-1], h_key) < distance(next_node, h_key):
+                preceding_node = node.finger_table[i-1]
+                if self.request_status_running(preceding_node):
+                # if self.network.nodes[preceding_node].running: # skip non-running nodes
+                    return preceding_node #  -3 |-2| key -1
+
 
         return node.finger_table[-1]
 
@@ -724,22 +781,26 @@ class ChordNode:
 
         if successor_node.kd_tree != None:
             # Get keys from successor
-            keys = {
-                key
-                for key in sorted(successor_node.kd_tree.country_keys)
-                if (distance(self.node_id, key) < distance(self.get_successor(), key))
-            }
-
+            keys = [key for key in np.unique(successor_node.kd_tree.country_keys)
+                    if (distance(self.node_id, key) > distance(self.get_successor(), key))]
+            
             # 1. Insert keys and data to self's kdtree
             for key in keys:
-                review = successor_node.kd_tree.reviews[successor_node.kd_tree.country_keys == key][
-                    0
-                ]
-                country = successor_node.kd_tree.countries[
-                    successor_node.kd_tree.country_keys == key
-                ][0]
-                point = successor_node.kd_tree.points[successor_node.kd_tree.country_keys == key][0]
-                self.kd_tree.add_point(point, review, country)
+                indices = np.where(successor_node.kd_tree.country_keys == key)
+                reviews = successor_node.kd_tree.reviews[indices]
+                countries = [successor_node.kd_tree.countries[i] for i in indices[0]]
+                points = successor_node.kd_tree.points[indices]
+                for review,point,country in zip(reviews, points, countries):
+                    request = {
+                        "operation": "INSERT_KEY",
+                        "key": key,
+                        "point": point,
+                        "review": review,
+                        "country": country,
+                        "hops": [],  # Initialize hops tracking
+                        "choice": True
+                    }
+                    self._handle_insert_key_request(request)
 
             # 2. Delete keys and data from successor
             self.request_delete_successor_keys(keys, suc_id)
