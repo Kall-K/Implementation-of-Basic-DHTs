@@ -175,7 +175,26 @@ class ChordNode:
         return "\n".join(state)
 
     def print_state(self):
-        print(self.get_state)
+        """
+        Print the state of the node (ID, Address, Data Structures).
+        """
+        print("\n" + "-" * 100)
+        print(f"-- Node ID: {self.node_id} --")
+        print(f"* Predecessor: {self.predecessor}")
+        print(f"* Finger Table: {self.finger_table}")
+        print(f"* Successors: {self.successors}")
+        if self.kd_tree:
+            print("* KDTree Info")
+            print(f"\tUnique Countries: {list(set(self.kd_tree.countries))}")
+            print(f"\tUnique keys: {np.unique(self.kd_tree.country_keys)}")
+            print(f"\tNum of points: {len(self.kd_tree.points)}")
+        else: print("* KDTree is Empty.")
+        if self.back_up:
+            print("* Backup Info")
+            print(f"\tUnique Countries: {list(set(self.back_up.countries))}")
+            print(f"\tUnique keys: {np.unique(self.back_up.country_keys)}")
+            print(f"\tNum of points: {len(self.back_up.points)}")
+        else: print("* Backup is Empty.")
 
 
     # Network Communication
@@ -214,7 +233,7 @@ class ChordNode:
         # Use loopback for actual binding
         bind_ip = "127.0.0.1"  # Bind to localhost for real communication
         bind_address = (bind_ip, self.address[1])
-
+    
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             try:
@@ -224,6 +243,7 @@ class ChordNode:
                 return
 
             s.listen()
+            s.settimeout(4)
             # print(f"Node {self.node_id} listening on {self.address} (bound to {bind_address})")
 
             while not self.stop_event.is_set():
@@ -231,7 +251,9 @@ class ChordNode:
                 # Submit the connection to the thread pool for handling
                 try:
                     self.thread_pool.submit(self._handle_request, conn)
-                except RuntimeError as e:
+                except socket.timeout:
+                    continue
+                except RuntimeError:
                     return None
 
     def _handle_request(self, conn):
