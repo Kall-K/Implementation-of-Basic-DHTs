@@ -35,22 +35,37 @@ class ChordNetwork:
         new_node.join(self.nodes[successor_id])
         return hops
 
-    def build(self, predefined_ids):
+    def build(self, predefined_ids=None, node_num=None):
         """
         Build the Chord network with the specified number of nodes.
         """
         # Node Arrivals
         print("Node Arrivals")
         print("=======================")
-        print(f"Adding {len(predefined_ids)} nodes to the network...")
-        print("\n" + "-" * 100)
-        for node_id in predefined_ids:
-            node = ChordNode(self, node_id=node_id)
-            print(f"Adding Node: ID = {node.node_id}")
-            node.start_server()
-            self.node_join(node)
-            print(f"\nNode Added: ID = {node.node_id}")
+        if predefined_ids is not None:
+            print(f"Adding {len(predefined_ids)} nodes to the network...")
             print("\n" + "-" * 100)
+            for node_id in predefined_ids:
+                node = ChordNode(self, node_id=node_id)
+                print(f"Adding Node: ID = {node.node_id}")
+                node.start_server()
+                self.node_join(node)
+                print(f"\nNode Added: ID = {node.node_id}")
+                print("\n" + "-" * 100)
+        else:
+            # If predefined node ids are not provided build the network with node_num random nodes
+            if node_num is None:
+                print("The number of nodes must be specified.")
+                return
+            print(f"Adding {node_num} nodes to the network...")
+            print("\n" + "-" * 100)
+            for i in range(node_num):
+                node = ChordNode(self)
+                node.start_server()
+                self.node_join(node)
+                print(f"\nNode Added: ID = {node.node_id}")
+                print("\n" + "-" * 100)
+
         print("\nAll nodes have successfully joined the network.\n")
 
         # Insert keys

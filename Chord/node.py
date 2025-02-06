@@ -9,12 +9,7 @@ import numpy as np
 import subprocess  # for running netsh to get excluded ports on Windows
 import re
 import platform  # for system identification to get excluded ports
-from collections import defaultdict
-import sys
-import os
 
-# Add the parent directory to sys.path
-# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from constants import *
 from helper_functions import *
@@ -124,8 +119,16 @@ class ChordNode:
             port = np.random.randint(1024, 65535)  # Random port if not provided
 
             if port not in self.network.used_ports and not is_excluded(port):
-                self.network.used_ports.append(port)
-                return port
+                # Test if port is actually available
+                test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    test_socket.bind(("127.0.0.1", port))
+                    self.network.used_ports.append(port)
+                    return port
+                except OSError:
+                    continue
+                finally:
+                    test_socket.close()
 
     # State Inspection
     def get_state(self):
