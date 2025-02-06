@@ -1,3 +1,4 @@
+import random
 import pandas as pd
 
 from .helper_functions import *
@@ -22,20 +23,17 @@ class ChordNetwork:
         # Add the node to the network
         self.nodes[node_id] = new_node
 
-        # # Add the node's port to the node_ports dictionary
-        # self.node_ports[new_node_id] = new_node.port
-
         if len(self.nodes) == 1:
             print(f"The network is empty. This node {node_id} is the first node.")
-            return
-
+            return [None]
         
-        for id in self.nodes.keys():
-            if self.nodes[id].running and node_id != id:
-                successor_id, _ = new_node.request_find_successor(node_id, self.nodes[id], [])
-                # new_node joins on successor
-                new_node.join(self.nodes[successor_id])
-                break
+        random_id = random.choice(list(self.nodes.keys()))
+        while node_id == random_id or not self.nodes[random_id].running:
+            random_id = random.choice(list(self.nodes.keys()))
+        successor_id, hops = new_node.request_find_successor(node_id, self.nodes[random_id], [])
+        # new_node joins on successor
+        new_node.join(self.nodes[successor_id]) 
+        return hops
 
     def build(self, predefined_ids):
         """
@@ -88,24 +86,26 @@ class ChordNetwork:
         # Run the gui main loop
         self.gui.root.mainloop()
 
-
-    def insert_key(self, key, point, review, country):  
-        for node_id in self.nodes.keys():
-            if self.nodes[node_id].running:
-                return self.nodes[node_id].insert_key(key, point, review, country)
-
-    def delete_key(self, key):
-        for node_id in self.nodes.keys():
-            if self.nodes[node_id].running:
-                return self.nodes[node_id].delete_key(key)  
+    def insert_key(self, key, point, review, country): 
+        random_id = random.choice(list(self.nodes.keys()))
+        while not self.nodes[random_id].running:
+            random_id = random.choice(list(self.nodes.keys()))
+        return self.nodes[random_id].insert_key(key, point, review, country)
     
+    def delete_key(self, key):
+        random_id = random.choice(list(self.nodes.keys()))
+        while not self.nodes[random_id].running:
+            random_id = random.choice(list(self.nodes.keys()))
+        return self.nodes[random_id].delete_key(key)  
+  
     def update_key(self, key, updated_data, criteria=None):
-        for node_id in self.nodes.keys():
-            if self.nodes[node_id].running:
-                return self.nodes[node_id].update_key(key, updated_data, criteria)
-        
+        random_id = random.choice(list(self.nodes.keys()))
+        while not self.nodes[random_id].running:
+            random_id = random.choice(list(self.nodes.keys()))
+        return self.nodes[random_id].update_key(key, updated_data, criteria)
 
     def lookup(self, key, lower_bounds, upper_bounds, N):
-        for node_id in self.nodes.keys():
-            if self.nodes[node_id].running:
-                return self.nodes[node_id].lookup(key, lower_bounds, upper_bounds, N)
+        random_id = random.choice(list(self.nodes.keys()))
+        while not self.nodes[random_id].running:
+            random_id = random.choice(list(self.nodes.keys()))
+        return self.nodes[random_id].lookup(key, lower_bounds, upper_bounds, N)

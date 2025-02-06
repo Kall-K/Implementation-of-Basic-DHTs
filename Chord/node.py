@@ -1,3 +1,4 @@
+import struct
 import threading
 import socket
 import hashlib
@@ -235,7 +236,20 @@ class ChordNode:
 
     def _handle_request(self, conn):
         try:
-            data = conn.recv(1024 * 1024)  # Read up to 1024*1024 bytes of data
+            # Receive the length of the incoming data (first 4 bytes)
+            length_data = conn.recv(4)
+            if not length_data:
+                return
+            data_length = struct.unpack(">I", length_data)[0]
+
+            # Receive the actual data
+            data = b""
+            while len(data) < data_length:
+                chunk = conn.recv(min(data_length - len(data), 1024 * 1024))
+                if not chunk:
+                    break
+                data += chunk
+
             request = pickle.loads(data)  # Deserialize the request
             operation = request["operation"]
             response = None
@@ -267,7 +281,13 @@ class ChordNode:
 
             # Add more operations here as needed
 
-            conn.sendall(pickle.dumps(response))  # Serialize and send the response
+            # Serialize the response
+            response_data = pickle.dumps(response)
+            # Send the length of the response first (4 bytes)
+            conn.sendall(struct.pack(">I", len(response_data)))
+
+            # Send the actual response
+            conn.sendall(response_data)
         except Exception as e:
             print(f"Error handling request: {e}")
         finally:
@@ -277,20 +297,38 @@ class ChordNode:
         """
         Send a request to a node and wait for its response.
         """
-        # Use loopback IP for actual connection
         connect_address = ("127.0.0.1", node.address[1])
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(120)  # Timeout to avoid long delays
+                s.connect(connect_address)
+                # Serialize the request
+                data = pickle.dumps(request)
 
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            # s.settimeout(10)  # Set a timeout for both connect and recv
-            try:
-                s.connect(connect_address)  # Connect using loopback
-                s.sendall(pickle.dumps(request))  # Serialize and send the request
-                response = s.recv(1024 * 1024)  # Receive the response
-            except Exception as e:
-                return None
+                # Send the length of the data first (4 bytes)
+                s.sendall(struct.pack(">I", len(data)))
 
-        return pickle.loads(response)  # Deserialize the response
+                # Send the actual data
+                s.sendall(data)
 
+                # Receive the response length
+                response_length_data = s.recv(4)
+                if not response_length_data:
+                    return None
+                response_length = struct.unpack(">I", response_length_data)[0]
+
+                # Receive the response data
+                response_data = b""
+                while len(response_data) < response_length:
+                    chunk = s.recv(min(response_length - len(response_data), 1024 * 1024))
+                    if not chunk:
+                        break
+                    response_data += chunk
+                return pickle.loads(response_data)
+            
+        except (socket.error, EOFError, pickle.PickleError) as e:
+            print(f"Network: Failed to send request to node at port {node.address[1]}. Error: {e}")
+            return None  # Return None to indicate failure
     #############################
     ######### Requests ##########
     #############################
@@ -372,20 +410,15 @@ class ChordNode:
     #############################
 
     def _handle_find_successor(self, request):
-        # print(f"\n- {self.node_id} ENTERING FIND_SUCCESSOR", end = ", ")
         key = request["key"]
         request["hops"].append(self.node_id)
         if self.node_id == key:
-            # print(f"1rst if", end=", ")
             return self.node_id, request["hops"]
         if distance(self.node_id, key) <= distance(self.get_successor(), key):
-            # print(f"2nd if", end=", ")
             return self.get_successor(), request["hops"]
         else:
-            # print(f"else1", end=", ")
             closest_preceding_node_id = self.closest_preceding_node(self, key)
             closest_preceding_node = self.network.nodes[closest_preceding_node_id]
-            # print(f"else2")
             return self.request_find_successor(key, closest_preceding_node, request["hops"])
 
     def _handle_delete_successor_keys(self, request):
@@ -690,19 +723,15 @@ class ChordNode:
     #############################
     
     def update_finger_table(self, hops=[]):
-        # print(f"\n- {self.node_id} ENTERING Update Finger Table -", end=", ")
         self.finger_table[0] = self.get_successor()
         for i in range(1, len(self.finger_table)):
-            # print(f"{self.node_id} 1", end=", ")
             key = int_to_hex((int(self.node_id, 16) + 2 ** i) % R)
             temp_node = self.request_find_successor(key, self, hops)[0]
-            # print(f"{self.node_id} 2")
             for _ in range(len(self.network.nodes)):
                 if self.network.nodes[temp_node].running == True: break
                 temp_node = self.request_find_successor(int_to_hex((int(temp_node, 16)+1) % R), self, hops)[0]
 
             self.finger_table[i] = temp_node
-        # print(f"- {self.node_id} LEAVING -\n")
         
     #############################
     ## Closest Preceding Node ###
