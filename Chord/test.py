@@ -31,6 +31,26 @@ def delete_keys(network, keys):
         response = network.delete_key(key)
         responses.append(response["hops"])
     return responses
+        
+
+def update_keys(network, keys):
+    """Update all keys sequentially."""
+    updated_data = {"point": [2018, 94, 5.5], "review": "New review text", "attributes": {"rating": 95}}
+    hops = 0
+    for key in keys:
+        hops += network.update_key(key, updated_data)
+    return hops/len(keys)
+
+def lookups(network, keys):
+    """Perform lookups for all keys."""
+    N = 3
+    lower_bounds = [2018, 0, 0]
+    upper_bounds = [2018, 100, 100]
+    hops = 0
+    for key in keys:
+        hops += network.lookup(key, lower_bounds, upper_bounds, N)
+    return hops/len(keys)
+
 
 def insert_key(network, key, point, review, country, name):
     """Insert a key."""
@@ -176,6 +196,7 @@ def main():
 # #     update_fields2 = {
 # #         "review": "An 2nd updated review for Romania's coffee: crisp and fruity with a lingering sweetness."
 # #     }
+
  
 # #     update_thread1 = threading.Thread(target=network.update_key, args=(key, update_fields1,))
 # #     update_thread2 = threading.Thread(target=network.update_key, args=(key, update_fields2,))
@@ -251,7 +272,7 @@ def main():
             node.leave()
             print("\n\n" + "-" * 100)
             time.sleep(5)
-            print(f"\n>>>> State after node ${node.node_id} left")
+            print(f"\n>>>> State after node {node.node_id} left")
             for node in network.nodes.values():
                 if node.running:
                     node.print_state()
