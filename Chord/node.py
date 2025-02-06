@@ -603,7 +603,7 @@ class ChordNode:
         # print(f"Node {self.node_id}: Found {len(points)} matching points.")
 
         if len(reviews) == 0:
-            print(f"Node {self.node_id}: No reviews found within the specified range.")
+            # print(f"Node {self.node_id}: No reviews found within the specified range.")
             return {
                 "status": "success",
                 "points": [],
