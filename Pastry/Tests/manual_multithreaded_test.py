@@ -202,7 +202,7 @@ def main():
     join_thread2.join()"""
 
     """--- Concurrent Node Departures ---"""
-    node_id1 = "4b12"
+    """node_id1 = "4b12"
     node_id2 = "d3ad"
 
     leave_thread1 = threading.Thread(target=leave, args=(network, node_id1))
@@ -212,7 +212,7 @@ def main():
     leave_thread2.start()
 
     leave_thread1.join()
-    leave_thread2.join()
+    leave_thread2.join()"""
 
     """--- Concurrent Node Leave and Delete Key from the leaving node ---"""
     """node_id = "c816"
