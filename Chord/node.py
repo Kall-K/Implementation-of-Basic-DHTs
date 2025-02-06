@@ -772,8 +772,6 @@ class ChordNode:
                         "choice": True
                     }
                     self._handle_insert_key_request(request)
-                # self.kd_tree.add_point(point, review, country)
-
 
             # 2. Delete keys and data from successor
             self.request_delete_successor_keys(keys, suc_id)

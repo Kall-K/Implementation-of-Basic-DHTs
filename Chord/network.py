@@ -6,8 +6,6 @@ from .node import ChordNode
 
 
 class ChordNetwork:
-    bootstrap_node = None
-
     def __init__(self, main_window=None):
         self.nodes = {}  # Dictionary. Keys are node IDs, values are Node objects
         self.used_ports = []
@@ -29,7 +27,6 @@ class ChordNetwork:
 
         if len(self.nodes) == 1:
             print(f"The network is empty. This node {node_id} is the first node.")
-            ChordNetwork.bootstrap_node = new_node
             return
 
         
@@ -39,8 +36,6 @@ class ChordNetwork:
                 # new_node joins on successor
                 new_node.join(self.nodes[successor_id])
                 break
-        
-
 
     def build(self, predefined_ids):
         """

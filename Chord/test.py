@@ -1,13 +1,17 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import time
 
 import threading
 
 import pandas as pd
 
-from network import ChordNetwork
-from node import ChordNode
-from constants import *
-from helper_functions import *
+from Chord.network import ChordNetwork
+from Chord.node import ChordNode
+from Chord.constants import *
+from Chord.helper_functions import *
 
 
 def insert_keys(network, keys, points, reviews, countries, names):
