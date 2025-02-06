@@ -17,3 +17,13 @@ M = 3
 
 # The main operations
 main_operations = ["NODE_JOIN", "NODE_LEAVE", "INSERT_KEY", "LOOKUP", "UPDATE_KEY", "DELETE_KEY"]
+
+# Operations for testing
+operations = [
+    "Node Join",
+    "Node Leave",
+    "Insert Keys",
+    "Delete Keys",
+    "Update Keys",
+    "Look up Keys",
+]

@@ -8,8 +8,9 @@ from Pastry.network import PastryNetwork
 from constants import predefined_ids
 
 
-def main():
-    network = PastryNetwork()
+def build_test(network=None):
+    if network is None:
+        network = PastryNetwork()
 
     # network.build(node_num=20, dataset_path="../../../Coffee_Reviews_Dataset/simplified_coffee.csv")
     avg_join_hops, avg_insert_hops = network.build(
@@ -18,7 +19,9 @@ def main():
     )
 
     print(f"\nAverage Hops during Node Arrivals: {avg_join_hops}")
-    print(f"\nAverage Hops during key Insertion: {avg_insert_hops}\n")
+    print(f"\nAverage Hops during Key Insertions: {avg_insert_hops}\n")
+
+    return avg_join_hops, avg_insert_hops
 
     # Show the DHT GUI
     # network.gui.show_dht_gui()
@@ -26,4 +29,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    build_test()
