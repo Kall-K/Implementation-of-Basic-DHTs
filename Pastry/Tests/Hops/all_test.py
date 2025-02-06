@@ -20,7 +20,7 @@ def main():
 
     network = PastryNetwork()
 
-    dataset_path = "../../../Coffee_Reviews_Dataset/simplified_coffee.csv"
+    # dataset_path = "../../../Coffee_Reviews_Dataset/simplified_coffee.csv"
 
     # Node Join and Insert Keys Test
     input("Build the network. Press Enter to continue...")
