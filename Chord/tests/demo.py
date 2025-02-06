@@ -1,7 +1,8 @@
 import json
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 import time
 
@@ -23,7 +24,8 @@ def insert_keys(network, keys, points, reviews, countries, names):
         response = network.insert_key(key, point, review, country)
         responses.append(response["hops"])
     return responses
-        
+
+
 def delete_keys(network, keys):
     """Insert all keys sequentially."""
     responses = []
@@ -32,13 +34,19 @@ def delete_keys(network, keys):
         responses.append(response["hops"])
     return responses
 
+
 def update_keys(network, keys):
     """Update all keys sequentially."""
-    updated_data = {"point": [2018, 94, 5.5], "review": "New review text", "attributes": {"rating": 95}}
+    updated_data = {
+        "point": [2018, 94, 5.5],
+        "review": "New review text",
+        "attributes": {"rating": 95},
+    }
     hops = 0
     for key in keys:
         hops += network.update_key(key, updated_data)["hops"]
-    return hops/len(keys)
+    return hops / len(keys)
+
 
 def lookups(network, keys):
     """Perform lookups for all keys."""
@@ -48,7 +56,8 @@ def lookups(network, keys):
     hops = 0
     for key in keys:
         hops += network.lookup(key, lower_bounds, upper_bounds, N)["hops"]
-    return hops/len(keys)
+    return hops / len(keys)
+
 
 def insert_key(network, key, point, review, country, name):
     """Insert a key."""
@@ -97,7 +106,7 @@ def main():
     for node_id in predefined_ids:
         node = ChordNode(network, node_id=node_id)
         node.start_server()
-        hops.append(len(network.node_join(node))-1)
+        hops.append(len(network.node_join(node)) - 1)
 
     print(f"Num of hops to insert {len(hops)} nodes: {sum(hops)}")
     print(f"Avarage num of hops to insert a node: {sum(hops)/len(hops)}")
@@ -149,7 +158,8 @@ def main():
     print(
         """\n################################################################
 #                        UPDATE KEY                            #
-################################################################\n""")
+################################################################\n"""
+    )
     # Update all points
     print("\nUpdating all points for Romania:\n")
     update_fields = {"attributes": {"price": 35.0}}
@@ -160,7 +170,9 @@ def main():
     taiwan_country_key = hash_key("Taiwan")
     update_feilds_that_have = {"review_date": 2019, "rating": 94, "price": 35.0}
     update_to = {"attributes": {"price": 36.0}}
-    response = network.update_key(key=taiwan_country_key, updated_data=update_to, criteria=update_feilds_that_have)
+    response = network.update_key(
+        key=taiwan_country_key, updated_data=update_to, criteria=update_feilds_that_have
+    )
     # ################################################################
     # #                        LOOKUP KEY                            #
     # ################################################################
@@ -168,21 +180,23 @@ def main():
     upper_bounds = [2023, 100, 50]
     print("\nVerifying updates through lookup:")
     response = network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
-    print(f">> Lookup status: {response["status"]}.")
-    print(f">> {response["message"]}")
-    print(f">> Key Found with {response["hops"]} hops.")
-    print(f"Returned points: {response["points"]}")
+    print(f">> Lookup status: {response['status']}.")
+    print(f">> {response['message']}")
+    print(f">> Key Found with {response['hops']} hops.")
+    print(f"Returned points: {response['points']}")
     # ################################################################
     # #                        DELETE KEY                            #
     # ################################################################
-    print("""\n################################################################
+    print(
+        """\n################################################################
 #                        DELETE KEY                            #
-################################################################\n""")
+################################################################\n"""
+    )
     print(f"\nDelete key with value {taiwan_country_key}.")
     response = network.delete_key(taiwan_country_key)
-    print(f">> Delete status: {response["status"]}.")
-    print(f">> {response["message"]}")
-    print(f">> Key Deleted with {response["hops"]} hops.")
+    print(f">> Delete status: {response['status']}.")
+    print(f">> {response['message']}")
+    print(f">> Key Deleted with {response['hops']} hops.")
     # ################################################################
     # #                        LOOKUP KEY                            #
     # ################################################################
@@ -191,31 +205,38 @@ def main():
     print("\nVerifying deletion through lookup:\n")
     network.lookup(taiwan_country_key, lower_bounds, upper_bounds, N=5)
 
-    print("""\n################################################################
+    print(
+        """\n################################################################
 #                        NETWORK STATE                         #
-################################################################\n""")
+################################################################\n"""
+    )
     for node_id in network.nodes.keys():
         if network.nodes[node_id].running:
             network.nodes[node_id].print_state()
 
-    print("""\n################################################################
+    print(
+        """\n################################################################
 #                        NODE JOIN                             #
-################################################################\n""")
+################################################################\n"""
+    )
     node = ChordNode(network, node_id="2fec")
     node.start_server()
     network.node_join(node)
     time.sleep(2)
-    print("""\n################################################################
+    print(
+        """\n################################################################
 #                        NETWORK STATE                         #
-################################################################\n""")
+################################################################\n"""
+    )
     for node_id in network.nodes.keys():
         if network.nodes[node_id].running:
             network.nodes[node_id].print_state()
 
     # ################################################################
     # #                        NODES LEAVE                           #
-    # ################################################################    
-    print("""\n################################################################
+    # ################################################################
+    print(
+        """\n################################################################
 #                        NODES LEAVE                           #
 ################################################################\n"""
     )
