@@ -17,7 +17,6 @@ class MainLauncher(tk.Tk):
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
-        # Create a label or any instructions
         label = tk.Label(self, text="Select which DHT to build:", font=("Arial", 30))
         label.pack(pady=30)
 
