@@ -1,0 +1,7 @@
+{
+    "Node Join": 0.75,
+    "Insert Keys": 1.9325842696629214,
+    "Delete Keys": 1.5,
+    "Update Keys": "update",
+    "Look up Keys": "lookup"
+}
