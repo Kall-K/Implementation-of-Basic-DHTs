@@ -35,7 +35,6 @@ def delete_keys(network, keys):
     return responses
 
 
-
 def update_keys(network, keys):
     """Update all keys sequentially."""
     updated_data = {
@@ -45,11 +44,9 @@ def update_keys(network, keys):
     }
     hops = 0
     for key in keys:
-        hops += network.update_key(key, updated_data)
+        hops += network.update_key(key, updated_data)["hops"]
     return hops / len(keys)
 
-        hops += network.update_key(key, updated_data)["hops"]
-    return hops/len(keys)
 
 def lookups(network, keys):
     """Perform lookups for all keys."""
@@ -58,10 +55,8 @@ def lookups(network, keys):
     upper_bounds = [2018, 0, 0]
     hops = 0
     for key in keys:
-        hops += network.lookup(key, lower_bounds, upper_bounds, N)
-    return hops / len(keys)
         hops += network.lookup(key, lower_bounds, upper_bounds, N)["hops"]
-    return hops/len(keys)
+    return hops / len(keys)
 
 
 def insert_key(network, key, point, review, country, name):
