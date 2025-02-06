@@ -12,7 +12,7 @@ from update_test import update_test
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 from Pastry.network import PastryNetwork
-from Pastry.constants import operations
+from constants import pastry_operations
 
 
 def main():
@@ -26,28 +26,28 @@ def main():
     input("Build the network. Press Enter to continue...")
     avg_join_hops, avg_insert_hops = build_test(network)
 
-    Results[operations[0]] = avg_join_hops
-    Results[operations[2]] = avg_insert_hops
+    Results[pastry_operations[0]] = avg_join_hops
+    Results[pastry_operations[2]] = avg_insert_hops
 
     # Lookup Test
     input("Test Lookup. Press Enter to continue...")
     avg_lookup_hops = lookup_test(network)
-    Results[operations[5]] = avg_lookup_hops
+    Results[pastry_operations[5]] = avg_lookup_hops
 
     # Update Test
     input("Test Update. Press Enter to continue...")
     avg_update_hops = update_test(network)
-    Results[operations[4]] = avg_update_hops
+    Results[pastry_operations[4]] = avg_update_hops
 
     # Delete Test
     input("Test Delete. Press Enter to continue...")
     avg_delete_hops = delete_test(network)
-    Results[operations[3]] = avg_delete_hops
+    Results[pastry_operations[3]] = avg_delete_hops
 
     # Leave Test
     input("Test Leave. Press Enter to continue...")
     avg_leave_hops = leave_test(network)
-    Results[operations[1]] = avg_leave_hops
+    Results[pastry_operations[1]] = avg_leave_hops
 
     with open("PastryResults.json", "a") as outfile:
         json.dump(Results, outfile, indent=4)

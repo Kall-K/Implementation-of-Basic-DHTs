@@ -11,8 +11,8 @@ import pandas as pd
 
 from Chord.network import ChordNetwork
 from Chord.node import ChordNode
-from Chord.constants import *
-from Chord.helper_functions import *
+from constants import *
+from helper_functions import *
 
 
 def insert_keys(network, keys, points, reviews, countries, names):

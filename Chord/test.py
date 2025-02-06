@@ -1,7 +1,8 @@
 import json
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import time
 
@@ -11,8 +12,8 @@ import pandas as pd
 
 from Chord.network import ChordNetwork
 from Chord.node import ChordNode
-from Chord.constants import *
-from Chord.helper_functions import *
+from constants import *
+from helper_functions import *
 
 
 def insert_keys(network, keys, points, reviews, countries, names):
@@ -23,7 +24,8 @@ def insert_keys(network, keys, points, reviews, countries, names):
         response = network.insert_key(key, point, review, country)
         responses.append(response["hops"])
     return responses
-        
+
+
 def delete_keys(network, keys):
     """Insert all keys sequentially."""
     responses = []
@@ -31,15 +33,20 @@ def delete_keys(network, keys):
         response = network.delete_key(key)
         responses.append(response["hops"])
     return responses
-        
+
 
 def update_keys(network, keys):
     """Update all keys sequentially."""
-    updated_data = {"point": [2018, 94, 5.5], "review": "New review text", "attributes": {"rating": 95}}
+    updated_data = {
+        "point": [2018, 94, 5.5],
+        "review": "New review text",
+        "attributes": {"rating": 95},
+    }
     hops = 0
     for key in keys:
         hops += network.update_key(key, updated_data)
-    return hops/len(keys)
+    return hops / len(keys)
+
 
 def lookups(network, keys):
     """Perform lookups for all keys."""
@@ -49,7 +56,7 @@ def lookups(network, keys):
     hops = 0
     for key in keys:
         hops += network.lookup(key, lower_bounds, upper_bounds, N)
-    return hops/len(keys)
+    return hops / len(keys)
 
 
 def insert_key(network, key, point, review, country, name):
@@ -98,11 +105,11 @@ def main():
     for node_id in predefined_ids:
         node = ChordNode(network, node_id=node_id)
         node.start_server()
-        hops.append(len(network.node_join(node))-1)
+        hops.append(len(network.node_join(node)) - 1)
 
     print(f"Total num of hops to insert {len(hops)} nodes: {sum(hops)}")
     print(f"Avarage num of hops to insert a node: {sum(hops)/len(hops)}")
-    Results[operations[0]] = sum(hops)/len(hops)
+    Results[chord_operations[0]] = sum(hops) / len(hops)
 
     print(
         """\n################################################################
@@ -117,7 +124,7 @@ def main():
     print(f"Sum of hops: {sum(result)}")
     print(f"Total num of Inserts: {len(result)}")
     print("\n" + "-" * 100 + "\n")
-    Results[operations[1]] = sum(result)/len(result)
+    Results[chord_operations[1]] = sum(result) / len(result)
 
     print(
         """\n################################################################
@@ -126,7 +133,7 @@ def main():
     )
     update_hops = update_keys(network, unique_keys)
     print("update hops: ", update_hops)
-    Results[operations[3]] = update_hops
+    Results[chord_operations[3]] = update_hops
 
     print(
         """\n################################################################
@@ -134,8 +141,8 @@ def main():
 ################################################################\n"""
     )
     lookup_hops = lookups(network, unique_keys)
-    print("lookup hops: ", lookup_hops) 
-    Results[operations[4]] = lookup_hops
+    print("lookup hops: ", lookup_hops)
+    Results[chord_operations[4]] = lookup_hops
 
     print(
         """\n################################################################
@@ -150,11 +157,11 @@ def main():
     print(f"Sum of hops: {sum(result)}")
     print(f"Total num of Deletions: {len(result)}")
     print("\n" + "-" * 100 + "\n")
-    Results[operations[2]] = sum(result)/len(result)
+    Results[chord_operations[2]] = sum(result) / len(result)
 
-    with open("ChordResults.json", "a") as outfile: 
+    with open("ChordResults.json", "a") as outfile:
         json.dump(Results, outfile, indent=4)
-    
+
     for node in predefined_ids:
         node = network.nodes[node]
         if node.running:

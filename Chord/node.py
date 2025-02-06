@@ -223,14 +223,18 @@ class ChordNode:
                 return
 
             s.listen()
+            s.settimeout(1.0)
             # print(f"Node {self.node_id} listening on {self.address} (bound to {bind_address})")
 
             while not self.stop_event.is_set():
-                conn, addr = s.accept()  # Accept incoming connection
-                # Submit the connection to the thread pool for handling
                 try:
+                    conn, addr = s.accept()  # Accept incoming connection
+                    # Submit the connection to the thread pool for handling
                     self.thread_pool.submit(self._handle_request, conn)
+                except socket.timeout:
+                    continue  # Check stop_event again
                 except RuntimeError as e:
+                    print(f"Runtime Error: {e}")
                     return None
 
     def _handle_request(self, conn):
