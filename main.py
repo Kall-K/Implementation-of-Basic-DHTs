@@ -107,13 +107,14 @@ class MainLauncher(tk.Tk):
         dialog.title("Chord Node Creation")
         dialog.geometry("300x150")
 
-        label = tk.Label(dialog, text="Choose node creation method:")
+        label = tk.Label(dialog, text="Choose node creation method:", font=("Arial", 15))
         label.pack(pady=10)
 
         btn_predefined = tk.Button(
             dialog,
             text="Predefined Nodes",
             command=lambda: self.handle_chord_choice(dialog, predefined=True),
+            font=("Arial", 12),
         )
         btn_predefined.pack(pady=5)
 
@@ -121,6 +122,7 @@ class MainLauncher(tk.Tk):
             dialog,
             text="Random Nodes",
             command=lambda: self.handle_chord_choice(dialog, predefined=False),
+            font=("Arial", 12),
         )
         btn_random.pack(pady=5)
 

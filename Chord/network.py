@@ -1,7 +1,7 @@
 import random
 import pandas as pd
 
-from .helper_functions import *
+from helper_functions import *
 from .chord_gui import ChordDashboard
 from .node import ChordNode
 

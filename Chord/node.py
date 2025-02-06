@@ -16,8 +16,8 @@ import os
 # Add the parent directory to sys.path
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from .constants import *
-from .helper_functions import *
+from constants import *
+from helper_functions import *
 from Multidimensional_Data_Structures.kd_tree import KDTree
 from Multidimensional_Data_Structures.lsh import LSH
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -177,7 +177,6 @@ class ChordNode:
     def print_state(self):
         print(self.get_state)
 
-
     # Network Communication
 
     def start_server(self):
@@ -325,10 +324,11 @@ class ChordNode:
                         break
                     response_data += chunk
                 return pickle.loads(response_data)
-            
+
         except (socket.error, EOFError, pickle.PickleError) as e:
             print(f"Network: Failed to send request to node at port {node.address[1]}. Error: {e}")
             return None  # Return None to indicate failure
+
     #############################
     ######### Requests ##########
     #############################
@@ -450,7 +450,6 @@ class ChordNode:
             reviews = self.back_up.reviews.tolist()
             countries = self.back_up.countries
 
-
             for key, point, review, country in zip(keys, points, reviews, countries):
 
                 request = {
@@ -536,11 +535,11 @@ class ChordNode:
                 tree.delete_points(key)
             else:
                 return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
-            
-            if request["choice"]: 
+
+            if request["choice"]:
                 self.kd_tree = tree
                 self.request_backup_update(self.get_successor(), request)
-            else: 
+            else:
                 self.back_up = tree
 
             return {"status": "success", "message": f"Deleted Key {key}.", "hops": hops}
@@ -597,7 +596,7 @@ class ChordNode:
             print(f"Node {self.node_id}: No data for key {key}.")
 
             return {"status": "failure", "message": f"No data for key {key}.", "hops": hops}
-        
+
         # KDTree Range Search
         points, reviews = self.kd_tree.search(key, lower_bounds, upper_bounds)
         # print(f"Node {self.node_id}: Found {len(points)} matching points.")
@@ -721,25 +720,28 @@ class ChordNode:
     #############################
     #### Update Finger Table ####
     #############################
-    
+
     def update_finger_table(self, hops=[]):
         self.finger_table[0] = self.get_successor()
         for i in range(1, len(self.finger_table)):
-            key = int_to_hex((int(self.node_id, 16) + 2 ** i) % R)
+            key = int_to_hex((int(self.node_id, 16) + 2**i) % R)
             temp_node = self.request_find_successor(key, self, hops)[0]
             for _ in range(len(self.network.nodes)):
-                if self.network.nodes[temp_node].running == True: break
-                temp_node = self.request_find_successor(int_to_hex((int(temp_node, 16)+1) % R), self, hops)[0]
+                if self.network.nodes[temp_node].running == True:
+                    break
+                temp_node = self.request_find_successor(
+                    int_to_hex((int(temp_node, 16) + 1) % R), self, hops
+                )[0]
 
             self.finger_table[i] = temp_node
-        
+
     #############################
     ## Closest Preceding Node ###
     #############################
 
     def closest_preceding_node(self, node, h_key):
-        for i in range(len(node.finger_table)-1, 0, -1):
-            preceding_node = node.finger_table[i-1]
+        for i in range(len(node.finger_table) - 1, 0, -1):
+            preceding_node = node.finger_table[i - 1]
             next_node = node.finger_table[i]
 
             running_node_found = False
@@ -750,13 +752,12 @@ class ChordNode:
                     break
             if not running_node_found:
                 next_node = node.finger_table[-1]
-                
-            if distance(node.finger_table[i-1], h_key) < distance(next_node, h_key):
-                preceding_node = node.finger_table[i-1]
-                if self.request_status_running(preceding_node):
-                # if self.network.nodes[preceding_node].running: # skip non-running nodes
-                    return preceding_node #  -3 |-2| key -1
 
+            if distance(node.finger_table[i - 1], h_key) < distance(next_node, h_key):
+                preceding_node = node.finger_table[i - 1]
+                if self.request_status_running(preceding_node):
+                    # if self.network.nodes[preceding_node].running: # skip non-running nodes
+                    return preceding_node  #  -3 |-2| key -1
 
         return node.finger_table[-1]
 
@@ -781,16 +782,19 @@ class ChordNode:
 
         if successor_node.kd_tree != None:
             # Get keys from successor
-            keys = [key for key in np.unique(successor_node.kd_tree.country_keys)
-                    if (distance(self.node_id, key) > distance(self.get_successor(), key))]
-            
+            keys = [
+                key
+                for key in np.unique(successor_node.kd_tree.country_keys)
+                if (distance(self.node_id, key) > distance(self.get_successor(), key))
+            ]
+
             # 1. Insert keys and data to self's kdtree
             for key in keys:
                 indices = np.where(successor_node.kd_tree.country_keys == key)
                 reviews = successor_node.kd_tree.reviews[indices]
                 countries = [successor_node.kd_tree.countries[i] for i in indices[0]]
                 points = successor_node.kd_tree.points[indices]
-                for review,point,country in zip(reviews, points, countries):
+                for review, point, country in zip(reviews, points, countries):
                     request = {
                         "operation": "INSERT_KEY",
                         "key": key,
@@ -798,7 +802,7 @@ class ChordNode:
                         "review": review,
                         "country": country,
                         "hops": [],  # Initialize hops tracking
-                        "choice": True
+                        "choice": True,
                     }
                     self._handle_insert_key_request(request)
 
