@@ -5,21 +5,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 from Pastry.network import PastryNetwork
-
-predefined_ids = [
-    "4b12",
-    "fa35",
-    "19bd",
-    "37de",
-    "3722",
-    "ca12",
-    "cafe",
-    "fb32",
-    "20bc",
-    "20bd",
-    "3745",
-    "d3ad",
-]
+from constants import predefined_ids
 
 
 def main():

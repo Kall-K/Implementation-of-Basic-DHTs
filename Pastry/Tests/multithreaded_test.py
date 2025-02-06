@@ -10,6 +10,7 @@ from Pastry.network import PastryNetwork
 from Pastry.node import PastryNode
 from Pastry.constants import *
 from Pastry.helper_functions import hash_key
+from constants import predefined_ids
 
 
 def insert_key(node, key, point, review, country, name):
@@ -62,22 +63,6 @@ def leave(network, node_id):
     print(f"\n[Thread {thread_id}] Node {node_id}: Leaving the network gracefully.\n")
     response = network.leave(node_id)
     print(f"[Thread {thread_id}] Network Response: {response}")
-
-
-predefined_ids = [
-    "4b12",
-    "fa35",
-    "19bd",
-    "37de",
-    "3722",
-    "ca12",
-    "cafe",
-    "fb32",
-    "20bc",
-    "20bd",
-    "3745",
-    "d3ad",
-]
 
 
 def main():
@@ -229,9 +214,22 @@ def main():
     leave_thread1.join()
     leave_thread2.join()"""
 
+    """--- Concurrent Node Leave and Delete Key from the leaving node ---"""
+    """node_id = "c816"
+    delete_key = "28ad"
+
+    leave_thread = threading.Thread(target=leave, args=(network, node_id))
+    delete_thread = threading.Thread(target=delete_key, args=(node_id, delete_key))
+
+    delete_thread.start()
+    leave_thread.start()
+
+    delete_thread.join()
+    leave_thread.join()
+
     # Show the DHT GUI
     network.gui.show_dht_gui()
-    network.gui.root.mainloop()
+    network.gui.root.mainloop()"""
 
 
 if __name__ == "__main__":
