@@ -117,10 +117,10 @@ class ChordNetwork:
         random_id = random.choice(list(self.nodes.keys()))
         while not self.nodes[random_id].running:
             random_id = random.choice(list(self.nodes.keys()))
-        return self.nodes[random_id].update_key(key, updated_data, criteria)["hops"]
+        return self.nodes[random_id].update_key(key, updated_data, criteria)
 
     def lookup(self, key, lower_bounds, upper_bounds, N):
         random_id = random.choice(list(self.nodes.keys()))
         while not self.nodes[random_id].running:
             random_id = random.choice(list(self.nodes.keys()))
-        return self.nodes[random_id].lookup(key, lower_bounds, upper_bounds, N)["hops"]
+        return self.nodes[random_id].lookup(key, lower_bounds, upper_bounds, N)

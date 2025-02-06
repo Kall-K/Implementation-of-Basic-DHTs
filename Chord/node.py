@@ -178,7 +178,28 @@ class ChordNode:
         return "\n".join(state)
 
     def print_state(self):
-        print(self.get_state)
+        """
+        Print the state of the node (ID, Address, Data Structures).
+        """
+        print("\n" + "-" * 100)
+        print(f"-- Node ID: {self.node_id} --")
+        print(f"* Predecessor: {self.predecessor}")
+        print(f"* Finger Table: {self.finger_table}")
+        print(f"* Successors: {self.successors}")
+        if self.kd_tree:
+            print("* KDTree Info")
+            print(f"\tUnique Countries: {list(set(self.kd_tree.countries))}")
+            print(f"\tUnique keys: {np.unique(self.kd_tree.country_keys)}")
+            print(f"\tNum of points: {len(self.kd_tree.points)}")
+        else:
+            print("* KDTree is Empty.")
+        if self.back_up:
+            print("* Backup Info")
+            print(f"\tUnique Countries: {list(set(self.back_up.countries))}")
+            print(f"\tUnique keys: {np.unique(self.back_up.country_keys)}")
+            print(f"\tNum of points: {len(self.back_up.points)}")
+        else:
+            print("* Backup is Empty.")
 
     # Network Communication
 
@@ -609,7 +630,7 @@ class ChordNode:
         # print(f"Node {self.node_id}: Found {len(points)} matching points.")
 
         if len(reviews) == 0:
-            # print(f"Node {self.node_id}: No reviews found within the specified range.")
+            print(f"Node {self.node_id}: No reviews found within the specified range.")
             return {
                 "status": "success",
                 "points": [],
