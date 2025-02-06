@@ -15,7 +15,7 @@ from Pastry.network import PastryNetwork
 from constants import pastry_operations
 
 
-def main():
+def pastry_test():
     Results = {}
 
     network = PastryNetwork()
@@ -49,7 +49,7 @@ def main():
     avg_leave_hops = leave_test(network)
     Results[pastry_operations[1]] = avg_leave_hops
 
-    with open("PastryResults.json", "a") as outfile:
+    with open("PastryResults.json", "w") as outfile:
         json.dump(Results, outfile, indent=4)
 
     # Show the DHT GUI
@@ -58,4 +58,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    pastry_test()

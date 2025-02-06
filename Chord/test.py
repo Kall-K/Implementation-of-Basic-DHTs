@@ -65,7 +65,7 @@ def insert_key(network, key, point, review, country, name):
     return network.insert_key(key, point, review, country)
 
 
-def main():
+def chord_test():
     # Load dataset
     dataset_path = "../Coffee_Reviews_Dataset/simplified_coffee.csv"
     df = pd.read_csv(dataset_path)
@@ -159,7 +159,7 @@ def main():
     print("\n" + "-" * 100 + "\n")
     Results[chord_operations[2]] = sum(result) / len(result)
 
-    with open("ChordResults.json", "a") as outfile:
+    with open("ChordResults.json", "w") as outfile:
         json.dump(Results, outfile, indent=4)
 
     for node in predefined_ids:
@@ -177,4 +177,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    chord_test()

@@ -25,7 +25,7 @@ R = 2**M  # Max possible number of nodes in the network
 S = 4  # Number of successors for each node
 
 # Operations for testing
-chord_operations = ["Node Join", "Insert Keys", "Delete Keys", "Update Keys", "Look up Keys"]
+chord_operations = ["Node Join", "Insert Keys", "Delete Keys", "Update Keys", "Lookup Keys"]
 
 
 """------------ Pastry Constants ------------"""
@@ -53,5 +53,5 @@ pastry_operations = [
     "Insert Keys",
     "Delete Keys",
     "Update Keys",
-    "Look up Keys",
+    "Lookup Keys",
 ]
