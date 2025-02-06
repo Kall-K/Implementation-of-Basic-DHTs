@@ -8,8 +8,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 
 from Pastry.network import PastryNetwork
 from Pastry.node import PastryNode
-from Pastry.constants import *
-from Pastry.helper_functions import hash_key
+from constants import *
+from helper_functions import hash_key
 from constants import predefined_ids
 
 
