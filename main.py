@@ -81,7 +81,7 @@ class MainLauncher(tk.Tk):
         self.wait_window(dialog)
 
     def handle_pastry_choice(self, dialog, predefined):
-        """Handle the user's choice for Pastry node creation."""
+        """Handle the user's choice for Pastry network creation."""
         dialog.destroy()
 
         if predefined:
@@ -129,7 +129,7 @@ class MainLauncher(tk.Tk):
         self.wait_window(dialog)
 
     def handle_chord_choice(self, dialog, predefined):
-        """Handle the user's choice for Chord node creation."""
+        """Handle the user's choice for Chord network creation."""
         dialog.destroy()
 
         if predefined:

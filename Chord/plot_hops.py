@@ -18,13 +18,13 @@ def load_json_file(file_path):
         sys.exit(1)
 
 
-def create_pastry_plot(pastry_data):
-    """Create a bar plot showing average hops per operation for Pastry."""
+def create_chord_plot(chord_data):
+    """Create a bar plot showing average hops per operation for Chord."""
     # Define the metrics we want to include in the plot
-    metrics = pastry_data.keys()
+    metrics = chord_data.keys()
 
     # Extract values for the specified metrics
-    values = [pastry_data.get(metric, 0) for metric in metrics]
+    values = [chord_data.get(metric, 0) for metric in metrics]
 
     # Set up the plot
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -34,7 +34,7 @@ def create_pastry_plot(pastry_data):
 
     # Customize plot
     ax.set_ylabel("Average Hops")
-    ax.set_title("Pastry DHT: Average Hops per Operation")
+    ax.set_title("Chord DHT: Average Hops per Operation")
     ax.set_xticks(range(len(metrics)))
     ax.set_xticklabels(metrics, ha="center")
 
@@ -72,7 +72,7 @@ def main():
     pastry_data = load_json_file("ChordResults.json")
 
     # Create the Pastry performance plot
-    create_pastry_plot(pastry_data)
+    create_chord_plot(pastry_data)
 
 
 if __name__ == "__main__":
