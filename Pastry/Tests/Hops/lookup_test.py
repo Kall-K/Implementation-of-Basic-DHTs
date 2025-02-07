@@ -1,7 +1,6 @@
 import sys
 import os
 import random
-import numpy as np
 
 # Add the parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))

@@ -1,4 +1,7 @@
 pandas
-scikit-learn
 numpy
+scikit-learn
 matplotlib
+tkinter
+scipy
+threadpoolctl
