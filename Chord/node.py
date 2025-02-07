@@ -212,7 +212,7 @@ class ChordNode:
         self.thread_pool.submit(self._update_finger_table_scheduler)
 
     def _update_finger_table_scheduler(self):
-        interval = 1.5  # seconds
+        interval = 10  # seconds
         while True:
             if not self.running:
                 break
@@ -221,7 +221,7 @@ class ChordNode:
             # print("Updated Finger Table of Node:", self.node_id)
 
     def _update_successors_scheduler(self):
-        interval = 0.5  # seconds
+        interval = 10  # seconds
         while True:
             if not self.running:
                 break
@@ -322,40 +322,66 @@ class ChordNode:
 
     def send_request(self, node, request):
         """
-        Send a request to a node and wait for its response.
+        Send a request to a node and wait for its response,
+        reusing a persistent connection if available.
         """
-        connect_address = ("127.0.0.1", node.address[1])
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(120)  # Timeout to avoid long delays
-                s.connect(connect_address)
+        # Use the (ip, port) tuple as the key for both the lock and the connection pool.
+        port = node.address[1]
+        lock = self.network.connection_locks[port]
+
+        with lock:
+            # Attempt to get an existing connection from the pool.
+            connection = self.network.connection_pool.get(port)
+
+            # If no connection exists or if the connection is no longer valid, create a new one.
+            if connection is None:
+                try:
+                    connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    connection.settimeout(120)
+                    connection.connect(("127.0.0.1", node.address[1]))
+                    self.network.connection_pool[port] = connection
+                except socket.error as e:
+                    print(f"Node {self.node_id}: Unable to connect to {port}: {e}")
+                    return None
+
+            try:
                 # Serialize the request
                 data = pickle.dumps(request)
+                # Send the length of the data (4 bytes) and then the data itself.
+                connection.sendall(struct.pack(">I", len(data)))
+                connection.sendall(data)
 
-                # Send the length of the data first (4 bytes)
-                s.sendall(struct.pack(">I", len(data)))
-
-                # Send the actual data
-                s.sendall(data)
-
-                # Receive the response length
-                response_length_data = s.recv(4)
+                # Receive the response length first.
+                response_length_data = connection.recv(4)
                 if not response_length_data:
+                    # If no data is received, assume the connection is broken.
+                    connection.close()
+                    del self.network.connection_pool[port]
                     return None
                 response_length = struct.unpack(">I", response_length_data)[0]
 
-                # Receive the response data
+                # Receive the full response.
                 response_data = b""
                 while len(response_data) < response_length:
-                    chunk = s.recv(min(response_length - len(response_data), 1024 * 1024))
+                    chunk = connection.recv(min(response_length - len(response_data), 1024 * 1024))
                     if not chunk:
                         break
                     response_data += chunk
+
                 return pickle.loads(response_data)
 
-        except (socket.error, EOFError, pickle.PickleError) as e:
-            print(f"Network: Failed to send request to node at port {node.address[1]}. Error: {e}")
-            return None  # Return None to indicate failure
+            except (socket.error, EOFError, pickle.PickleError) as e:
+                print(
+                    f"Node {self.node_id}: Error during communication with node at port {node.address[1]}. Error: {e}"
+                )
+                # On error, close and remove the connection from the pool.
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+                if port in self.network.connection_pool:
+                    del self.network.connection_pool[port]
+                return None
 
     #############################
     ######### Requests ##########

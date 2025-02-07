@@ -1,5 +1,7 @@
 import random
 import pandas as pd
+from collections import defaultdict
+import threading
 
 from helper_functions import *
 from .chord_gui import ChordDashboard
@@ -10,6 +12,10 @@ class ChordNetwork:
     def __init__(self, main_window=None):
         self.nodes = {}  # Dictionary. Keys are node IDs, values are Node objects
         self.used_ports = []
+
+        # Dictionary of locks for each port. To ensure that only one thread can connect to a port at a time
+        self.connection_locks = defaultdict(threading.Lock)
+        self.connection_pool = {}
 
         self.gui = ChordDashboard(self, main_window)
 
