@@ -35,7 +35,7 @@ class ChordNetwork:
         new_node.join(self.nodes[successor_id])
         return hops
 
-    def build(self, predefined_ids=None, node_num=None):
+    def build(self, predefined_ids=None, node_num=None, dataset_path=None):
         """
         Build the Chord network with the specified number of nodes.
         """
@@ -70,7 +70,8 @@ class ChordNetwork:
 
         # Insert keys
         # Load dataset
-        dataset_path = "Coffee_Reviews_Dataset/simplified_coffee.csv"
+        if dataset_path is None:
+            dataset_path = "Coffee_Reviews_Dataset/simplified_coffee.csv"
         df = pd.read_csv(dataset_path)
 
         # Keep only the year from the review_date column
@@ -95,11 +96,6 @@ class ChordNetwork:
         for key, point, review, country, name in zip(keys, points, reviews, countries, names):
             print(f"\nInserting Key: {key}, Country: {country}, Name: {name}\n")
             self.insert_key(key, point, review, country)
-
-        # Show the Chord GUI
-        self.gui.show_dht_gui()
-        # Run the gui main loop
-        self.gui.root.mainloop()
 
     def insert_key(self, key, point, review, country):
         random_id = random.choice(list(self.nodes.keys()))
