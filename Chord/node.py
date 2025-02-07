@@ -837,8 +837,8 @@ class ChordNode:
             # 2. Delete keys and data from successor
             self.request_delete_successor_keys(keys, suc_id)
 
-            # 3. Update successor's backup with self's kd_tree
-            self.request_set_backup(self.kd_tree, suc_id)
+        # 3. Update successor's backup with self's kd_tree
+        self.request_set_backup(self.kd_tree, suc_id)
 
         # 4. Update backup from predecessor's kd_tree
         if (not self.network.nodes[pre_id].running) or (self.network.nodes[pre_id] == self.node_id):
